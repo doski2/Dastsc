@@ -1,0 +1,12 @@
+{
+    "name": "Gp38mapperSimple",
+    "source_file": "Gp38mapperSimple.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {},
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

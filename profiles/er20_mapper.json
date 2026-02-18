@@ -1,0 +1,14 @@
+{
+    "name": "ER20 Mapper",
+    "source_file": "ER20_Mapper.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

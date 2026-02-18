@@ -1,0 +1,27 @@
+{
+    "name": "Class390 Expert",
+    "source_file": "Class390_Expert.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "UserVirtualReverser",
+        "current": "Current",
+        "effort": "TractiveEffort",
+        "dra": "DRA"
+    },
+    "brakes": {
+        "type": "COMBINED_EP",
+        "control": "ThrottleAndBrake",
+        "has_dynamic": true,
+        "system": "ELECTRO_PNEUMATIC",
+        "response_speed": "FAST"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

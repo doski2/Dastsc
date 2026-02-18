@@ -1,0 +1,17 @@
+{
+    "name": "ALP46 Expert",
+    "source_file": "ALP46_Expert.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "UserVirtualReverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

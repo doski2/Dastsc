@@ -1,0 +1,16 @@
+{
+    "name": "class66 stopgo",
+    "source_file": "class66_stopgo.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

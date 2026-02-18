@@ -1,0 +1,17 @@
+{
+    "name": "Standard Diesel/Electric",
+    "fingerprint": {
+        "required_controls": ["Regulator", "TrainBrakeControl"]
+    },
+    "mappings": {
+        "throttle": "Regulator",
+        "brake": "TrainBrakeControl",
+        "reverser": "Reverser",
+        "brake_pipe": "BrakePipePressureBAR",
+        "brake_cylinder": "TrainBrakeCylinderPressureBAR"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#e67e22"
+    }
+}

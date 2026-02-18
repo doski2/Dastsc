@@ -1,0 +1,26 @@
+{
+    "name": "BR189Expert",
+    "source_file": "BR189Expert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser",
+        "regulator": "Regulator",
+        "train_brake": "TrainBrakeControl",
+        "loco_brake": "EngineBrakeControl",
+        "dynamic_brake": "DynamicBrake"
+    },
+    "brakes": {
+        "type": "DISCRETE_AIR",
+        "train_control": "TrainBrakeControl",
+        "engine_control": "EngineBrakeControl",
+        "dynamic_control": "DynamicBrake",
+        "system": "UIC_AIR",
+        "response_speed": "SLOW_GRADUATED"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}

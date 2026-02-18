@@ -1,0 +1,14 @@
+{
+    "name": "gp40 Expert",
+    "source_file": "gp40_Expert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

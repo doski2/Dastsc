@@ -1,0 +1,14 @@
+{
+    "name": "BR185Expert",
+    "source_file": "BR185Expert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}

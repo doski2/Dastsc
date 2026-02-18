@@ -1,0 +1,17 @@
+{
+    "name": "class66 expert",
+    "source_file": "class66_expert.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

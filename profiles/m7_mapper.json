@@ -1,0 +1,17 @@
+{
+    "name": "M7 mapper",
+    "source_file": "M7_mapper.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "UserVirtualReverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

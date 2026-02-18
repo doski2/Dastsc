@@ -1,0 +1,14 @@
+{
+    "name": "455 Expert PDL",
+    "source_file": "455_Expert_PDL.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

@@ -1,0 +1,17 @@
+{
+    "name": "Stadler Flirt3 InputMapper SUWEX",
+    "source_file": "Stadler_Flirt3_InputMapper_SUWEX.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "name": "Class450 Simple PDL",
+    "source_file": "Class450_Simple_PDL.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {},
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

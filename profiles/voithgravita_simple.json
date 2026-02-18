@@ -1,0 +1,12 @@
+{
+    "name": "VoithGravita Simple",
+    "source_file": "VoithGravita_Simple.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {},
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

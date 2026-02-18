@@ -1,0 +1,14 @@
+{
+    "name": "BR155 ExpertInput",
+    "source_file": "BR155_ExpertInput.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "UserVirtualReverser"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}

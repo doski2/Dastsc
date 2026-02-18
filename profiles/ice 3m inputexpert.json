@@ -1,0 +1,14 @@
+{
+    "name": "ICE 3M InputExpert",
+    "source_file": "ICE 3M InputExpert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

@@ -1,0 +1,14 @@
+{
+    "name": "ES44AC Expert BNSF",
+    "source_file": "ES44AC_Expert_BNSF.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

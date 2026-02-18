@@ -1,0 +1,17 @@
+{
+    "name": "BR101",
+    "source_file": "BR101.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}

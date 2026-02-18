@@ -1,0 +1,12 @@
+{
+    "name": "BR52 StopGo",
+    "source_file": "BR52_StopGo.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {},
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}

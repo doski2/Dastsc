@@ -1,0 +1,17 @@
+{
+    "name": "DB BR101 / BR185 (Expert)",
+    "fingerprint": {
+        "required_controls": ["Regulator", "TrainBrakeControl", "AFB"]
+    },
+    "mappings": {
+        "throttle": "Regulator",
+        "brake": "TrainBrakeControl",
+        "afb": "AFB",
+        "brake_pipe": "BrakePipePressureBAR",
+        "brake_cylinder": "TrainBrakeCylinderPressureBAR"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#c0392b"
+    }
+}

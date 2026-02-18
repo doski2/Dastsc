@@ -1,0 +1,17 @@
+{
+    "name": "A2 Expert",
+    "source_file": "A2_Expert.txt",
+    "fingerprint": {
+        "required_controls": [
+            "TrainBrakeControl"
+        ]
+    },
+    "mappings": {
+        "brake": "TrainBrakeControl",
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

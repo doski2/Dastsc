@@ -1,0 +1,27 @@
+{
+    "name": "BR442 mapper expert",
+    "source_file": "BR442_mapper_expert.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "Reverser",
+        "current": "Ammeter",
+        "effort": "TractiveEffort",
+        "aws": "PZB_State"
+    },
+    "brakes": {
+        "type": "COMBINED_PZB",
+        "control": "ThrottleAndBrake",
+        "has_dynamic": true,
+        "system": "GERMAN_AIR",
+        "response_speed": "FAST"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}

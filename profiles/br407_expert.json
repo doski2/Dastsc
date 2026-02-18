@@ -1,0 +1,14 @@
+{
+    "name": "BR407 Expert",
+    "source_file": "BR407_Expert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}

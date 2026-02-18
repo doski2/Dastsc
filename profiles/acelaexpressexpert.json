@@ -1,0 +1,14 @@
+{
+    "name": "AcelaExpressExpert",
+    "source_file": "AcelaExpressExpert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

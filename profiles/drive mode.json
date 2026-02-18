@@ -1,0 +1,12 @@
+{
+    "name": "Drive Mode",
+    "source_file": "Drive Mode.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {},
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

@@ -1,0 +1,17 @@
+{
+    "name": "XC Class323 Expert",
+    "source_file": "XC_Class323_Expert.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "UserVirtualReverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

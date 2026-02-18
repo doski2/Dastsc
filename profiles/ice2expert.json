@@ -1,0 +1,14 @@
+{
+    "name": "ICE2Expert",
+    "source_file": "ICE2Expert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

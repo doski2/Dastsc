@@ -1,0 +1,16 @@
+{
+    "name": "BR442 mapper stopgoo",
+    "source_file": "BR442_mapper_stopgoo.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}

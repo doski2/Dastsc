@@ -1,0 +1,12 @@
+{
+    "name": "Class350 Simple WCML",
+    "source_file": "Class350_Simple_WCML.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {},
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

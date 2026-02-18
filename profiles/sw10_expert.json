@@ -1,0 +1,19 @@
+{
+    "name": "SW10 Expert",
+    "source_file": "SW10_Expert.txt",
+    "fingerprint": {
+        "required_controls": [
+            "Regulator",
+            "TrainBrakeControl"
+        ]
+    },
+    "mappings": {
+        "throttle": "Regulator",
+        "brake": "TrainBrakeControl",
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

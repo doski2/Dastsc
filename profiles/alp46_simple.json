@@ -1,0 +1,12 @@
+{
+    "name": "ALP46 Simple",
+    "source_file": "ALP46_Simple.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {},
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

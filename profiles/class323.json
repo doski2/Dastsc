@@ -1,0 +1,29 @@
+{
+    "name": "Class 323 (Combined)",
+    "fingerprint": {
+        "required_controls": ["ThrottleAndBrake"]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "UserVirtualReverser",
+        "brake_pipe": "BrakePipePressureBAR",
+        "brake_cylinder": "TrainBrakeCylinderPressureBAR",
+        "current": "Current",
+        "ammeter": "Ammeter",
+        "effort": "TractiveEffort",
+        "dra": "DRA",
+        "aws": "AWS"
+    },
+    "brakes": {
+        "type": "COMBINED_BLENDED",
+        "control": "ThrottleAndBrake",
+        "has_dynamic": true,
+        "system": "AIR_BRITISH",
+        "full_service_pressure": 0.0,
+        "release_pressure": 5.0
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

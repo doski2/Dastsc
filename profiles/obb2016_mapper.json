@@ -1,0 +1,14 @@
+{
+    "name": "OBB2016 Mapper",
+    "source_file": "OBB2016_Mapper.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

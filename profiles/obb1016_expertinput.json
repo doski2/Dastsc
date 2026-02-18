@@ -1,0 +1,14 @@
+{
+    "name": "OBB1016 ExpertInput",
+    "source_file": "OBB1016_ExpertInput.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

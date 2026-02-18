@@ -1,0 +1,14 @@
+{
+    "name": "DB146Expert",
+    "source_file": "DB146Expert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}

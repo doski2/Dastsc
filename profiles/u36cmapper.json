@@ -1,0 +1,17 @@
+{
+    "name": "U36Cmapper",
+    "source_file": "U36Cmapper.txt",
+    "fingerprint": {
+        "required_controls": [
+            "Regulator"
+        ]
+    },
+    "mappings": {
+        "throttle": "Regulator",
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

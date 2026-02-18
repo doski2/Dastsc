@@ -1,0 +1,14 @@
+{
+    "name": "SD402 Expert",
+    "source_file": "SD402_Expert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

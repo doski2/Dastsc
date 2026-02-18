@@ -1,0 +1,17 @@
+{
+    "name": "Genset Remapper Expert",
+    "source_file": "Genset Remapper Expert.txt",
+    "fingerprint": {
+        "required_controls": [
+            "Regulator"
+        ]
+    },
+    "mappings": {
+        "throttle": "Regulator",
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

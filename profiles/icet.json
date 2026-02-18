@@ -1,0 +1,14 @@
+{
+    "name": "ICET",
+    "source_file": "ICET.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

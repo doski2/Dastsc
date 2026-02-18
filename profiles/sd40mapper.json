@@ -1,0 +1,14 @@
+{
+    "name": "sd40mapper",
+    "source_file": "sd40mapper.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

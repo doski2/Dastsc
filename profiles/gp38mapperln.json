@@ -1,0 +1,14 @@
+{
+    "name": "GP38mapperLN",
+    "source_file": "GP38mapperLN.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

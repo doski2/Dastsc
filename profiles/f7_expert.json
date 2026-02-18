@@ -1,0 +1,19 @@
+{
+    "name": "F7 Expert",
+    "source_file": "F7_Expert.txt",
+    "fingerprint": {
+        "required_controls": [
+            "Regulator",
+            "TrainBrakeControl"
+        ]
+    },
+    "mappings": {
+        "throttle": "Regulator",
+        "brake": "TrainBrakeControl",
+        "reverser": "Reverser"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

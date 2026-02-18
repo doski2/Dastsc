@@ -1,0 +1,20 @@
+{
+    "name": "Class350 Expert WCML",
+    "source_file": "Class350_Expert_WCML.txt",
+    "fingerprint": {
+        "required_controls": [
+            "ThrottleAndBrake"
+        ]
+    },
+    "mappings": {
+        "combined_control": "ThrottleAndBrake",
+        "reverser": "UserVirtualReverser",
+        "current": "Current",
+        "effort": "TractiveEffort",
+        "dra": "DRA"
+    },
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

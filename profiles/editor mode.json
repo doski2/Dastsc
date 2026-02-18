@@ -1,0 +1,12 @@
+{
+    "name": "Editor Mode",
+    "source_file": "Editor Mode.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {},
+    "visuals": {
+        "unit": "MPH",
+        "color": "#3498db"
+    }
+}

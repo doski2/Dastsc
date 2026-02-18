@@ -1,0 +1,14 @@
+{
+    "name": "BR143 InputExpert",
+    "source_file": "BR143_InputExpert.txt",
+    "fingerprint": {
+        "required_controls": []
+    },
+    "mappings": {
+        "reverser": "UserVirtualReverser"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    }
+}
