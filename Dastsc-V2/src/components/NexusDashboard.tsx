@@ -18,6 +18,14 @@ export const NexusDashboard: React.FC = () => {
   const [time, setTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState('PILOT');
 
+  // Lógica de "Esperando Cola" (Odrómetro)
+  const [waitingForClearance, setWaitingForClearance] = useState(false);
+  const [distanceTravelled, setDistanceTravelled] = useState(0);
+  const [lastNextLimitDist, setLastNextLimitDist] = useState(0);
+  const [lastSimTime, setLastSimTime] = useState(0);
+  const [effectiveLimit, setEffectiveLimit] = useState(0);
+  const [trainLength, setTrainLength] = useState(61.0);
+
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     
@@ -36,13 +44,92 @@ export const NexusDashboard: React.FC = () => {
     };
   }, []);
 
+  // Proceso del Odrómetro y Lógica de Cola
+  useEffect(() => {
+    if (!data) return;
+
+    const currentNextDist = Number(data.NextSpeedLimitDistance || 0);
+    const currentSpeedMS = Number(data.Speed || 0); // Suponemos m/s segun el proto
+    const simTime = Number(data.SimulationTime || 0);
+    const currentLimit = Number(data.CurrentSpeedLimit || 0);
+    const nextLimitSpeed = Number(data.NextSpeedLimitSpeed || 0);
+
+    // Sincronizar largo del tren si el simulador lo reporta y no ha sido modificado manualmente (opcional)
+    // De momento, priorizamos el estado local para permitir ajustes manuales
+    if (data.TrainLength && Math.abs(Number(data.TrainLength) - trainLength) > 1 && !waitingForClearance) {
+       // Solo actualizamos si hay un cambio significativo y no estamos midiendo
+       // setTrainLength(Number(data.TrainLength)); 
+    }
+
+    // Initial load
+    if (effectiveLimit === 0 && currentLimit > 0) {
+       setEffectiveLimit(currentLimit);
+    }
+
+    // 1. Detectar cruce de señal (salto de distancia)
+    if (lastNextLimitDist < 15 && currentNextDist > 100) {
+      // Si el limite que viene es mayor (liberación)
+      if (nextLimitSpeed > currentLimit) {
+        setWaitingForClearance(true);
+        setDistanceTravelled(0);
+        // Mantenemos el limite actual como efectivo hasta que despeje
+        setEffectiveLimit(currentLimit);
+      } else {
+        setWaitingForClearance(false);
+        setEffectiveLimit(currentLimit);
+      }
+    }
+
+    // 2. Seguridad: Si el límite de la vía baja de repente, aplicamos inmediatamente.
+    // Incluso si estamos "esperando" para subir, si la vía nos impone algo CORTANTE, obedecemos.
+    if (currentLimit < effectiveLimit) {
+        setEffectiveLimit(currentLimit);
+        // Si estábamos esperando despejar para una velocidad mayor, pero ahora la vía baja, abortamos la espera
+        if (waitingForClearance) {
+          setWaitingForClearance(false);
+          setDistanceTravelled(0);
+        }
+    }
+
+    // 3. Actualizar Odrómetro
+    if (waitingForClearance) {
+      const dt = lastSimTime > 0 ? simTime - lastSimTime : 0.2;
+      if (dt > 0 && dt < 1) {
+        const deltaDist = Math.abs(currentSpeedMS) * dt;
+        setDistanceTravelled(prev => {
+          const newDist = prev + deltaDist;
+          if (newDist >= trainLength) {
+            setWaitingForClearance(false);
+            setEffectiveLimit(currentLimit);
+            return 0;
+          }
+          return newDist;
+        });
+      }
+    } else {
+        // Si no estamos esperando, el limite efectivo sigue a la vía
+        if (currentLimit !== effectiveLimit) {
+            setEffectiveLimit(currentLimit);
+        }
+    }
+
+    setLastNextLimitDist(currentNextDist);
+    setLastSimTime(simTime);
+  }, [data, waitingForClearance, lastNextLimitDist, lastSimTime, effectiveLimit, trainLength]);
+
   // Métricas Calculadas (Con fallbacks para evitar pantalla en blanco)
   const speed = Number(data?.Speed || 0);
   const ammeter = Number(data?.Ammeter || 0);
   const brakeCyl = Number(data?.TrainBrakeCylinderPressureBAR || 0);
   const trainPipe = Number(data?.TrainBrakePipePressureBAR || 0);
   const gradient = Number(data?.Gradient || 0);
-  const targetSpeed = Number(data?.CurrentSpeedLimit || 120);
+  
+  // Lógica de Límite Efectivo (No subir hasta despejar cola)
+  const rawTrackLimit = Number(data?.CurrentSpeedLimit || 120);
+  
+  // El targetSpeed real para el velocímetro será el del tramo anterior si estamos esperando cola de liberación
+  const targetSpeed = effectiveLimit > 0 ? effectiveLimit : rawTrackLimit;
+  
   const nextLimit = Number(data?.NextSpeedLimitSpeed || 80);
   const nextLimitDist = Number(data?.NextSpeedLimitDistance || 0);
   const acceleration = Number(data?.Acceleration || 0);
@@ -147,7 +234,27 @@ export const NexusDashboard: React.FC = () => {
           
           {/* SAFETY SYSTEMS MONITOR BAR (Always visible in Pilot mode) */}
           {activeTab === 'PILOT' && (
-            <div className="grid grid-cols-4 gap-4 h-16">
+            <div className="grid grid-cols-5 gap-4 h-16">
+               {/* ODOMETER / TAIL CLEARANCE (NEW) */}
+               <div 
+                 className={`glass-panel rounded-2xl flex flex-col justify-center px-4 border-l-4 transition-all duration-300 cursor-pointer hover:bg-white/5 ${waitingForClearance ? 'border-l-blue-500 bg-blue-500/10' : 'border-l-white/10 opacity-40'}`}
+                 onClick={() => {
+                   const val = prompt("Ajustar largo del tren (metros):", trainLength.toString());
+                   if (val) setTrainLength(Number(val));
+                 }}
+               >
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[8px] font-black uppercase text-neutral-500 tracking-widest">Tail Clearance ({trainLength.toFixed(0)}m)</span>
+                    <span className="text-[9px] font-black text-white">{waitingForClearance ? `${(trainLength - distanceTravelled).toFixed(0)}m` : 'READY'}</span>
+                  </div>
+                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                    <motion.div 
+                      className="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"
+                      animate={{ width: waitingForClearance ? `${(distanceTravelled / trainLength) * 100}%` : '0%' }}
+                    />
+                  </div>
+               </div>
+
                {/* AWS Indicator */}
                <motion.div 
                  animate={aws >= 2 ? { 
@@ -482,7 +589,61 @@ export const NexusDashboard: React.FC = () => {
             </div>
           )}
 
-          {activeTab !== 'PILOT' && activeTab !== 'TELEMETRY' && (
+          {activeTab === 'CONFIG' && (
+            <div className="col-span-12 glass-panel rounded-3xl p-12 flex flex-col items-center">
+               <h2 className="text-3xl font-black uppercase tracking-tighter mb-8 reactor-glow text-[#4ef2ff]">Train Configuration</h2>
+               
+               <div className="grid grid-cols-2 gap-8 w-full max-w-2xl">
+                 <div className="glass-panel p-6 rounded-2xl border border-white/5">
+                   <h3 className="text-xs font-black text-neutral-500 uppercase mb-4">Train Length Control</h3>
+                   <div className="text-5xl font-black text-white mb-6">{trainLength.toFixed(1)} <span className="text-sm text-neutral-600">meters</span></div>
+                   
+                   <div className="flex gap-4">
+                     <button 
+                       onClick={() => setTrainLength(61)}
+                       className="flex-grow py-3 rounded-xl bg-[#4ef2ff]/10 border border-[#4ef2ff]/30 text-[#4ef2ff] font-black uppercase text-[10px] hover:bg-[#4ef2ff]/20 transition-all"
+                     >
+                       3 Cars (61m)
+                     </button>
+                     <button 
+                       onClick={() => setTrainLength(122)}
+                       className="flex-grow py-3 rounded-xl bg-[#4ef2ff]/10 border border-[#4ef2ff]/30 text-[#4ef2ff] font-black uppercase text-[10px] hover:bg-[#4ef2ff]/20 transition-all"
+                     >
+                       6 Cars (122m)
+                     </button>
+                   </div>
+                   
+                   <button 
+                     onClick={() => {
+                        const val = prompt("Manual Length (m):", trainLength.toString());
+                        if (val) setTrainLength(Number(val));
+                     }}
+                     className="w-full mt-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white/70 font-black uppercase text-[10px] hover:bg-white/10 transition-all"
+                   >
+                     Set Custom Length
+                   </button>
+                 </div>
+
+                 <div className="glass-panel p-6 rounded-2xl border border-white/5">
+                   <h3 className="text-xs font-black text-neutral-500 uppercase mb-4">Odometer Calibration</h3>
+                   <div className="space-y-4">
+                     <div className="p-4 bg-black/20 rounded-xl border border-white/5">
+                        <div className="text-[10px] font-bold text-neutral-600 mb-1">Last Sync Status</div>
+                        <div className="text-emerald-500 font-black">STABLE (Δt: {lastSimTime > 0 ? '0.05s' : '---'})</div>
+                     </div>
+                     <button 
+                       onClick={() => setWaitingForClearance(false)}
+                       className="w-full py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 font-black uppercase text-[10px] hover:bg-red-500/20 transition-all"
+                     >
+                       Force Clear Wait
+                     </button>
+                   </div>
+                 </div>
+               </div>
+            </div>
+          )}
+
+          {activeTab !== 'PILOT' && activeTab !== 'TELEMETRY' && activeTab !== 'CONFIG' && (
             <div className="col-span-12 glass-panel rounded-3xl p-12 flex flex-col items-center justify-center">
                <motion.div 
                 initial={{ opacity: 0, y: 20 }}

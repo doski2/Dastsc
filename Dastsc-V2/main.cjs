@@ -1,9 +1,52 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
+const { spawn } = require('child_process');
+
+let pythonProcess = null;
 
 process.on('uncaughtException', (error) => {
   console.error('CRITICAL ERROR:', error);
 });
+
+function startBackend() {
+  console.log('--- Initializing Nexus Backend Core ---');
+  
+  const isDev = process.argv.includes('--dev') || !app.isPackaged;
+  
+  // Determinamos rutas segun si es dev o prod
+  let pythonExe = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe'); // Venv raiz
+  let backendPath = path.join(__dirname, 'backend');
+
+  if (!app.isPackaged) {
+    // Si no esta empaquetado (npm run dev)
+    pythonExe = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
+    backendPath = path.join(__dirname, 'backend');
+  } else {
+    // Si esta empaquetado (dist/win-unpacked)
+    // El venv se copia dentro de backend en el build
+    pythonExe = path.join(__dirname, 'backend', '.venv', 'Scripts', 'python.exe');
+    backendPath = path.join(__dirname, 'backend');
+    
+    // Fallback si el venv no se copio bien
+    if (!require('fs').existsSync(pythonExe)) {
+        pythonExe = 'python'; // Intenta usar el del sistema
+    }
+  }
+
+  console.log('Python Exe:', pythonExe);
+  console.log('Backend Path:', backendPath);
+
+  pythonProcess = spawn(pythonExe, ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'], {
+    cwd: backendPath
+  });
+
+  pythonProcess.stdout.on('data', (data) => console.log(`[Backend]: ${data}`));
+  pythonProcess.stderr.on('data', (data) => console.error(`[Backend ERROR]: ${data}`));
+
+  pythonProcess.on('close', (code) => {
+    console.log(`Backend process exited with code ${code}`);
+  });
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -46,6 +89,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  startBackend();
   createWindow();
 
   app.on('activate', () => {
@@ -56,6 +100,10 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  if (pythonProcess) {
+    console.log('Stopping backend process...');
+    pythonProcess.kill();
+  }
   if (process.platform !== 'darwin') {
     app.quit();
   }
