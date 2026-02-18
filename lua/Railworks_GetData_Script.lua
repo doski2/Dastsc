@@ -130,6 +130,15 @@ function GetControlData()
 	ControlValue = Call("GetGradient")
 	gData = gData .. "|" .. ControlName .. ":" .. ControlValue
 	
+	-- Información del Consist (Longitud y Masa)
+	ControlName = "TrainLength"
+	ControlValue = Call("GetConsistLength")
+	gData = gData .. "|" .. ControlName .. ":" .. string.format("%.2f", ControlValue)
+
+	ControlName = "TrainMass"
+	ControlValue = Call("GetConsistTotalMass") / 1000 -- Convertir Kg a Toneladas
+	gData = gData .. "|" .. ControlName .. ":" .. string.format("%.2f", ControlValue)
+	
 	-- Captura Extendida de Controles para Dashboard Nexus v3.1 (Solo Modernos/Expert)
 	local controlsToRead = {
 		-- Tracción y Dinámica
