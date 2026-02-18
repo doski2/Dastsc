@@ -28,7 +28,8 @@ if not exist "%APP_PATH%\dist" mkdir "%APP_PATH%\dist"
 if not exist "%APP_PATH%\backend" mkdir "%APP_PATH%\backend"
 
 echo [+] Copiando dist a %APP_PATH%\dist
-xcopy /S /E /Y /Q dist "%APP_PATH%\dist"
+xcopy /S /E /Y /Q dist\assets "%APP_PATH%\dist\assets"
+copy /Y dist\index.html "%APP_PATH%\dist\index.html"
 echo [+] Copiando backend a %APP_PATH%\backend
 xcopy /S /E /Y /Q backend "%APP_PATH%\backend"
 echo [+] Copiando main.cjs y package.json

@@ -25,6 +25,7 @@ export const NexusDashboard: React.FC = () => {
   const [lastSimTime, setLastSimTime] = useState(0);
   const [effectiveLimit, setEffectiveLimit] = useState(0);
   const [trainLength, setTrainLength] = useState(61.0);
+  const [trainMass, setTrainMass] = useState(0);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -54,11 +55,20 @@ export const NexusDashboard: React.FC = () => {
     const currentLimit = Number(data.CurrentSpeedLimit || 0);
     const nextLimitSpeed = Number(data.NextSpeedLimitSpeed || 0);
 
-    // Sincronizar largo del tren si el simulador lo reporta y no ha sido modificado manualmente (opcional)
-    // De momento, priorizamos el estado local para permitir ajustes manuales
-    if (data.TrainLength && Math.abs(Number(data.TrainLength) - trainLength) > 1 && !waitingForClearance) {
-       // Solo actualizamos si hay un cambio significativo y no estamos midiendo
-       // setTrainLength(Number(data.TrainLength)); 
+    // Sincronizar largo del tren si el simulador lo reporta automáticamente
+    if (data.TrainLength && Number(data.TrainLength) > 0) {
+       const autoLength = Number(data.TrainLength);
+       // Solo actualizamos si el cambio es real y no estamos en medio de una medición
+       if (Math.abs(autoLength - trainLength) > 0.5 && !waitingForClearance) {
+          setTrainLength(autoLength);
+       }
+    }
+
+    if (data.TrainMass && Number(data.TrainMass) > 0) {
+       const autoMass = Number(data.TrainMass);
+       if (Math.abs(autoMass - trainMass) > 0.1) {
+          setTrainMass(autoMass);
+       }
     }
 
     // Initial load
@@ -210,6 +220,9 @@ export const NexusDashboard: React.FC = () => {
             <div className="flex gap-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
               <span>Driver: <span className="text-white">D-102</span></span>
               <span>Vehicle: <span className="text-[#4ef2ff]">BR-442 VELARO</span></span>
+              <div className="w-px h-3 bg-white/10" />
+              <span>L: <span className="text-white">{trainLength.toFixed(0)}m</span></span>
+              <span>M: <span className="text-white">{trainMass > 0 ? `${trainMass.toFixed(0)}t` : '---'}</span></span>
             </div>
           </div>
 
@@ -622,6 +635,16 @@ export const NexusDashboard: React.FC = () => {
                    >
                      Set Custom Length
                    </button>
+                 </div>
+
+                 <div className="glass-panel p-6 rounded-2xl border border-white/5">
+                   <h3 className="text-xs font-black text-neutral-500 uppercase mb-4">Weight & Mass</h3>
+                   <div className="text-5xl font-black text-[#ffa547] mb-6">{trainMass > 0 ? trainMass.toFixed(1) : '---'} <span className="text-sm text-neutral-600">tons</span></div>
+                   
+                   <div className="p-4 bg-black/20 rounded-xl border border-white/5">
+                        <div className="text-[10px] font-bold text-neutral-600 mb-1">Physics Impact</div>
+                        <div className="text-white/60 text-[10px] italic">Higher mass increases braking distance and reduces acceleration efficiency.</div>
+                   </div>
                  </div>
 
                  <div className="glass-panel p-6 rounded-2xl border border-white/5">
