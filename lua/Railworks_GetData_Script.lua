@@ -48,7 +48,13 @@ function getdata ()
 			local speedMPS = Call("GetSpeed", 0) or 0
 			local simTime = Call("GetSimulationTime", 0) or 0
 			local grad = Call("GetGradient", 0) or 0
-			gData = string.format("Speed:%.2f|SimulationTime:%.2f|Gradient:%.2f", speedMPS * MPH, simTime, grad)
+			
+			-- Automatic train metrics
+			local length = Call("GetConsistLength") or 0
+			local mass = Call("GetConsistTotalMass") or 0 -- In Tons (Standard Railworks)
+			
+			gData = string.format("Speed:%.2f|SimulationTime:%.2f|Gradient:%.2f|TrainLength:%.2f|TrainMass:%.2f", 
+				speedMPS * MPH, simTime, grad, length, mass) -- Output directly in tons
 
 			GetSpeedInfo()
 			GetControlData () -- Extract data for controls only.
@@ -129,15 +135,6 @@ function GetControlData()
 	ControlName = "Gradient"
 	ControlValue = Call("GetGradient")
 	gData = gData .. "|" .. ControlName .. ":" .. ControlValue
-	
-	-- Información del Consist (Longitud y Masa)
-	ControlName = "TrainLength"
-	ControlValue = Call("GetConsistLength")
-	gData = gData .. "|" .. ControlName .. ":" .. string.format("%.2f", ControlValue)
-
-	ControlName = "TrainMass"
-	ControlValue = Call("GetConsistTotalMass") / 1000 -- Convertir Kg a Toneladas
-	gData = gData .. "|" .. ControlName .. ":" .. string.format("%.2f", ControlValue)
 	
 	-- Captura Extendida de Controles para Dashboard Nexus v3.1 (Solo Modernos/Expert)
 	local controlsToRead = {

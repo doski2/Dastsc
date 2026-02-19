@@ -45,12 +45,35 @@ export const NexusDashboard: React.FC = () => {
     };
   }, []);
 
+  // Métricas Calculadas (Con fallbacks para evitar pantalla en blanco)
+  const speed = Number(data?.Speed || 0);
+  const ammeter = Number(data?.Ammeter || 0);
+  const brakeCyl = Number(data?.TrainBrakeCylinderPressureBAR || 0);
+  const trainPipe = Number(data?.TrainBrakePipePressureBAR || 0);
+  const gradient = Number(data?.Gradient || 0);
+  
+  // Lógica de Límite Efectivo (No subir hasta despejar cola)
+  const rawTrackLimit = Number(data?.CurrentSpeedLimit || 120);
+  
+  const nextLimit = Number(data?.NextSpeedLimitSpeed || 80);
+  const nextLimitDist = Number(data?.NextSpeedLimitDistance || 0);
+  const acceleration = Number(data?.Acceleration || 0);
+  const temperature = Number(data?.Temperature || 42.5);
+  const maxTrainSpeed = Number(data?.MaxSpeed || 250);
+  const maxDialSpeed = maxTrainSpeed > 0 ? maxTrainSpeed : 250;
+  const speedUnit = Number(data?.SpeedoType) === 1 ? 'Mph' : 'Km/h';
+  const speedFactor = Number(data?.SpeedoType) === 1 ? 2.23694 : 3.6;
+
+  // El targetSpeed real para el velocímetro será el del tramo anterior si estamos esperando cola de liberación
+  const targetSpeed = effectiveLimit > 0 ? effectiveLimit : rawTrackLimit;
+
   // Proceso del Odrómetro y Lógica de Cola
   useEffect(() => {
     if (!data) return;
 
     const currentNextDist = Number(data.NextSpeedLimitDistance || 0);
-    const currentSpeedMS = Number(data.Speed || 0); // Suponemos m/s segun el proto
+    const sFactor = Number(data.SpeedoType) === 1 ? 2.23694 : 3.6;
+    const currentSpeedMS = Number(data.Speed || 0) / sFactor;
     const simTime = Number(data.SimulationTime || 0);
     const currentLimit = Number(data.CurrentSpeedLimit || 0);
     const nextLimitSpeed = Number(data.NextSpeedLimitSpeed || 0);
@@ -126,28 +149,6 @@ export const NexusDashboard: React.FC = () => {
     setLastNextLimitDist(currentNextDist);
     setLastSimTime(simTime);
   }, [data, waitingForClearance, lastNextLimitDist, lastSimTime, effectiveLimit, trainLength]);
-
-  // Métricas Calculadas (Con fallbacks para evitar pantalla en blanco)
-  const speed = Number(data?.Speed || 0);
-  const ammeter = Number(data?.Ammeter || 0);
-  const brakeCyl = Number(data?.TrainBrakeCylinderPressureBAR || 0);
-  const trainPipe = Number(data?.TrainBrakePipePressureBAR || 0);
-  const gradient = Number(data?.Gradient || 0);
-  
-  // Lógica de Límite Efectivo (No subir hasta despejar cola)
-  const rawTrackLimit = Number(data?.CurrentSpeedLimit || 120);
-  
-  // El targetSpeed real para el velocímetro será el del tramo anterior si estamos esperando cola de liberación
-  const targetSpeed = effectiveLimit > 0 ? effectiveLimit : rawTrackLimit;
-  
-  const nextLimit = Number(data?.NextSpeedLimitSpeed || 80);
-  const nextLimitDist = Number(data?.NextSpeedLimitDistance || 0);
-  const acceleration = Number(data?.Acceleration || 0);
-  const temperature = Number(data?.Temperature || 42.5);
-  const maxTrainSpeed = Number(data?.MaxSpeed || 250);
-  const maxDialSpeed = maxTrainSpeed > 0 ? maxTrainSpeed : 250;
-  const speedUnit = Number(data?.SpeedoType) === 1 ? 'Mph' : 'Km/h';
-  const speedFactor = Number(data?.SpeedoType) === 1 ? 2.23694 : 3.6;
 
   // Safety Systems
   const aws = Number(data?.AWS || 0) || (Number(data?.AWSWarning || 0) > 0 || Number(data?.AWSWarnCount || 0) > 0 || Number(data?.AWSWarnAudio || 0) > 0 ? 2 : 0);
@@ -247,27 +248,7 @@ export const NexusDashboard: React.FC = () => {
           
           {/* SAFETY SYSTEMS MONITOR BAR (Always visible in Pilot mode) */}
           {activeTab === 'PILOT' && (
-            <div className="grid grid-cols-5 gap-4 h-16">
-               {/* ODOMETER / TAIL CLEARANCE (NEW) */}
-               <div 
-                 className={`glass-panel rounded-2xl flex flex-col justify-center px-4 border-l-4 transition-all duration-300 cursor-pointer hover:bg-white/5 ${waitingForClearance ? 'border-l-blue-500 bg-blue-500/10' : 'border-l-white/10 opacity-40'}`}
-                 onClick={() => {
-                   const val = prompt("Ajustar largo del tren (metros):", trainLength.toString());
-                   if (val) setTrainLength(Number(val));
-                 }}
-               >
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[8px] font-black uppercase text-neutral-500 tracking-widest">Tail Clearance ({trainLength.toFixed(0)}m)</span>
-                    <span className="text-[9px] font-black text-white">{waitingForClearance ? `${(trainLength - distanceTravelled).toFixed(0)}m` : 'READY'}</span>
-                  </div>
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                    <motion.div 
-                      className="h-full bg-blue-500 shadow-[0_0_10px_#3b82f6]"
-                      animate={{ width: waitingForClearance ? `${(distanceTravelled / trainLength) * 100}%` : '0%' }}
-                    />
-                  </div>
-               </div>
-
+            <div className="grid grid-cols-4 gap-4 h-16">
                {/* AWS Indicator */}
                <motion.div 
                  animate={aws >= 2 ? { 
@@ -394,15 +375,29 @@ export const NexusDashboard: React.FC = () => {
                       {/* Center Digital Display (Now with Limits included) */}
                       <div className="absolute flex flex-col items-center justify-center text-center">
                         {/* Target Limit Above */}
-                        <motion.div 
-                          className="flex flex-col items-center -mb-4"
-                          animate={{ opacity: isConnected ? 0.6 : 0 }}
-                        >
-                           <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Target</span>
-                           <span className={`text-4xl font-black ${speed > targetSpeed + 2 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
-                             {targetSpeed.toFixed(0)}
-                           </span>
-                        </motion.div>
+                        <div className="flex flex-col items-center -mb-4">
+                           {waitingForClearance && (
+                             <motion.div 
+                               initial={{ opacity: 0, y: 5 }}
+                               animate={{ opacity: 1, y: 0 }}
+                               className="flex flex-col items-center mb-1"
+                             >
+                                <span className="text-[9px] font-black text-blue-400 uppercase tracking-tighter">Clearance</span>
+                                <span className="text-lg font-black text-white leading-none shadow-blue-500/20 drop-shadow-sm">
+                                  {(trainLength - distanceTravelled).toFixed(0)}<span className="text-[8px] ml-0.5 opacity-40">m</span>
+                                </span>
+                             </motion.div>
+                           )}
+                           <motion.div 
+                             className="flex flex-col items-center"
+                             animate={{ opacity: isConnected ? 0.6 : 0 }}
+                           >
+                              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Target</span>
+                              <span className={`text-4xl font-black ${speed > targetSpeed + 2 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                                {targetSpeed.toFixed(0)}
+                              </span>
+                           </motion.div>
+                        </div>
 
                         <div className="flex items-center justify-center relative scale-90">
                           <motion.span 
