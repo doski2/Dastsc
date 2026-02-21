@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useTelemetry } from '../hooks/useTelemetry';
 import { 
-  ShieldAlert, 
   Navigation, 
   Wifi, 
   WifiOff,
@@ -38,6 +37,36 @@ export const NexusDashboard: React.FC = () => {
   const [trainLength, setTrainLength] = useState(61.0);
   const [trainMass, setTrainMass] = useState(0);
 
+  // Historial de Trenes Recientes
+  const [recentTrains, setRecentTrains] = useState<{id: string, name: string, color: string}[]>(() => {
+    try {
+      const saved = localStorage.getItem('nexus_recent_trains');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  useEffect(() => {
+    const profile = data?.active_profile;
+    if (profile && profile.id && profile.name) {
+      const profileId = profile.id;
+      const profileName = profile.name;
+      const profileColor = profile.visuals?.color || '#4ef2ff';
+
+      setRecentTrains(prev => {
+        // Evitar duplicados consecutivos o en la lista
+        if (prev.length > 0 && prev[0].id === profileId) return prev;
+        const filtered = prev.filter(t => t.id !== profileId);
+        const newList = [{ 
+          id: profileId, 
+          name: profileName, 
+          color: profileColor 
+        }, ...filtered].slice(0, 5);
+        localStorage.setItem('nexus_recent_trains', JSON.stringify(newList));
+        return newList;
+      });
+    }
+  }, [data?.active_profile?.id, data?.active_profile?.name]);
+
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     
@@ -57,8 +86,35 @@ export const NexusDashboard: React.FC = () => {
   }, []);
 
   // Métricas Calculadas (Con fallbacks para evitar pantalla en blanco)
-  const speed = Number(data?.Speed || 0);
-  const ammeter = Number(getMappedValue('ammeter', getMappedValue('current', data?.Ammeter || 0)));
+  const rawSpeedMPS = Number(data?.CurrentSpeed !== undefined ? data.CurrentSpeed : 0);
+  const dataSpeedConverted = Number(data?.Speed || 0); // Este ya viene convertido de Lua (MPH o KPH)
+  const cabSpeed = (data?.CabSpeed !== undefined && data.CabSpeed !== 0) ? Number(data.CabSpeed) : null;
+  const speedoType = Number(data?.SpeedoType || 1);
+  const speedUnit = speedoType === 2 ? 'Km/h' : 'Mph';
+  const speedFactor = speedoType === 2 ? 3.6 : 2.23694;
+  
+  // Lógica de Velocidad Ultra-Robusta:
+  // 1. Si CabSpeed (aguja de cabina) es válida, la usamos directamente.
+  // 2. Si no, usamos CurrentSpeed (m/s) multiplicada por el factor correspondiente.
+  // 3. Si falla CurrentSpeed, recurrimos a data.Speed (ya convertido en Lua) SIN multiplicar de nuevo.
+  const speed = (cabSpeed !== null) ? cabSpeed : 
+                (rawSpeedMPS > 0 ? (rawSpeedMPS * speedFactor) : dataSpeedConverted);
+
+  const ammeter = Number(getMappedValue('ammeter', getMappedValue('current', data?.TractiveEffort || data?.Ammeter || 0)));
+  
+  // Detección de Tipo de Motor para Unidades de Tracción
+  const isElectric = data?.Pantograph !== undefined || data?.LineVolts !== undefined || data?.active_profile?.mappings?.ammeter;
+  const isDiesel = data?.FuelLevel !== undefined || data?.active_profile?.mappings?.effort;
+  const powerLabel = isElectric ? "Amps" : (isDiesel ? "Traction" : "Effort");
+  const powerUnitLabel = isElectric ? "A" : (isDiesel ? "kN" : "%");
+
+  // Normalización Inteligente del Amperímetro/Esfuerzo
+  const isAmmeterProfileMapped = !!data?.active_profile?.mappings?.ammeter;
+  const maxAmmeterValue = Number(data?.active_profile?.specs?.max_ammeter) || 100;
+  const effortNormalised = (isAmmeterProfileMapped || ammeter > 101) 
+    ? (Math.abs(ammeter) / maxAmmeterValue) * 100 
+    : Math.abs(ammeter); // Ya es porcentaje
+
   const brakeCyl = Number(getMappedValue('brake_cylinder', data?.TrainBrakeCylinderPressureBAR || 0));
   const trainPipe = Number(getMappedValue('brake_pipe', data?.TrainBrakePipePressureBAR || 0));
   const brandColor = data?.active_profile?.visuals?.color || '#4ef2ff';
@@ -71,13 +127,11 @@ export const NexusDashboard: React.FC = () => {
   const nextLimitDist = Number(data?.NextSpeedLimitDistance || 0);
   const acceleration = Number(data?.Acceleration || 0);
   const temperature = Number(data?.Temperature || 42.5);
-  const maxTrainSpeed = Number(data?.MaxSpeed || 250);
-  const maxDialSpeed = maxTrainSpeed > 0 ? maxTrainSpeed : 250;
   
-  // Sincronización de Unidades con el Simulador (0/1=MPH, 2=KPH)
-  const speedUnit = Number(data?.SpeedoType) === 2 ? 'Km/h' : 'Mph';
-  const speedFactor = Number(data?.SpeedoType) === 2 ? 3.6 : 2.23694;
-
+  // Velocidad máxima para el dial (Preferiblemente del perfil)
+  const profileMaxSpeed = Number(data?.active_profile?.specs?.max_speed);
+  const maxDialSpeed = (profileMaxSpeed && profileMaxSpeed > 0) ? profileMaxSpeed : (Number(data?.MaxSpeed) > 0 ? Number(data?.MaxSpeed) : 250);
+  
   // El targetSpeed real para el velocímetro será el del tramo anterior si estamos esperando cola de liberación
   const targetSpeed = effectiveLimit > 0 ? effectiveLimit : rawTrackLimit;
 
@@ -87,7 +141,9 @@ export const NexusDashboard: React.FC = () => {
 
     const currentNextDist = Number(data.NextSpeedLimitDistance || 0);
     const sFactor = Number(data.SpeedoType) === 2 ? 3.6 : 2.23694;
-    const currentSpeedMS = Number(data.Speed || 0) / sFactor;
+    // Siempre usamos m/s para cálculos de distancia (Speed o CurrentSpeed)
+    // Pero como Lua ya mandó 'Speed' convertido, mejor usamos CurrentSpeed que es m/s puro
+    const currentSpeedMS = Number(data.CurrentSpeed || (Number(data.Speed || 0) / sFactor));
     const simTime = Number(data.SimulationTime || 0);
     const currentLimit = Number(data.CurrentSpeedLimit || 0);
     const nextLimitSpeed = Number(data.NextSpeedLimitSpeed || 0);
@@ -179,6 +235,56 @@ export const NexusDashboard: React.FC = () => {
   
   // Supervision Logic
   const isOverSpeed = speed > targetSpeed + 5;
+
+  // Signal Logic (Ported from Proto)
+  const sigStateRaw = Number(data?.NextSignalState ?? -1);
+  const sigDist = Number(data?.DistanceToNextSignal ?? -1);
+  const sigInternal = Number(data?.InternalAspect ?? -1);
+  
+  // Datos de Señal Restrictiva (Del nuevo Call("GetNextRestrictiveSignal"))
+  const restrState = Number(data?.RestrictiveState ?? -1);
+  const restrDist = Number(data?.RestrictiveDistance ?? -1);
+  
+  // Lógica de Señal Inteligente:
+  // 1. Si hay una señal inmediata y no es verde, la mostramos.
+  // 2. Si es verde O no hay señal detectable por el método estándar, buscamos la próxima restrictiva (rojo/amarillo).
+  let currentSigState = sigStateRaw;
+  let displaySigDist = sigDist;
+
+  if ((sigStateRaw === 3 || sigStateRaw === -1) && restrState >= 0) {
+    currentSigState = restrState;
+    displaySigDist = restrDist;
+  } else if (sigInternal >= 0) {
+    currentSigState = sigInternal;
+  }
+  
+  const getSignalMeta = (state: number) => {
+    // Mapeo unificado para GetNextSignalState (0-3) y proState (1-11)
+    const colors: Record<number, { color: string; label: string }> = {
+      0: { color: "#ef4444", label: "PELIGRO / ALTO" },    // Rojo (GetNextSignalState)
+      1: { color: "#fbbf24", label: "PRECAUCIÓN" },       // Amarillo
+      2: { color: "#f59e0b", label: "PRECAUCIÓN AV." },   // Doble Amarillo
+      3: { color: "#10b981", label: "VÍA LIBRE" },        // Verde
+      4: { color: "#3b82f6", label: "MANIOBRA / FLASH" }, // Azul/Blanco
+      10: { color: "#fbbf24", label: "AMARILLO FLASH" },
+      11: { color: "#f59e0b", label: "D. AMARILLO FLASH" },
+    };
+    
+    // Si viene de GetNextRestrictiveSignal, el 3 es ROJO.
+    if (restrState === state) {
+       if (state === 3) return colors[0]; // Rojo
+       if (state === 2) return colors[2]; // Doble amarillo
+       if (state === 1) return colors[1]; // Amarillo
+    }
+
+    return colors[state] || { color: "#4b5563", label: state >= 0 ? `ESTADO ${state}` : "SIN DATOS" };
+  };
+
+  const signalMeta = getSignalMeta(currentSigState);
+  
+  // AWS fallback for signals
+  const hasSignalData = currentSigState >= 0;
+  const showSensorAlert = !hasSignalData && aws > 0.5 && speed > 1.0;
 
   // Handle EXIT
   useEffect(() => {
@@ -275,6 +381,45 @@ export const NexusDashboard: React.FC = () => {
                   <h2 className="text-3xl font-black uppercase tracking-tighter mb-2 reactor-glow">Train Profile Selector</h2>
                   <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest mb-8">Manual override for vehicle mapping & logic</p>
                   
+                  {/* QUICK ACCESS (RECENT TRAINS) */}
+                  <div className="mb-8">
+                    <h3 className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
+                       <Train size={14} className="text-[#4ef2ff]" /> Quick Access (Recent)
+                    </h3>
+                    <div className="grid grid-cols-5 gap-3">
+                       {recentTrains.map((train, i) => (
+                         <motion.button
+                           key={`recent-${train.id}-${i}`}
+                           whileHover={{ scale: 1.02 }}
+                           whileTap={{ scale: 0.98 }}
+                           onClick={() => sendMessage({ type: 'SELECT_PROFILE', profile_id: train.id })}
+                           className={`p-4 rounded-xl border flex flex-col items-start gap-2 relative overflow-hidden transition-all ${
+                             data?.active_profile?.id === train.id 
+                             ? 'bg-white/10 border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.05)]' 
+                             : 'bg-white/5 border-white/5 hover:border-white/20'
+                           }`}
+                         >
+                            <div className="flex items-center gap-2 w-full">
+                               <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: train.color, boxShadow: `0 0 8px ${train.color}` }} />
+                               <span className="text-[11px] font-black text-white truncate uppercase tracking-tighter flex-grow text-left">
+                                 {train.name.replace('.json', '').replace('_expert', '')}
+                               </span>
+                            </div>
+                            {data?.active_profile?.id === train.id && (
+                              <div className="absolute top-0 right-0 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[6px] font-black uppercase rounded-bl-lg">Active</div>
+                            )}
+                         </motion.button>
+                       ))}
+                       {recentTrains.length === 0 && (
+                         <div className="col-span-5 py-4 text-center text-[10px] text-neutral-600 font-bold uppercase tracking-widest bg-white/5 rounded-xl border border-dashed border-white/5">
+                            Waiting for deployment history...
+                         </div>
+                       )}
+                    </div>
+                  </div>
+
+                  <div className="w-full h-px bg-white/5 mb-8" />
+
                   <div className="grid grid-cols-4 gap-4 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar min-h-[200px]">
                     {/* Botón Auto-Detect */}
                     <button 
@@ -479,21 +624,21 @@ export const NexusDashboard: React.FC = () => {
                   {/* Traction Power */}
                   <div className="flex-grow flex flex-col">
                     <div className="flex justify-between items-end mb-2">
-                      <span className="text-[10px] font-black uppercase text-neutral-500 tracking-widest">{getMappedValue('effort', null) ? 'Effort' : 'Tractive'}</span>
+                      <span className="text-[10px] font-black uppercase text-neutral-500 tracking-widest">{powerLabel}</span>
                       <span className="text-xl font-mono font-black" style={{ color: brandColor }}>{Math.abs(ammeter).toFixed(0)}</span>
                     </div>
                     <div className="flex-grow bg-white/5 rounded-full p-1 relative overflow-hidden backdrop-blur-sm border border-white/5">
                       <motion.div 
                         className="absolute bottom-1 left-1 right-1 rounded-full shadow-[0_0_20px_rgba(78,242,255,0.3)]"
                         style={{ background: `linear-gradient(to top, #0066cc, ${brandColor})` }}
-                        animate={{ height: `${Math.min(100, Math.abs(ammeter)/10)}%` }}
+                        animate={{ height: `${Math.min(100, effortNormalised)}%` }}
                         transition={{ type: "spring", stiffness: 50 }}
                       />
                       <div className="absolute inset-0 flex flex-col justify-between py-4 pointer-events-none text-[8px] font-bold text-white/10 pl-6">
                          {[100, 75, 50, 25, 0].map(v => <div key={v} className="flex items-center gap-2"><div className="w-4 h-px bg-white/10" />{v}%</div>)}
                       </div>
                     </div>
-                    <span className="text-[9px] text-center mt-2 text-neutral-600 font-bold uppercase tracking-tighter">Force (%)</span>
+                    <span className="text-[9px] text-center mt-2 text-neutral-600 font-bold uppercase tracking-tighter">{powerUnitLabel} (%)</span>
                   </div>
 
                   {/* Brake Cylinder */}
@@ -522,6 +667,28 @@ export const NexusDashboard: React.FC = () => {
                    {/* Orbital Speed Arcs */}
                    <div className="relative w-[500px] h-[500px] flex items-center justify-center">
                       <svg viewBox="0 0 200 200" className="w-full h-full transform -rotate-90 scale-110">
+                        {/* AWS Visual Alarm (Orange Ring) */}
+                        {aws >= 2 && (
+                          <motion.circle 
+                            cx="100" cy="100" r="90" fill="none" 
+                            stroke="#ffa547" strokeWidth="6"
+                            animate={{ opacity: [0.2, 0.8, 0.2], scale: [0.98, 1.02, 0.98] }}
+                            transition={{ repeat: Infinity, duration: 0.4 }}
+                            style={{ filter: 'drop-shadow(0 0 15px #ffa547)' }}
+                          />
+                        )}
+
+                        {/* DSD Critical Alert (Red Ring - Inner) */}
+                        {dsd > 0.5 && (
+                          <motion.circle 
+                            cx="100" cy="100" r="82" fill="none" 
+                            stroke="#ef4444" strokeWidth="10"
+                            animate={{ opacity: [0.3, 1, 0.3], strokeWidth: [8, 14, 8] }}
+                            transition={{ repeat: Infinity, duration: 0.2 }}
+                            style={{ filter: 'drop-shadow(0 0 20px #ef4444)' }}
+                          />
+                        )}
+
                         {/* Background Track */}
                         <circle cx="100" cy="100" r="98" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="2" />
                         
@@ -543,11 +710,11 @@ export const NexusDashboard: React.FC = () => {
                              <motion.div 
                                initial={{ opacity: 0, y: 5 }}
                                animate={{ opacity: 1, y: 0 }}
-                               className="flex flex-col items-center mb-1"
+                               className="flex flex-col items-center mb-1 bg-blue-500/10 px-4 py-1 rounded-full border border-blue-500/20"
                              >
-                                <span className="text-[9px] font-black text-blue-400 uppercase tracking-tighter">Clearance</span>
-                                <span className="text-lg font-black text-white leading-none shadow-blue-500/20 drop-shadow-sm">
-                                  {(trainLength - distanceTravelled).toFixed(0)}<span className="text-[8px] ml-0.5 opacity-40">m</span>
+                                <span className="text-[9px] font-black text-blue-400 uppercase tracking-tighter animate-pulse">Liberando Cola</span>
+                                <span className="text-xl font-black text-white leading-none shadow-blue-500/20 drop-shadow-sm">
+                                  -{(trainLength - distanceTravelled).toFixed(0)}<span className="text-[8px] ml-0.5 opacity-40">m</span>
                                 </span>
                              </motion.div>
                            )}
@@ -563,11 +730,37 @@ export const NexusDashboard: React.FC = () => {
                         </div>
 
                         <div className="flex items-center justify-center relative scale-90">
+                          {/* Central Alert Glows */}
+                          <div className="absolute inset-0 flex items-center justify-center -z-10">
+                             {dsd > 0.5 && (
+                               <motion.div 
+                                 animate={{ scale: [1, 1.5], opacity: [0.2, 0.5, 0.2] }}
+                                 transition={{ repeat: Infinity, duration: 0.3 }}
+                                 className="w-80 h-80 rounded-full bg-red-600/40 blur-[80px]"
+                               />
+                             )}
+                             {aws >= 2 && (
+                               <motion.div 
+                                 animate={{ scale: [0.8, 1.2], opacity: [0.1, 0.4, 0.1] }}
+                                 transition={{ repeat: Infinity, duration: 0.6 }}
+                                 className="w-72 h-72 rounded-full bg-amber-500/30 blur-[60px]"
+                               />
+                             )}
+                          </div>
+
                           <motion.span 
                             key={Math.floor(speed)}
                             initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className="text-[160px] font-black leading-none tracking-tighter reactor-glow block"
+                            animate={{ 
+                              scale: 1, 
+                              opacity: 1,
+                              color: dsd > 0.5 ? '#ef4444' : (aws >= 2 ? '#ffa547' : '#f5f6fb')
+                            }}
+                            className="text-[160px] font-black leading-none tracking-tighter block"
+                            style={{ 
+                               textShadow: dsd > 0.5 ? '0 0 50px rgba(239,68,68,0.8)' : 
+                                            (aws >= 2 ? '0 0 40px rgba(255,165,71,0.6)' : '0 0 20px rgba(78,242,255,0.3)')
+                            }}
                           >
                             {Number(speed).toFixed(1)}
                           </motion.span>
@@ -576,15 +769,38 @@ export const NexusDashboard: React.FC = () => {
                         <div className="flex flex-col items-center">
                            <span className="text-xl font-black text-neutral-500 uppercase tracking-[0.6em] -mt-4">{speedUnit}</span>
                            
-                           {/* Next Limit Below */}
+                           {/* Next Limit & Signal Data Below */}
                            <motion.div 
-                             className="mt-6 flex flex-col items-center border-t border-white/10 pt-4"
+                             className="mt-6 flex flex-col items-center border-t border-white/10 pt-4 gap-4"
                              animate={{ opacity: isConnected ? 0.8 : 0 }}
                            >
-                             <span className="text-[10px] font-black text-[#ffa547] uppercase tracking-widest">Next Lim</span>
-                             <span className="text-3xl font-black text-[#ffa547]">
-                               {nextLimit.toFixed(0)}
-                             </span>
+                             <div className="flex gap-8">
+                                <div className="flex flex-col items-center">
+                                   <span className="text-[10px] font-black text-[#ffa547] uppercase tracking-widest">Next Lim</span>
+                                   <span className="text-3xl font-black text-[#ffa547]">
+                                     {nextLimit.toFixed(0)}
+                                   </span>
+                                   {nextLimitDist > 0 && (
+                                      <span className="text-[10px] font-bold text-neutral-500 italic">
+                                         en {nextLimitDist.toFixed(0)}m
+                                      </span>
+                                   )}
+                                </div>
+
+                                {hasSignalData && (
+                                   <div className="flex flex-col items-center">
+                                      <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: signalMeta.color }}>Señal</span>
+                                      <div className="flex items-center gap-2">
+                                         <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: signalMeta.color, boxShadow: `0 0 10px ${signalMeta.color}` }} />
+                                         <span className="text-3xl font-black font-mono" style={{ color: signalMeta.color }}>
+                                           {displaySigDist > 0 ? displaySigDist.toFixed(0) : '0'}
+                                         </span>
+                                         <span className="text-[10px] font-black opacity-40 ml-[-4px]">m</span>
+                                      </div>
+                                      <span className="text-[9px] font-bold whitespace-nowrap opacity-60 uppercase">{signalMeta.label}</span>
+                                   </div>
+                                )}
+                             </div>
                            </motion.div>
                         </div>
                       </div>
@@ -595,9 +811,15 @@ export const NexusDashboard: React.FC = () => {
                 <div className="h-20 glass-panel rounded-3xl flex justify-around items-center px-4 border border-white/5 shadow-xl">
                   <MetricSquare label="Gradient" value={gradient.toFixed(1)} unit="%" color="#34d399" />
                   <div className="w-px h-8 bg-white/5" />
-                  <MetricSquare label="Target" value={targetSpeed.toFixed(1)} unit={speedUnit.toLowerCase()} color={brandColor} />
+                  <MetricSquare label="Next Lim" value={nextLimit.toFixed(0)} unit={speedUnit.toLowerCase()} color="#ffa547" />
                   <div className="w-px h-8 bg-white/5" />
-                  <MetricSquare label="Next Lim" value={nextLimit.toFixed(1)} unit={speedUnit.toLowerCase()} color="#ffa547" />
+                  <MetricSquare label="Semaforo" value={displaySigDist > 0 ? displaySigDist.toFixed(0) : '---'} unit="m" color={signalMeta.color} />
+                  {aws >= 2 && (
+                    <>
+                      <div className="w-px h-8 bg-white/5" />
+                      <MetricSquare label="Safety" value="AWS" unit="WARN" color="#fbbf24" alert={true} />
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -621,7 +843,7 @@ export const NexusDashboard: React.FC = () => {
                           <span className={`text-xl font-bold ${estimatedSpeed > speed ? 'text-emerald-400' : estimatedSpeed < speed ? 'text-amber-400' : 'text-white'}`}>
                             {estimatedSpeed.toFixed(1)}
                           </span>
-                          <span className="text-[9px] font-mono text-neutral-600 uppercase">km/h</span>
+                          <span className="text-[9px] font-mono text-neutral-600 uppercase">{speedUnit.toLowerCase()}</span>
                         </div>
                       </div>
 
@@ -651,48 +873,128 @@ export const NexusDashboard: React.FC = () => {
                     </div>
                  </div>
 
-                 {/* NAVIGATION ALERT (Movido aquí para despejar el centro) */}
-                 <div className="h-32 glass-panel rounded-3xl p-5 flex gap-5 border-l-4 border-l-[#ffa547]/40 overflow-hidden relative">
-                   <div className="absolute top-0 right-0 p-2 opacity-5"><Activity size={80} className="text-[#ffa547]" /></div>
-                   <div className="w-14 h-14 rounded-2xl bg-[#ffa547]/10 flex items-center justify-center text-[#ffa547] border border-[#ffa547]/20 shadow-[0_0_20px_rgba(255,165,71,0.1)]">
-                      <ShieldAlert size={28} />
+                 {/* TRACK STATUS (Signals & Restrictions) */}
+                 <div className="h-44 glass-panel rounded-3xl p-5 flex flex-col justify-between border-l-4 overflow-hidden relative" 
+                      style={{ borderLeftColor: showSensorAlert ? '#fbbf24' : (hasSignalData ? signalMeta.color : '#ffa54766') }}>
+                   
+                   <div className="absolute top-0 right-0 p-2 opacity-10">
+                     <Navigation size={80} style={{ color: signalMeta.color }} />
                    </div>
-                   <div className="flex flex-col justify-center">
-                      <span className="text-[10px] font-black text-[#ffa547] uppercase tracking-[0.2em] mb-1">Navigation Alert</span>
-                      <div className="text-sm font-bold text-[#f5f6fb]/80">Restriction: <span className="text-[#ffa547]">{nextLimit.toFixed(0)} km/h</span> at {nextLimitDist.toFixed(0)}m.</div>
+
+                   <div className="flex items-center gap-4 z-10 p-1">
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-lg transition-all duration-500 ${showSensorAlert ? 'animate-pulse' : ''}`}
+                           style={{ 
+                             backgroundColor: `${showSensorAlert ? '#fbbf24' : signalMeta.color}22`,
+                             borderColor: `${showSensorAlert ? '#fbbf24' : signalMeta.color}44`,
+                             color: showSensorAlert ? '#fbbf24' : signalMeta.color,
+                             boxShadow: `0 0 20px ${(showSensorAlert ? '#fbbf24' : signalMeta.color)}33`
+                           }}>
+                        {showSensorAlert ? <Bell size={28} /> : (hasSignalData ? (currentSigState === 3 ? <ChevronRight size={32} /> : <AlertTriangle size={28} />) : <Navigation size={28} />)}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
+                          {showSensorAlert ? 'Track Sensor Control' : (hasSignalData ? 'Próximo Aspecto' : 'Ruta Navegación')}
+                        </span>
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-xl font-black tracking-tight leading-tight" style={{ color: showSensorAlert ? '#fbbf24' : (hasSignalData ? signalMeta.color : '#f5f6fb') }}>
+                            {showSensorAlert ? 'POSIBLE RESTRICCIÓN' : signalMeta.label}
+                          </span>
+                          {displaySigDist > 0 && (
+                            <span className="text-xs font-mono opacity-60" style={{ color: signalMeta.color }}>{displaySigDist.toFixed(0)}m</span>
+                          )}
+                        </div>
+                      </div>
+                   </div>
+
+                   <div className="flex justify-between items-end z-10 mt-2 bg-white/5 p-3 rounded-2xl border border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Aviso Límite</span>
+                        <span className="text-2xl font-mono font-black">
+                          {nextLimitDist > 0 ? `${nextLimitDist.toFixed(0)}m` : '---'}
+                        </span>
+                      </div>
+                      <div className="text-right flex flex-col">
+                        <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Límite</span>
+                        <span className="text-xl font-black text-[#ffa547]">{nextLimit.toFixed(0)}<span className="text-[10px] ml-1 opacity-40">{speedUnit}</span></span>
+                      </div>
                    </div>
                 </div>
 
                  {/* Planning Strips */}
                  <div className="flex-grow glass-panel rounded-3xl p-6 relative overflow-hidden flex flex-col gap-4">
-                    <div className="flex justify-between items-center mb-2">
+                   <div className="flex justify-between items-center mb-2">
                        <h3 className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                          <Navigation size={14} className="text-[#4ef2ff]" /> Route Matrix
+                          <Navigation size={14} className="text-[#4ef2ff]" /> Planning Tape (8km)
                        </h3>
                        <span className="text-[9px] bg-[#4ef2ff]/10 text-[#4ef2ff] px-3 py-0.5 rounded-full border border-[#4ef2ff]/20 uppercase font-black">Scanning</span>
                     </div>
                     
-                    <div className="flex-grow relative bg-[#030514]/50 rounded-2xl border border-white/5 overflow-hidden">
-                       {/* Vertical Scale */}
-                       <div className="absolute left-4 inset-y-4 flex flex-col justify-between text-[8px] font-black text-[#f5f6fb]/20 pointer-events-none">
-                          {[4000, 3000, 2000, 1000, 0].map(m => <span key={m}>{m}m</span>)}
+                    <div className="flex-grow relative bg-black/40 rounded-2xl border border-white/10 overflow-hidden shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]">
+                       {/* Distances Scale (0 to 8000m) - Distributed along the tape */}
+                       <div className="absolute inset-y-4 left-0 w-16 pointer-events-none z-50 h-[calc(100%-32px)]">
+                          {[8000, 7000, 6000, 5000, 4000, 3000, 2000, 1000, 0].map(m => (
+                            <div 
+                              key={m} 
+                              className="absolute left-1 flex items-center gap-3 transition-all duration-500"
+                              style={{ bottom: `${(m / 8000) * 100}%`, transform: 'translateY(50%)' }}
+                            >
+                               <span className={"text-[11px] font-black w-10 text-right font-mono " + (m === 0 ? "text-[#4ef2ff] drop-shadow-[0_0_8px_#4ef2ffcc]" : "text-white/40")}>
+                                 {m > 0 ? (m/1000).toFixed(0)+'k' : '0m'}
+                               </span>
+                               <div className={"w-4 h-px " + (m === 0 ? "bg-[#4ef2ff]" : "bg-white/20")} />
+                            </div>
+                          ))}
                        </div>
                        
-                       {/* Grid Overlay */}
-                       <div className="absolute inset-0 opacity-10 industrial-grid" />
+                       {/* Background Track Highlights */}
+                       <div className="absolute inset-y-0 left-16 right-2 bg-white/[0.02] z-0" />
+                       <div className="absolute inset-y-0 left-1/2 w-px bg-white/5 z-0" />
 
-                       {/* Marker Entities */}
-                       <motion.div 
-                        className="absolute bottom-1/3 right-4 flex items-center gap-3 bg-[#ffa547]/10 p-2 rounded-xl border border-[#ffa547]/20"
-                        initial={{ x: 20, opacity: 0 }}
-                        animate={{ x: 0, opacity: 1 }}
-                       >
-                          <div className="text-right">
-                             <div className="text-[8px] font-black text-[#ffa547] uppercase">Limit Transition</div>
-                             <div className="text-xs font-black text-white">{nextLimit.toFixed(1)} km/h</div>
+                       {/* The Planning Tape (Moving Entities) - 8km Range */}
+                       <div className="absolute inset-y-4 left-16 right-2 pointer-events-none z-40 h-[calc(100%-32px)]">
+                          
+                          {/* Next Speed Limit Marker */}
+                          {nextLimitDist > 0 && nextLimitDist < 8200 && (
+                            <div 
+                              className="absolute left-0 right-0 flex items-center justify-end transition-all duration-300 ease-linear"
+                              style={{ bottom: `${(nextLimitDist / 8000) * 100}%`, height: '40px', marginBottom: '-20px' }}
+                            >
+                               <div className="flex-grow h-px bg-[#f59e0b] shadow-[0_0_10px_#f59e0b] opacity-20 mr-2 ml-4" />
+                               <div className="flex items-center gap-2 bg-[#1a1a1a]/95 px-3 py-1.5 rounded-xl border-2 border-[#f59e0b] shadow-[0_0_20px_rgba(245,158,11,0.3)] z-10 shrink-0">
+                                  <div className="flex flex-col items-end">
+                                     <span className="text-[14px] font-black text-white leading-none tracking-tight">{nextLimit.toFixed(0)}</span>
+                                     <span className="text-[7px] font-black text-[#f59e0b] uppercase tracking-widest leading-none">LIMIT</span>
+                                  </div>
+                                  <ChevronRight size={16} className="text-[#f59e0b]" />
+                               </div>
+                            </div>
+                          )}
+
+                          {/* Next Signal Marker */}
+                          {displaySigDist > 0 && displaySigDist < 8200 && (
+                            <div 
+                              className="absolute left-0 right-0 flex items-center justify-end transition-all duration-300 ease-linear"
+                              style={{ bottom: `${(displaySigDist / 8000) * 100}%`, height: '44px', marginBottom: '-22px' }}
+                            >
+                               <div className="flex-grow h-[2px] shadow-[0_0_15px_currentColor] opacity-30 mr-2 ml-4" style={{ backgroundColor: signalMeta.color }} />
+                               <div className="flex items-center gap-2.5 px-3 py-1.5 bg-black/95 rounded-xl border-2 shadow-2xl z-20 shrink-0" 
+                                    style={{ borderColor: signalMeta.color, color: signalMeta.color }}>
+                                 <div className="w-5 h-5 rounded-full flex items-center justify-center bg-black border border-white/10">
+                                    <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: signalMeta.color, boxShadow: `0 0 12px ${signalMeta.color}` }} />
+                                 </div>
+                                 <div className="flex flex-col items-start min-w-[40px]">
+                                    <span className="text-[13px] font-black text-white leading-none">{(displaySigDist/1000).toFixed(1)}k</span>
+                                    <span className="text-[7px] font-black uppercase text-white/50 tracking-tighter">SIGNAL</span>
+                                 </div>
+                               </div>
+                            </div>
+                          )}
+
+                          {/* Current Position (Always at 0m bottom) */}
+                          <div className="absolute bottom-0 left-0 right-0 h-px bg-[#4ef2ff] shadow-[0_0_15px_#4ef2ff] opacity-100 z-50">
+                             <div className="absolute left-0 -top-2 w-3 h-3 rotate-45 border-t-2 border-l-2 border-[#4ef2ff] shadow-[-2px_-2px_5px_#4ef2ff66]" />
                           </div>
-                          <ChevronRight size={18} className="text-[#ffa547]" />
-                       </motion.div>
+                       </div>
                     </div>
                  </div>
 
@@ -921,8 +1223,8 @@ export const NexusDashboard: React.FC = () => {
   );
 };
 
-const MetricSquare = ({ label, value, unit, color }: any) => (
-  <div className="flex flex-col items-center px-8 border-r border-white/5 last:border-0">
+const MetricSquare = ({ label, value, unit, color, alert }: any) => (
+  <div className={`flex flex-col items-center px-8 border-r border-white/5 last:border-0 ${alert ? 'animate-pulse' : ''}`}>
     <span className="text-[9px] text-[#f5f6fb]/30 uppercase font-black tracking-tighter mb-1">{label}</span>
     <span className="text-2xl font-black" style={{ color }}>{value}<span className="text-xs ml-1 opacity-40 font-normal">{unit}</span></span>
   </div>
