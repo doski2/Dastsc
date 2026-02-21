@@ -52,11 +52,15 @@ function getdata ()
 			-- Automatic train metrics
 			local length = Call("GetConsistLength") or 0
 			local mass = Call("GetConsistTotalMass") or 0 -- In Tons (Standard Railworks)
+
+			GetSpeedInfo() -- Set speedoType before calculating Speed display value
+			
+			local currentFactor = MPH
+			if speedoType == 2 then currentFactor = KPH end
 			
 			gData = string.format("Speed:%.2f|SimulationTime:%.2f|Gradient:%.2f|TrainLength:%.2f|TrainMass:%.2f", 
-				speedMPS * MPH, simTime, grad, length, mass) -- Output directly in tons
+				speedMPS * currentFactor, simTime, grad, length, mass) -- Final unit based on train type
 
-			GetSpeedInfo()
 			GetControlData () -- Extract data for controls only.
 			GetSpeedLimits () -- Get current & next speed limits as well as distance to next speed limit.
 			WriteData () -- Write the data extracted by GetControlData() to GetData.txt.

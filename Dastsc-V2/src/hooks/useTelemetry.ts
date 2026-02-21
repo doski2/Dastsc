@@ -9,6 +9,13 @@ export interface TelemetryData {
   g_longitudinal?: number;
   timestamp?: number;
   status?: string;
+  active_profile?: {
+    id?: string;
+    name: string;
+    mappings?: Record<string, string>;
+    [key: string]: any;
+  };
+  available_profiles?: Array<{id: string, name: string}>;
   [key: string]: any; // Para soportar métricas adicionales dinámicas
 }
 
@@ -18,6 +25,12 @@ export const useTelemetry = (url: string = 'ws://localhost:8000/ws/telemetry') =
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+
+  const sendMessage = useCallback((msg: any) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify(msg));
+    }
+  }, []);
 
   const connect = useCallback(() => {
     if (socketRef.current?.readyState === WebSocket.OPEN) return;
@@ -38,8 +51,19 @@ export const useTelemetry = (url: string = 'ws://localhost:8000/ws/telemetry') =
 
     socket.onmessage = (event) => {
       try {
-        const parsedData: TelemetryData = JSON.parse(event.data);
-        setData(parsedData);
+        const parsedData = JSON.parse(event.data);
+        setData(prev => {
+          // Lógica de persistencia ultra-robusta para la lista de perfiles
+          // Solo actualizamos la lista si el nuevo mensaje trae datos reales (!= vacío)
+          const validNewProfiles = parsedData.available_profiles && parsedData.available_profiles.length > 0;
+          const available_profiles = validNewProfiles ? parsedData.available_profiles : prev?.available_profiles;
+          
+          return {
+            ...prev,
+            ...parsedData,
+            available_profiles 
+          };
+        });
       } catch (err) {
         console.error('Error parseando datos de telemetría:', err);
       }
@@ -72,5 +96,5 @@ export const useTelemetry = (url: string = 'ws://localhost:8000/ws/telemetry') =
     };
   }, [connect]);
 
-  return { data, isConnected, error };
+  return { data, isConnected, error, sendMessage };
 };

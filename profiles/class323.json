@@ -1,18 +1,51 @@
 {
-    "name": "Class 323 (Combined)",
+    "name": "Class 323 DMS(B) CrossCity",
     "fingerprint": {
-        "required_controls": ["ThrottleAndBrake"]
+        "required_controls": [
+            "ThrottleAndBrake",
+            "DRA",
+            "DVDAlarm",
+            "RegenBrakesSwitch",
+            "UserVirtualReverser"
+        ]
     },
     "mappings": {
         "combined_control": "ThrottleAndBrake",
         "reverser": "UserVirtualReverser",
         "brake_pipe": "BrakePipePressureBAR",
         "brake_cylinder": "TrainBrakeCylinderPressureBAR",
+        "main_reservoir": "MainReservoirPressureBAR",
         "current": "Current",
         "ammeter": "Ammeter",
         "effort": "TractiveEffort",
         "dra": "DRA",
-        "aws": "AWS"
+        "aws": "AWS",
+        "aws_warning": "AWSWarnCount",
+        "aws_audio": "AWSWarnAudio",
+        "dsd": "DVDAlarm",
+        "vigil_alarm": "DVDAlarm",
+        "emergency_brake": "EmergencyBrake",
+        "doors_left": "DoorsOpenCloseLeft",
+        "doors_right": "DoorsOpenCloseRight",
+        "master_key": "MasterKey",
+        "pantograph": "PantographAnim",
+        "line_volts": "LineVolts"
+    },
+    "specs": {
+        "max_ammeter": 1400,
+        "max_brake_cyl": 7,
+        "max_speed": 100,
+        "notches_throttle_brake": [
+            {"value": -1.0, "label": "EMG"},
+            {"value": -0.75, "label": "B3"},
+            {"value": -0.5, "label": "B2"},
+            {"value": -0.25, "label": "B1"},
+            {"value": 0.0, "label": "OFF"},
+            {"value": 0.25, "label": "P1"},
+            {"value": 0.5, "label": "P2"},
+            {"value": 0.75, "label": "P3"},
+            {"value": 1.0, "label": "P4"}
+        ]
     },
     "brakes": {
         "type": "COMBINED_BLENDED",
@@ -24,6 +57,6 @@
     },
     "visuals": {
         "unit": "MPH",
-        "color": "#3498db"
+        "color": "#a855f7"
     }
 }

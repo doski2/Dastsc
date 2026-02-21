@@ -10,13 +10,24 @@ import {
   Activity,
   AlertTriangle,
   Bell,
-  PowerOff
+  PowerOff,
+  Train
 } from 'lucide-react';
 
 export const NexusDashboard: React.FC = () => {
-  const { data, isConnected } = useTelemetry();
+  const { data, isConnected, sendMessage } = useTelemetry();
   const [time, setTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState('PILOT');
+
+  // Función para obtener valores mapeados por el perfil
+  const getMappedValue = (key: string, defaultValue: any) => {
+    const mapping = data?.active_profile?.mappings?.[key];
+    if (mapping && data?.[mapping] !== undefined) {
+      return data[mapping];
+    }
+    // Fallback al nombre de la clave por defecto
+    return data?.[key] ?? defaultValue;
+  };
 
   // Lógica de "Esperando Cola" (Odrómetro)
   const [waitingForClearance, setWaitingForClearance] = useState(false);
@@ -47,9 +58,10 @@ export const NexusDashboard: React.FC = () => {
 
   // Métricas Calculadas (Con fallbacks para evitar pantalla en blanco)
   const speed = Number(data?.Speed || 0);
-  const ammeter = Number(data?.Ammeter || 0);
-  const brakeCyl = Number(data?.TrainBrakeCylinderPressureBAR || 0);
-  const trainPipe = Number(data?.TrainBrakePipePressureBAR || 0);
+  const ammeter = Number(getMappedValue('ammeter', getMappedValue('current', data?.Ammeter || 0)));
+  const brakeCyl = Number(getMappedValue('brake_cylinder', data?.TrainBrakeCylinderPressureBAR || 0));
+  const trainPipe = Number(getMappedValue('brake_pipe', data?.TrainBrakePipePressureBAR || 0));
+  const brandColor = data?.active_profile?.visuals?.color || '#4ef2ff';
   const gradient = Number(data?.Gradient || 0);
   
   // Lógica de Límite Efectivo (No subir hasta despejar cola)
@@ -61,8 +73,10 @@ export const NexusDashboard: React.FC = () => {
   const temperature = Number(data?.Temperature || 42.5);
   const maxTrainSpeed = Number(data?.MaxSpeed || 250);
   const maxDialSpeed = maxTrainSpeed > 0 ? maxTrainSpeed : 250;
-  const speedUnit = Number(data?.SpeedoType) === 1 ? 'Mph' : 'Km/h';
-  const speedFactor = Number(data?.SpeedoType) === 1 ? 2.23694 : 3.6;
+  
+  // Sincronización de Unidades con el Simulador (0/1=MPH, 2=KPH)
+  const speedUnit = Number(data?.SpeedoType) === 2 ? 'Km/h' : 'Mph';
+  const speedFactor = Number(data?.SpeedoType) === 2 ? 3.6 : 2.23694;
 
   // El targetSpeed real para el velocímetro será el del tramo anterior si estamos esperando cola de liberación
   const targetSpeed = effectiveLimit > 0 ? effectiveLimit : rawTrackLimit;
@@ -72,7 +86,7 @@ export const NexusDashboard: React.FC = () => {
     if (!data) return;
 
     const currentNextDist = Number(data.NextSpeedLimitDistance || 0);
-    const sFactor = Number(data.SpeedoType) === 1 ? 2.23694 : 3.6;
+    const sFactor = Number(data.SpeedoType) === 2 ? 3.6 : 2.23694;
     const currentSpeedMS = Number(data.Speed || 0) / sFactor;
     const simTime = Number(data.SimulationTime || 0);
     const currentLimit = Number(data.CurrentSpeedLimit || 0);
@@ -151,17 +165,20 @@ export const NexusDashboard: React.FC = () => {
   }, [data, waitingForClearance, lastNextLimitDist, lastSimTime, effectiveLimit, trainLength]);
 
   // Safety Systems
-  const aws = Number(data?.AWS || 0) || (Number(data?.AWSWarning || 0) > 0 || Number(data?.AWSWarnCount || 0) > 0 || Number(data?.AWSWarnAudio || 0) > 0 ? 2 : 0);
-  const dsd = Number(data?.DSD || 0) || Number(data?.VigilAlarm || 0) || Number(data?.Vigilance || 0) || Number(data?.DVDAlarm || 0);
-  const dra = Number(data?.DRA || 0);
-  const emergency = Number(data?.EmergencyBrake || 0);
+  const aws = Number(getMappedValue('aws', data?.AWS || 0)) || (Number(getMappedValue('aws_warning', data?.AWSWarning || 0)) > 0 || Number(data?.AWSWarnCount || 0) > 0 || Number(data?.AWSWarnAudio || 0) > 0 ? 2 : 0);
+  const dsd = Number(getMappedValue('dsd', data?.DSD || 0)) || Number(getMappedValue('vigil_alarm', data?.VigilAlarm || 0)) || Number(data?.Vigilance || 0) || Number(data?.DVDAlarm || 0);
+  const dra = Number(getMappedValue('dra', data?.DRA || 0));
+  const emergency = Number(getMappedValue('emergency_brake', data?.EmergencyBrake || 0));
   
+  // Combined Control Logic (Ported from Proto)
+  const isCombined = !!data?.active_profile?.controls?.combined_control;
+  const combinedValue = isCombined ? Number(getMappedValue('combined_control', 0)) : 0;
+
   // Velocidad estimada en 10 segundos basada en aceleración actual
   const estimatedSpeed = Math.max(0, speed + (acceleration * speedFactor * 10));
   
   // Supervision Logic
   const isOverSpeed = speed > targetSpeed + 5;
-  const statusColor = isOverSpeed ? '#ff5656' : (isConnected ? '#4ef2ff' : '#64748b');
 
   // Handle EXIT
   useEffect(() => {
@@ -220,7 +237,7 @@ export const NexusDashboard: React.FC = () => {
             <div className="h-4 w-px bg-white/10" />
             <div className="flex gap-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
               <span>Driver: <span className="text-white">D-102</span></span>
-              <span>Vehicle: <span className="text-[#4ef2ff]">BR-442 VELARO</span></span>
+              <span>Vehicle: <span className="text-[#4ef2ff]">{data?.active_profile?.name || 'GENERIC TRAIN'}</span></span>
               <div className="w-px h-3 bg-white/10" />
               <span>L: <span className="text-white">{trainLength.toFixed(0)}m</span></span>
               <span>M: <span className="text-white">{trainMass > 0 ? `${trainMass.toFixed(0)}t` : '---'}</span></span>
@@ -246,6 +263,126 @@ export const NexusDashboard: React.FC = () => {
         {/* MAIN COCKPIT AREA */}
         <div className="flex-grow flex flex-col gap-4 overflow-hidden">
           
+          {activeTab === 'MAIN' && (
+            <div className="col-span-12 grid grid-cols-12 gap-6 p-4">
+              {/* Profile Selector Section */}
+              <div className="col-span-12 glass-panel rounded-3xl p-8 border border-white/5 shadow-2xl overflow-hidden relative">
+                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+                  <Activity size={120} className="text-[#4ef2ff]" />
+                </div>
+                
+                <div className="relative z-10">
+                  <h2 className="text-3xl font-black uppercase tracking-tighter mb-2 reactor-glow">Train Profile Selector</h2>
+                  <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest mb-8">Manual override for vehicle mapping & logic</p>
+                  
+                  <div className="grid grid-cols-4 gap-4 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar min-h-[200px]">
+                    {/* Botón Auto-Detect */}
+                    <button 
+                      onClick={() => sendMessage({ type: 'SELECT_PROFILE', profile_id: 'AUTO' })}
+                      className={`p-6 rounded-2xl border transition-all flex flex-col items-center justify-center gap-3 relative overflow-hidden group ${
+                        !data?.active_profile?.id 
+                        ? 'bg-[#4ef2ff]/10 border-[#4ef2ff]/40 shadow-[0_0_20px_rgba(78,242,255,0.1)]' 
+                        : 'bg-white/5 border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center border border-white/10 group-hover:scale-110 transition-transform">
+                        <Activity size={24} className={!data?.active_profile?.id ? 'text-[#4ef2ff]' : 'text-white/40'} />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-widest leading-none">Automatic</span>
+                      <span className="text-[8px] font-bold text-neutral-500 uppercase italic">Smart Detection</span>
+                      {!data?.active_profile?.id && <div className="absolute bottom-0 left-0 w-full h-1 bg-[#4ef2ff] shadow-[0_0_10px_#4ef2ff]" />}
+                    </button>
+
+                    {/* Lista de Perfiles */}
+                    {data?.available_profiles && data.available_profiles.length > 0 ? (
+                      data.available_profiles.map(profile => (
+                        <button 
+                          key={profile.id}
+                          onClick={() => sendMessage({ type: 'SELECT_PROFILE', profile_id: profile.id })}
+                          className={`p-6 rounded-2xl border transition-all flex flex-col items-start gap-3 relative overflow-hidden group ${
+                            data?.active_profile?.id === profile.id
+                            ? 'bg-[#4ef2ff]/10 border-[#4ef2ff]/40 shadow-[0_0_20px_rgba(78,242,255,0.1)]' 
+                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          <div className="flex justify-between w-full items-start">
+                            <Train size={24} className={data?.active_profile?.id === profile.id ? 'text-[#4ef2ff]' : 'text-neutral-600'} />
+                            {data?.active_profile?.id === profile.id && (
+                              <div className="px-2 py-0.5 rounded-full bg-[#4ef2ff]/20 border border-[#4ef2ff]/30 text-[8px] font-black text-[#4ef2ff] uppercase animate-pulse">Active</div>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-start mt-2">
+                             <span className="text-[11px] font-black uppercase tracking-tight text-left line-clamp-2 leading-tight">{profile.name}</span>
+                             <span className="text-[8px] font-bold text-neutral-500 uppercase mt-1">ID: {profile.id}</span>
+                          </div>
+                          {data?.active_profile?.id === profile.id && <div className="absolute bottom-0 left-0 w-full h-1 bg-[#4ef2ff] shadow-[0_0_10px_#4ef2ff]" />}
+                        </button>
+                      ))
+                    ) : (
+                      /* Placeholder si la lista está vacía */
+                      <div className="col-span-4 p-12 border-2 border-dashed border-white/5 rounded-2xl flex flex-col items-center justify-center opacity-40">
+                         <Activity size={48} className="animate-pulse mb-4 text-[#4ef2ff]" />
+                         <span className="text-sm font-black uppercase tracking-widest text-white">Diagnostic Mode</span>
+                         <div className="mt-4 flex flex-col items-center gap-2">
+                            <span className="text-[10px] text-neutral-500">WebSocket: {isConnected ? 'CONNECTED' : 'OFFLINE'}</span>
+                            <span className="text-[10px] text-neutral-500">Metadata nodes: {Object.keys(data || {}).length}</span>
+                            <button 
+                              onClick={() => window.location.reload()}
+                              className="mt-4 px-6 py-2 bg-[#4ef2ff]/10 border border-[#4ef2ff]/30 rounded-lg text-[10px] font-black uppercase text-[#4ef2ff] hover:bg-[#4ef2ff]/20 transition-all font-mono"
+                            >
+                              Force Web Interface Reset
+                            </button>
+                         </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Informática de Estado del Perfil */}
+              <div className="col-span-12 grid grid-cols-3 gap-6">
+                <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-gradient-to-br from-emerald-500/5 to-transparent">
+                   <h3 className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-4">Detection Engine</h3>
+                   <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                         <span className="text-xs font-bold text-white/70 italic">Logic Mode:</span>
+                         <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${data?.active_profile?.id ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                           {data?.active_profile?.id ? 'Fingerprint Matched' : 'Scanning...'}
+                         </span>
+                      </div>
+                      <div className="h-px bg-white/5 my-1" />
+                      <div className="flex items-center justify-between">
+                         <span className="text-[10px] font-bold text-neutral-600 uppercase">Active Profile:</span>
+                         <span className="text-[10px] font-black text-[#4ef2ff] uppercase">{data?.active_profile?.name || 'GENERIC'}</span>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="glass-panel p-6 rounded-3xl border border-white/5">
+                   <h3 className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-4">Hardware Mapping</h3>
+                   <div className="space-y-2">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-neutral-600 font-bold uppercase">Combined:</span>
+                        <span className={isCombined ? 'text-emerald-400' : 'text-neutral-700'}>{isCombined ? 'ENABLED' : 'DISABLED'}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-neutral-600 font-bold uppercase">Safety Mapped:</span>
+                        <span className="text-white/60">{Object.keys(data?.active_profile?.mappings || {}).length} nodes</span>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="glass-panel p-6 rounded-3xl border border-white/5 flex items-center justify-center gap-4 group cursor-pointer hover:bg-white/5 transition-all" onClick={() => setActiveTab('PILOT')}>
+                   <div className="flex flex-col">
+                      <span className="text-xl font-black text-white group-hover:text-[#4ef2ff] transition-colors">GO TO PILOT</span>
+                      <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-widest">Initialization Complete</span>
+                   </div>
+                   <ChevronRight size={32} className="text-[#4ef2ff] group-hover:translate-x-2 transition-transform" />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* SAFETY SYSTEMS MONITOR BAR (Always visible in Pilot mode) */}
           {activeTab === 'PILOT' && (
             <div className="grid grid-cols-4 gap-4 h-16">
@@ -312,17 +449,43 @@ export const NexusDashboard: React.FC = () => {
           {activeTab === 'PILOT' && (
             <>
               {/* LEFT: POWER & BRAKE GAUGES (VERTICAL GLASS BARS) */}
-              <div className="col-span-2 glass-panel rounded-3xl p-6 flex flex-col justify-between border-l-4 border-l-[#4ef2ff]/20">
-                <div className="space-y-8 h-full flex flex-col">
+              <div className="col-span-2 glass-panel rounded-3xl p-6 flex flex-col justify-between border-l-4" style={{ borderLeftColor: `${brandColor}33` }}>
+                <div className="space-y-6 h-full flex flex-col">
+                  {/* Master Handle (Only for Combined Control) */}
+                  {isCombined && (
+                    <div className="h-24 flex flex-col shrink-0">
+                      <div className="flex justify-between items-end mb-1">
+                        <span className="text-[10px] font-black uppercase text-neutral-500 tracking-widest">Master</span>
+                        <span className={`text-sm font-mono font-black ${combinedValue > 0 ? 'text-[#4ef2ff]' : combinedValue < 0 ? 'text-[#ffa547]' : 'text-neutral-500'}`}>
+                           {Math.abs(combinedValue * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="flex-grow bg-white/5 rounded-full p-1 relative overflow-hidden border border-white/5">
+                        <div className="absolute top-1/2 left-0 right-0 h-px bg-white/10 z-20" />
+                        <motion.div 
+                          className="absolute left-1 right-1 rounded-full z-10"
+                          style={{ 
+                            top: combinedValue >= 0 ? 'auto' : '50%',
+                            bottom: combinedValue >= 0 ? '50%' : 'auto',
+                            backgroundColor: combinedValue > 0 ? brandColor : combinedValue < 0 ? '#ffa547' : 'transparent',
+                            boxShadow: combinedValue !== 0 ? `0 0 15px ${combinedValue > 0 ? brandColor : '#ffa547'}88` : 'none'
+                          }}
+                          animate={{ height: `${Math.abs(combinedValue) * 50}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Traction Power */}
                   <div className="flex-grow flex flex-col">
                     <div className="flex justify-between items-end mb-2">
-                      <span className="text-[10px] font-black uppercase text-neutral-500 tracking-widest">Tractive</span>
-                      <span className="text-xl font-mono font-black text-[#4ef2ff]">{Math.abs(ammeter).toFixed(0)}</span>
+                      <span className="text-[10px] font-black uppercase text-neutral-500 tracking-widest">{getMappedValue('effort', null) ? 'Effort' : 'Tractive'}</span>
+                      <span className="text-xl font-mono font-black" style={{ color: brandColor }}>{Math.abs(ammeter).toFixed(0)}</span>
                     </div>
                     <div className="flex-grow bg-white/5 rounded-full p-1 relative overflow-hidden backdrop-blur-sm border border-white/5">
                       <motion.div 
-                        className="absolute bottom-1 left-1 right-1 rounded-full bg-gradient-to-t from-[#0066cc] to-[#4ef2ff] shadow-[0_0_20px_rgba(78,242,255,0.3)]"
+                        className="absolute bottom-1 left-1 right-1 rounded-full shadow-[0_0_20px_rgba(78,242,255,0.3)]"
+                        style={{ background: `linear-gradient(to top, #0066cc, ${brandColor})` }}
                         animate={{ height: `${Math.min(100, Math.abs(ammeter)/10)}%` }}
                         transition={{ type: "spring", stiffness: 50 }}
                       />
@@ -330,7 +493,7 @@ export const NexusDashboard: React.FC = () => {
                          {[100, 75, 50, 25, 0].map(v => <div key={v} className="flex items-center gap-2"><div className="w-4 h-px bg-white/10" />{v}%</div>)}
                       </div>
                     </div>
-                    <span className="text-[9px] text-center mt-2 text-neutral-600 font-bold uppercase tracking-tighter">Force (kN)</span>
+                    <span className="text-[9px] text-center mt-2 text-neutral-600 font-bold uppercase tracking-tighter">Force (%)</span>
                   </div>
 
                   {/* Brake Cylinder */}
@@ -365,10 +528,10 @@ export const NexusDashboard: React.FC = () => {
                         {/* Speed Value Arc */}
                         <motion.circle 
                           cx="100" cy="100" r="98" fill="none" 
-                          stroke={statusColor} strokeWidth="4" strokeLinecap="round"
+                          stroke={isOverSpeed ? '#ff5656' : brandColor} strokeWidth="4" strokeLinecap="round"
                           initial={{ strokeDasharray: "615.75", strokeDashoffset: "615.75" }}
                           animate={{ strokeDashoffset: 615.75 - (speed/maxDialSpeed) * 615.75 }}
-                          style={{ filter: `drop-shadow(0 0 15px ${statusColor}AA)` }}
+                          style={{ filter: `drop-shadow(0 0 15px ${isOverSpeed ? '#ff5656' : brandColor}AA)` }}
                         />
                       </svg>
 
@@ -432,20 +595,20 @@ export const NexusDashboard: React.FC = () => {
                 <div className="h-20 glass-panel rounded-3xl flex justify-around items-center px-4 border border-white/5 shadow-xl">
                   <MetricSquare label="Gradient" value={gradient.toFixed(1)} unit="%" color="#34d399" />
                   <div className="w-px h-8 bg-white/5" />
-                  <MetricSquare label="Target" value={targetSpeed.toFixed(1)} unit="km/h" color="#4ef2ff" />
+                  <MetricSquare label="Target" value={targetSpeed.toFixed(1)} unit={speedUnit.toLowerCase()} color={brandColor} />
                   <div className="w-px h-8 bg-white/5" />
-                  <MetricSquare label="Next Lim" value={nextLimit.toFixed(1)} unit="km/h" color="#ffa547" />
+                  <MetricSquare label="Next Lim" value={nextLimit.toFixed(1)} unit={speedUnit.toLowerCase()} color="#ffa547" />
                 </div>
               </div>
 
               {/* RIGHT: PLANNING & LOGS */}
               <div className="col-span-3 flex flex-col gap-4">
                  {/* G-FORCE / ACCEL MONITOR (Movido aquí para máxima visibilidad) */}
-                 <div className="h-44 glass-panel rounded-3xl p-4 flex items-center justify-between border-r-4 border-r-[#4ef2ff]/40 relative overflow-hidden">
+                 <div className="h-44 glass-panel rounded-3xl p-4 flex items-center justify-between border-r-4 relative overflow-hidden" style={{ borderRightColor: `${brandColor}66` }}>
                     <div className="flex flex-col z-10">
                       <h3 className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-2">G-Force Monitor</h3>
                       <div className="flex items-baseline gap-1">
-                        <span className={`text-4xl font-black ${acceleration > 0 ? 'text-[#4ef2ff]' : 'text-[#ffa547]'}`}>
+                        <span className={`text-4xl font-black ${acceleration > 0 ? '' : 'text-[#ffa547]'}`} style={{ color: acceleration > 0 ? brandColor : undefined }}>
                           {acceleration >= 0 ? '+' : ''}{acceleration.toFixed(2)}
                         </span>
                         <span className="text-[10px] font-bold text-neutral-600 uppercase">m/s²</span>
@@ -477,8 +640,8 @@ export const NexusDashboard: React.FC = () => {
                           style={{ 
                             top: acceleration > 0 ? 'auto' : '50%',
                             bottom: acceleration > 0 ? '50%' : 'auto',
-                            backgroundColor: acceleration > 0 ? '#4ef2ff' : '#ffa547',
-                            boxShadow: acceleration > 0 ? '0 0 15px #4ef2ff88' : '0 0 15px #ffa54788'
+                            backgroundColor: acceleration > 0 ? brandColor : '#ffa547',
+                            boxShadow: acceleration > 0 ? `0 0 15px ${brandColor}88` : '0 0 15px #ffa54788'
                           }}
                           animate={{ 
                             height: `${Math.min(50, Math.abs(acceleration * 40))}%` 
@@ -554,8 +717,8 @@ export const NexusDashboard: React.FC = () => {
               <div className="col-span-1 glass-panel rounded-3xl p-6">
                 <h3 className="text-[10px] font-black text-[#4ef2ff] uppercase tracking-widest mb-6 border-b border-white/5 pb-2">Pressure Matrix</h3>
                 <div className="space-y-6">
-                  <TelemetryBar label="Train Pipe" value={trainPipe} max={5} unit="bar" color="#4ef2ff" />
-                  <TelemetryBar label="Main Reservoir" value={data?.MainResPressureBAR || 0} max={10} unit="bar" color="#34d399" />
+                  <TelemetryBar label="Train Pipe" value={trainPipe} max={5} unit="bar" color={brandColor} />
+                  <TelemetryBar label="Main Reservoir" value={Number(getMappedValue('main_reservoir', data?.MainResPressureBAR || 0))} max={10} unit="bar" color="#34d399" />
                   <TelemetryBar label="Cylinder" value={brakeCyl} max={5} unit="bar" color="#ffa547" />
                 </div>
               </div>
@@ -661,7 +824,65 @@ export const NexusDashboard: React.FC = () => {
             </div>
           )}
 
-          {activeTab !== 'PILOT' && activeTab !== 'TELEMETRY' && activeTab !== 'CONFIG' && (
+          {activeTab === 'LOGS' && (
+            <div className="col-span-12 glass-panel rounded-3xl p-8 border border-white/5 flex flex-col h-full">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-black uppercase tracking-tighter reactor-glow">System Event Log</h2>
+                <div className="flex gap-4">
+                   <div className="px-4 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black text-emerald-500 uppercase">
+                     Kernel: Online
+                   </div>
+                   <div className="px-4 py-1 rounded-full bg-[#4ef2ff]/10 border border-[#4ef2ff]/20 text-[10px] font-black text-[#4ef2ff] uppercase">
+                     Data Flow: {data?.Speed !== undefined ? 'Active' : 'Standby'}
+                   </div>
+                </div>
+              </div>
+
+              <div className="flex-grow overflow-y-auto space-y-2 pr-4 custom-scrollbar font-mono text-[11px]">
+                 <div className="p-3 rounded-lg bg-white/5 border border-white/5 flex justify-between">
+                    <span className="text-neutral-500">[SYSTEM]</span>
+                    <span className="text-white">Nexus Hub initialized at {new Date().toLocaleTimeString()}</span>
+                 </div>
+                 <div className="p-3 rounded-lg bg-white/5 border border-white/5 flex justify-between">
+                    <span className="text-[#4ef2ff]">[WEBSOCKET]</span>
+                    <span className="text-white">{isConnected ? 'Handshake established with local gateway' : 'Searching for backend...'}</span>
+                 </div>
+                 <div className="p-3 rounded-lg bg-white/5 border border-white/5 flex justify-between">
+                    <span className="text-neutral-500">[STORAGE]</span>
+                    <span className="text-white">
+                        Detected {data?.available_profiles?.length || 0} vehicle profiles
+                        {data?.debug_path && <span className="text-[9px] text-neutral-600 ml-2">({data.debug_path})</span>}
+                    </span>
+                 </div>
+                 {data?.debug_count === 0 && (
+                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-500">
+                       [CRITICAL] Backend reports 0 profiles loaded. Check folder accessibility.
+                    </div>
+                 )}
+                 {data?.active_profile && (
+                    <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex justify-between">
+                       <span className="text-emerald-500">[MATCHER]</span>
+                       <span className="text-white">Profile '{data.active_profile.name}' matched via hardware fingerprint</span>
+                    </div>
+                 )}
+                 <div className="p-3 rounded-lg bg-white/5 border border-white/5 flex justify-between">
+                    <span className="text-neutral-500">[TELEMETRY]</span>
+                    <span className="text-white">Current speed node: {data?.Speed?.toFixed(2) || '0.00'} MPH</span>
+                 </div>
+              </div>
+              
+              <div className="mt-6 flex justify-center">
+                 <button 
+                   onClick={() => setActiveTab('MAIN')}
+                   className="px-12 py-3 bg-[#4ef2ff]/10 border border-[#4ef2ff]/40 rounded-xl text-xs font-black uppercase text-[#4ef2ff] hover:bg-[#4ef2ff]/20 transition-all shadow-[0_0_20px_rgba(78,242,255,0.1)]"
+                 >
+                   Go to Profile Selector (MAIN)
+                 </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab !== 'MAIN' && activeTab !== 'PILOT' && activeTab !== 'TELEMETRY' && activeTab !== 'CONFIG' && activeTab !== 'LOGS' && (
             <div className="col-span-12 glass-panel rounded-3xl p-12 flex flex-col items-center justify-center">
                <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -676,7 +897,6 @@ export const NexusDashboard: React.FC = () => {
                </motion.div>
             </div>
           )}
-
         </div>
       </div>
 
