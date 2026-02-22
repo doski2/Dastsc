@@ -3,8 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import os
 import time
-import json
-import glob
 from typing import List
 
 # These will be copied next
@@ -103,7 +101,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_text()
+            _data = await websocket.receive_text()
             # Handle incoming commands (SendCommand.txt logic)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
