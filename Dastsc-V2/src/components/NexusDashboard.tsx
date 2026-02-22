@@ -1,15 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useTelemetry } from '../hooks/useTelemetry';
 import { 
-  Navigation, 
-  Wifi, 
   WifiOff,
   ChevronRight,
   Activity,
   AlertTriangle,
   Bell,
+  History,
   PowerOff,
+  Wifi,
   Train
 } from 'lucide-react';
 
@@ -19,14 +19,14 @@ export const NexusDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('PILOT');
 
   // Función para obtener valores mapeados por el perfil
-  const getMappedValue = (key: string, defaultValue: any) => {
+  const getMappedValue = useCallback((key: string, defaultValue: any) => {
     const mapping = data?.active_profile?.mappings?.[key];
     if (mapping && data?.[mapping] !== undefined) {
       return data[mapping];
     }
     // Fallback al nombre de la clave por defecto
     return data?.[key] ?? defaultValue;
-  };
+  }, [data]);
 
   // Lógica de "Esperando Cola" (Odrómetro)
   const [waitingForClearance, setWaitingForClearance] = useState(false);
@@ -37,6 +37,12 @@ export const NexusDashboard: React.FC = () => {
   const [trainLength, setTrainLength] = useState(61.0);
   const [trainMass, setTrainMass] = useState(0);
 
+  // Historial de Logs
+  const [logs, setLogs] = useState<{id: number, time: string, message: string, type: string}[]>([
+    { id: 1, time: new Date().toLocaleTimeString().slice(0, 5), message: "Panel Nexus inicializado", type: "info" },
+    { id: 2, time: new Date().toLocaleTimeString().slice(0, 5), message: "Link de telemetría estable", type: "info" }
+  ]);
+
   // Historial de Trenes Recientes
   const [recentTrains, setRecentTrains] = useState<{id: string, name: string, color: string}[]>(() => {
     try {
@@ -45,6 +51,7 @@ export const NexusDashboard: React.FC = () => {
     } catch { return []; }
   });
 
+  // Sync recent trains
   useEffect(() => {
     const profile = data?.active_profile;
     if (profile && profile.id && profile.name) {
@@ -53,31 +60,41 @@ export const NexusDashboard: React.FC = () => {
       const profileColor = profile.visuals?.color || '#4ef2ff';
 
       setRecentTrains(prev => {
-        // Evitar duplicados consecutivos o en la lista
         if (prev.length > 0 && prev[0].id === profileId) return prev;
+        
+        // Log profile detection
+        setLogs(l => [...l.slice(-20), { 
+          id: Date.now(), 
+          time: new Date().toLocaleTimeString().slice(0, 5), 
+          message: `Perfil activo: ${profileName}`, 
+          type: 'info' 
+        }]);
+
         const filtered = prev.filter(t => t.id !== profileId);
-        const newList = [{ 
-          id: profileId, 
-          name: profileName, 
-          color: profileColor 
-        }, ...filtered].slice(0, 5);
+        const newList = [{ id: profileId, name: profileName, color: profileColor }, ...filtered].slice(0, 5);
         localStorage.setItem('nexus_recent_trains', JSON.stringify(newList));
         return newList;
       });
     }
-  }, [data?.active_profile?.id, data?.active_profile?.name]);
+  }, [data?.active_profile?.id, data?.active_profile?.name, data?.active_profile?.visuals?.color]);
+
+  // Log connection status changes
+  useEffect(() => {
+    setLogs(l => [...l.slice(-20), { 
+      id: Date.now() + 1, 
+      time: new Date().toLocaleTimeString().slice(0, 5), 
+      message: isConnected ? "Enlace de datos restaurado" : "Error de enlace con el simulador", 
+      type: isConnected ? 'info' : 'warn' 
+    }]);
+  }, [isConnected]);
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
-    
     const handleKeyDown = (e: KeyboardEvent) => {
       const keys = ['1', '2', '3', '4', '5', '6', '7', '8'];
       const tabs = ['MAIN', 'PILOT', 'TELEMETRY', 'SYSTEM', 'SAFETY', 'CONFIG', 'LOGS', 'EXIT'];
-      if (keys.includes(e.key)) {
-        setActiveTab(tabs[keys.indexOf(e.key)]);
-      }
+      if (keys.includes(e.key)) setActiveTab(tabs[keys.indexOf(e.key)]);
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       clearInterval(timer);
@@ -85,97 +102,78 @@ export const NexusDashboard: React.FC = () => {
     };
   }, []);
 
-  // Métricas Calculadas (Con fallbacks para evitar pantalla en blanco)
-  const rawSpeedMPS = Number(data?.CurrentSpeed !== undefined ? data.CurrentSpeed : 0);
-  const dataSpeedConverted = Number(data?.Speed || 0); // Este ya viene convertido de Lua (MPH o KPH)
-  const cabSpeed = (data?.CabSpeed !== undefined && data.CabSpeed !== 0) ? Number(data.CabSpeed) : null;
-  const speedoType = Number(data?.SpeedoType || 1);
-  const speedUnit = speedoType === 2 ? 'Km/h' : 'Mph';
-  const speedFactor = speedoType === 2 ? 3.6 : 2.23694;
-  
-  // Lógica de Velocidad Ultra-Robusta:
-  // 1. Si CabSpeed (aguja de cabina) es válida, la usamos directamente.
-  // 2. Si no, usamos CurrentSpeed (m/s) multiplicada por el factor correspondiente.
-  // 3. Si falla CurrentSpeed, recurrimos a data.Speed (ya convertido en Lua) SIN multiplicar de nuevo.
-  const speed = (cabSpeed !== null) ? cabSpeed : 
-                (rawSpeedMPS > 0 ? (rawSpeedMPS * speedFactor) : dataSpeedConverted);
+  // Memotización de constantes y factores de conversión
+  const speedoType = useMemo(() => Number(data?.SpeedoType || 1), [data?.SpeedoType]);
+  const speedUnit = useMemo(() => speedoType === 2 ? 'Km/h' : 'Mph', [speedoType]);
+  const speedFactor = useMemo(() => speedoType === 2 ? 3.6 : 2.23694, [speedoType]);
+  const brandColor = useMemo(() => data?.active_profile?.visuals?.color || '#4ef2ff', [data?.active_profile?.visuals?.color]);
 
-  const ammeter = Number(getMappedValue('ammeter', getMappedValue('current', data?.TractiveEffort || data?.Ammeter || 0)));
-  
-  // Detección de Tipo de Motor para Unidades de Tracción
-  const isElectric = data?.Pantograph !== undefined || data?.LineVolts !== undefined || data?.active_profile?.mappings?.ammeter;
-  const isDiesel = data?.FuelLevel !== undefined || data?.active_profile?.mappings?.effort;
-  const powerLabel = isElectric ? "Amps" : (isDiesel ? "Traction" : "Effort");
-  const powerUnitLabel = isElectric ? "A" : (isDiesel ? "kN" : "%");
+  // Métricas de Tracción robustas
+  const ammeter = useMemo(() => Number(getMappedValue('ammeter', getMappedValue('current', data?.TractiveEffort || data?.Ammeter || 0))), [getMappedValue, data]);
+  const isElectric = useMemo(() => data?.Pantograph !== undefined || data?.LineVolts !== undefined || data?.active_profile?.mappings?.ammeter, [data]);
+  const isDiesel = useMemo(() => data?.FuelLevel !== undefined || data?.active_profile?.mappings?.effort, [data]);
+  const powerLabel = useMemo(() => isElectric ? "Amps" : (isDiesel ? "Traction" : "Effort"), [isElectric, isDiesel]);
+  const powerUnitLabel = useMemo(() => isElectric ? "A" : (isDiesel ? "kN" : "%"), [isElectric, isDiesel]);
 
-  // Normalización Inteligente del Amperímetro/Esfuerzo
-  const isAmmeterProfileMapped = !!data?.active_profile?.mappings?.ammeter;
-  const maxAmmeterValue = Number(data?.active_profile?.specs?.max_ammeter) || 100;
-  const effortNormalised = (isAmmeterProfileMapped || ammeter > 101) 
-    ? (Math.abs(ammeter) / maxAmmeterValue) * 100 
-    : Math.abs(ammeter); // Ya es porcentaje
+  // Normalización de Esfuerzo
+  const effortNormalised = useMemo(() => {
+    const isAmmeterProfileMapped = !!data?.active_profile?.mappings?.ammeter;
+    const maxAmmeterValue = Number(data?.active_profile?.specs?.max_ammeter) || 100;
+    return (isAmmeterProfileMapped || ammeter > 101) 
+      ? (Math.abs(ammeter) / maxAmmeterValue) * 100 
+      : Math.abs(ammeter);
+  }, [ammeter, data?.active_profile]);
 
-  const brakeCyl = Number(getMappedValue('brake_cylinder', data?.TrainBrakeCylinderPressureBAR || 0));
-  const trainPipe = Number(getMappedValue('brake_pipe', data?.TrainBrakePipePressureBAR || 0));
-  const brandColor = data?.active_profile?.visuals?.color || '#4ef2ff';
-  const gradient = Number(data?.Gradient || 0);
-  
-  // Lógica de Límite Efectivo (No subir hasta despejar cola)
+  // Lógica de Velocidad Unificada
+  const speed = useMemo(() => {
+    const cabSpeed = (data?.CabSpeed !== undefined && data.CabSpeed !== 0) ? Number(data.CabSpeed) : null;
+    const rawSpeedMPS = Number(data?.CurrentSpeed !== undefined ? data.CurrentSpeed : 0);
+    const dataSpeedConverted = Number(data?.Speed || 0);
+    return cabSpeed !== null ? cabSpeed : (rawSpeedMPS > 0 ? (rawSpeedMPS * speedFactor) : dataSpeedConverted);
+  }, [data, speedFactor]);
+
   const rawTrackLimit = Number(data?.CurrentSpeedLimit || 120);
+  const nextLimitVal = Number(data?.NextSpeedLimitSpeed || 0);
+  const nextLimitDistRaw = Number(data?.NextSpeedLimitDistance || 0);
+  // Conversión a metros: si es un valor pequeño (probablemente KM), multiplicar por 1000
+  const nextLimitDist = nextLimitDistRaw < 40 ? nextLimitDistRaw * 1000 : nextLimitDistRaw;
   
-  const nextLimit = Number(data?.NextSpeedLimitSpeed || 80);
-  const nextLimitDist = Number(data?.NextSpeedLimitDistance || 0);
   const acceleration = Number(data?.Acceleration || 0);
   const temperature = Number(data?.Temperature || 42.5);
-  
-  // Velocidad máxima para el dial (Preferiblemente del perfil)
-  const profileMaxSpeed = Number(data?.active_profile?.specs?.max_speed);
-  const maxDialSpeed = (profileMaxSpeed && profileMaxSpeed > 0) ? profileMaxSpeed : (Number(data?.MaxSpeed) > 0 ? Number(data?.MaxSpeed) : 250);
-  
-  // El targetSpeed real para el velocímetro será el del tramo anterior si estamos esperando cola de liberación
+  const gradient = Number(data?.Gradient || 0);
+  const brakeCyl = Number(getMappedValue('brake_cylinder', data?.TrainBrakeCylinderPressureBAR || 0));
+  const trainPipe = Number(getMappedValue('train_pipe', data?.TrainPipePressureBAR || 0));
   const targetSpeed = effectiveLimit > 0 ? effectiveLimit : rawTrackLimit;
 
-  // Proceso del Odrómetro y Lógica de Cola
+  // Dial Max Speed
+  const maxDialSpeed = useMemo(() => {
+    const profileMax = Number(data?.active_profile?.specs?.max_speed);
+    return (profileMax && profileMax > 0) ? profileMax : (Number(data?.MaxSpeed) > 0 ? Number(data?.MaxSpeed) : 250);
+  }, [data?.active_profile?.specs?.max_speed, data?.MaxSpeed]);
+
+  // Odrómetro y Lógica de Cola Optimizada
   useEffect(() => {
-    if (!data) return;
+    const currentNextDist = Number(data?.NextSpeedLimitDistance || 0);
+    const currentSpeedMS = Number(data?.CurrentSpeed || (Number(data?.Speed || 0) / speedFactor));
+    const simTime = Number(data?.SimulationTime || 0);
+    const currentLimit = Number(data?.CurrentSpeedLimit || 0);
+    const nextLimitSpeed = Number(data?.NextSpeedLimitSpeed || 0);
 
-    const currentNextDist = Number(data.NextSpeedLimitDistance || 0);
-    const sFactor = Number(data.SpeedoType) === 2 ? 3.6 : 2.23694;
-    // Siempre usamos m/s para cálculos de distancia (Speed o CurrentSpeed)
-    // Pero como Lua ya mandó 'Speed' convertido, mejor usamos CurrentSpeed que es m/s puro
-    const currentSpeedMS = Number(data.CurrentSpeed || (Number(data.Speed || 0) / sFactor));
-    const simTime = Number(data.SimulationTime || 0);
-    const currentLimit = Number(data.CurrentSpeedLimit || 0);
-    const nextLimitSpeed = Number(data.NextSpeedLimitSpeed || 0);
-
-    // Sincronizar largo del tren si el simulador lo reporta automáticamente
-    if (data.TrainLength && Number(data.TrainLength) > 0) {
-       const autoLength = Number(data.TrainLength);
-       // Solo actualizamos si el cambio es real y no estamos en medio de una medición
-       if (Math.abs(autoLength - trainLength) > 0.5 && !waitingForClearance) {
-          setTrainLength(autoLength);
-       }
+    // Sync train data
+    if (data?.TrainLength && Math.abs(Number(data.TrainLength) - trainLength) > 0.5 && !waitingForClearance) {
+      setTrainLength(Number(data.TrainLength));
+    }
+    if (data?.TrainMass && Math.abs(Number(data.TrainMass) - trainMass) > 0.1) {
+      setTrainMass(Number(data.TrainMass));
     }
 
-    if (data.TrainMass && Number(data.TrainMass) > 0) {
-       const autoMass = Number(data.TrainMass);
-       if (Math.abs(autoMass - trainMass) > 0.1) {
-          setTrainMass(autoMass);
-       }
-    }
+    if (effectiveLimit === 0 && currentLimit > 0) setEffectiveLimit(currentLimit);
 
-    // Initial load
-    if (effectiveLimit === 0 && currentLimit > 0) {
-       setEffectiveLimit(currentLimit);
-    }
-
-    // 1. Detectar cruce de señal (salto de distancia)
+    // Logic for sequence triggers
     if (lastNextLimitDist < 15 && currentNextDist > 100) {
-      // Si el limite que viene es mayor (liberación)
       if (nextLimitSpeed > currentLimit) {
         setWaitingForClearance(true);
         setDistanceTravelled(0);
-        // Mantenemos el limite actual como efectivo hasta que despeje
         setEffectiveLimit(currentLimit);
       } else {
         setWaitingForClearance(false);
@@ -183,24 +181,20 @@ export const NexusDashboard: React.FC = () => {
       }
     }
 
-    // 2. Seguridad: Si el límite de la vía baja de repente, aplicamos inmediatamente.
-    // Incluso si estamos "esperando" para subir, si la vía nos impone algo CORTANTE, obedecemos.
     if (currentLimit < effectiveLimit) {
-        setEffectiveLimit(currentLimit);
-        // Si estábamos esperando despejar para una velocidad mayor, pero ahora la vía baja, abortamos la espera
-        if (waitingForClearance) {
-          setWaitingForClearance(false);
-          setDistanceTravelled(0);
-        }
+      setEffectiveLimit(currentLimit);
+      if (waitingForClearance) {
+        setWaitingForClearance(false);
+        setDistanceTravelled(0);
+      }
     }
 
-    // 3. Actualizar Odrómetro
+    // Accumulate distance
     if (waitingForClearance) {
-      const dt = lastSimTime > 0 ? simTime - lastSimTime : 0.2;
+      const dt = lastSimTime > 0 ? simTime - lastSimTime : 0.05;
       if (dt > 0 && dt < 1) {
-        const deltaDist = Math.abs(currentSpeedMS) * dt;
         setDistanceTravelled(prev => {
-          const newDist = prev + deltaDist;
+          const newDist = prev + (Math.abs(currentSpeedMS) * dt);
           if (newDist >= trainLength) {
             setWaitingForClearance(false);
             setEffectiveLimit(currentLimit);
@@ -209,16 +203,11 @@ export const NexusDashboard: React.FC = () => {
           return newDist;
         });
       }
-    } else {
-        // Si no estamos esperando, el limite efectivo sigue a la vía
-        if (currentLimit !== effectiveLimit) {
-            setEffectiveLimit(currentLimit);
-        }
     }
 
     setLastNextLimitDist(currentNextDist);
     setLastSimTime(simTime);
-  }, [data, waitingForClearance, lastNextLimitDist, lastSimTime, effectiveLimit, trainLength]);
+  }, [data, speedFactor, trainLength, waitingForClearance, lastNextLimitDist, lastSimTime, effectiveLimit]);
 
   // Safety Systems
   const aws = Number(getMappedValue('aws', data?.AWS || 0)) || (Number(getMappedValue('aws_warning', data?.AWSWarning || 0)) > 0 || Number(data?.AWSWarnCount || 0) > 0 || Number(data?.AWSWarnAudio || 0) > 0 ? 2 : 0);
@@ -226,7 +215,7 @@ export const NexusDashboard: React.FC = () => {
   const dra = Number(getMappedValue('dra', data?.DRA || 0));
   const emergency = Number(getMappedValue('emergency_brake', data?.EmergencyBrake || 0));
   
-  // Combined Control Logic (Ported from Proto)
+  // Combined Control Logic
   const isCombined = !!data?.active_profile?.controls?.combined_control;
   const combinedValue = isCombined ? Number(getMappedValue('combined_control', 0)) : 0;
 
@@ -234,20 +223,39 @@ export const NexusDashboard: React.FC = () => {
   const estimatedSpeed = Math.max(0, speed + (acceleration * speedFactor * 10));
   
   // Supervision Logic
-  const isOverSpeed = speed > targetSpeed + 5;
+  const isOverSpeed = speed > targetSpeed + 2;
 
-  // Signal Logic (Ported from Proto)
+  // Log Critical Systems
+  useEffect(() => {
+    if (emergency > 0.5) {
+      setLogs(l => [...l.slice(-20), { 
+        id: Date.now() + 2, 
+        time: new Date().toLocaleTimeString().slice(0, 5), 
+        message: "¡FRENO DE EMERGENCIA APLICADO!", 
+        type: 'error' 
+      }]);
+    }
+  }, [emergency > 0.5]);
+
+  useEffect(() => {
+    if (dsd > 0.5) {
+      setLogs(l => [...l.slice(-20), { 
+        id: Date.now() + 3, 
+        time: new Date().toLocaleTimeString().slice(0, 5), 
+        message: "ALERTA HOMBRE MUERTO (DSD)", 
+        type: 'warn' 
+      }]);
+    }
+  }, [dsd > 0.5]);
+
+  // Signal Logic
   const sigStateRaw = Number(data?.NextSignalState ?? -1);
-  const sigDist = Number(data?.DistanceToNextSignal ?? -1);
+  const sigDist = (Number(data?.DistanceToNextSignal ?? -1) * (Number(data?.DistanceToNextSignal) < 40 && Number(data?.DistanceToNextSignal) > 0 ? 1000 : 1));
   const sigInternal = Number(data?.InternalAspect ?? -1);
-  
-  // Datos de Señal Restrictiva (Del nuevo Call("GetNextRestrictiveSignal"))
   const restrState = Number(data?.RestrictiveState ?? -1);
-  const restrDist = Number(data?.RestrictiveDistance ?? -1);
+  const restrDist = (Number(data?.RestrictiveDistance ?? -1) * (Number(data?.RestrictiveDistance) < 40 && Number(data?.RestrictiveDistance) > 0 ? 1000 : 1));
   
-  // Lógica de Señal Inteligente:
-  // 1. Si hay una señal inmediata y no es verde, la mostramos.
-  // 2. Si es verde O no hay señal detectable por el método estándar, buscamos la próxima restrictiva (rojo/amarillo).
+  // Lógica de Señal Inteligente
   let currentSigState = sigStateRaw;
   let displaySigDist = sigDist;
 
@@ -258,33 +266,37 @@ export const NexusDashboard: React.FC = () => {
     currentSigState = sigInternal;
   }
   
-  const getSignalMeta = (state: number) => {
-    // Mapeo unificado para GetNextSignalState (0-3) y proState (1-11)
+  const getSignalMeta = useCallback((state: number) => {
     const colors: Record<number, { color: string; label: string }> = {
-      0: { color: "#ef4444", label: "PELIGRO / ALTO" },    // Rojo (GetNextSignalState)
-      1: { color: "#fbbf24", label: "PRECAUCIÓN" },       // Amarillo
-      2: { color: "#f59e0b", label: "PRECAUCIÓN AV." },   // Doble Amarillo
-      3: { color: "#10b981", label: "VÍA LIBRE" },        // Verde
-      4: { color: "#3b82f6", label: "MANIOBRA / FLASH" }, // Azul/Blanco
+      0: { color: "#ef4444", label: "PELIGRO / ALTO" },
+      1: { color: "#fbbf24", label: "PRECAUCIÓN" },
+      2: { color: "#f59e0b", label: "PRECAUCIÓN AV." },
+      3: { color: "#10b981", label: "VÍA LIBRE" },
+      4: { color: "#3b82f6", label: "MANIOBRA / FLASH" },
       10: { color: "#fbbf24", label: "AMARILLO FLASH" },
       11: { color: "#f59e0b", label: "D. AMARILLO FLASH" },
     };
     
-    // Si viene de GetNextRestrictiveSignal, el 3 es ROJO.
     if (restrState === state) {
-       if (state === 3) return colors[0]; // Rojo
-       if (state === 2) return colors[2]; // Doble amarillo
-       if (state === 1) return colors[1]; // Amarillo
+       if (state === 3) return colors[0];
+       if (state === 2) return colors[2];
+       if (state === 1) return colors[1];
     }
-
     return colors[state] || { color: "#4b5563", label: state >= 0 ? `ESTADO ${state}` : "SIN DATOS" };
-  };
+  }, [restrState]);
 
-  const signalMeta = getSignalMeta(currentSigState);
+  const signalMeta = useMemo(() => getSignalMeta(currentSigState), [getSignalMeta, currentSigState]);
   
-  // AWS fallback for signals
   const hasSignalData = currentSigState >= 0;
   const showSensorAlert = !hasSignalData && aws > 0.5 && speed > 1.0;
+
+  const getTapePosition = useCallback((distance: number): number => {
+    const clamped = Math.min(Math.max(distance, 0), 8000);
+    if (clamped <= 3000) {
+      return (clamped / 3000) * 50;
+    }
+    return 50 + ((clamped - 3000) / 5000) * 50;
+  }, []);
 
   // Handle EXIT
   useEffect(() => {
@@ -588,13 +600,13 @@ export const NexusDashboard: React.FC = () => {
             </div>
           )}
 
-          <div className="flex-grow grid grid-cols-12 gap-4 overflow-hidden">
+          <div className="flex-grow grid grid-cols-12 grid-rows-1 gap-4 overflow-hidden min-h-0">
           
-          {/* TAB CONTENT SWITCHER */}
+          {/* MAIN PILOT INTERFACE */}
           {activeTab === 'PILOT' && (
             <>
               {/* LEFT: POWER & BRAKE GAUGES (VERTICAL GLASS BARS) */}
-              <div className="col-span-2 glass-panel rounded-3xl p-6 flex flex-col justify-between border-l-4" style={{ borderLeftColor: `${brandColor}33` }}>
+              <div className="col-span-2 glass-panel rounded-3xl p-6 flex flex-col justify-between border-l-4 h-full min-h-0" style={{ borderLeftColor: `${brandColor}33` }}>
                 <div className="space-y-6 h-full flex flex-col">
                   {/* Master Handle (Only for Combined Control) */}
                   {isCombined && (
@@ -662,7 +674,7 @@ export const NexusDashboard: React.FC = () => {
               </div>
 
               {/* CENTER: THE NEXUS SPEED DIAL */}
-              <div className="col-span-7 flex flex-col gap-4">
+              <div className="col-span-7 flex flex-col gap-4 h-full min-h-0">
                 <div className="flex-grow glass-panel rounded-3xl relative flex flex-col items-center justify-center p-8 overflow-hidden">
                    {/* Orbital Speed Arcs */}
                    <div className="relative w-[500px] h-[500px] flex items-center justify-center">
@@ -705,31 +717,31 @@ export const NexusDashboard: React.FC = () => {
                       {/* Center Digital Display (Now with Limits included) */}
                       <div className="absolute flex flex-col items-center justify-center text-center">
                         {/* Target Limit Above */}
-                        <div className="flex flex-col items-center -mb-4">
+                        <div className="flex flex-col items-center gap-4 mb-2">
                            {waitingForClearance && (
                              <motion.div 
-                               initial={{ opacity: 0, y: 5 }}
-                               animate={{ opacity: 1, y: 0 }}
-                               className="flex flex-col items-center mb-1 bg-blue-500/10 px-4 py-1 rounded-full border border-blue-500/20"
+                               initial={{ opacity: 0, scale: 0.9 }}
+                               animate={{ opacity: 1, scale: 1 }}
+                               className="flex flex-col items-center bg-blue-600/20 px-6 py-2 rounded-2xl border border-blue-500/40 backdrop-blur-md shadow-lg"
                              >
-                                <span className="text-[9px] font-black text-blue-400 uppercase tracking-tighter animate-pulse">Liberando Cola</span>
-                                <span className="text-xl font-black text-white leading-none shadow-blue-500/20 drop-shadow-sm">
-                                  -{(trainLength - distanceTravelled).toFixed(0)}<span className="text-[8px] ml-0.5 opacity-40">m</span>
+                                <span className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] animate-pulse mb-1">Liberando Cola</span>
+                                <span className="text-3xl font-black text-white leading-none">
+                                  -{(trainLength - distanceTravelled).toFixed(0)}<span className="text-[11px] font-black opacity-40 ml-[2px]">m</span>
                                 </span>
                              </motion.div>
                            )}
                            <motion.div 
                              className="flex flex-col items-center"
-                             animate={{ opacity: isConnected ? 0.6 : 0 }}
+                             animate={{ opacity: isConnected ? 0.7 : 0 }}
                            >
-                              <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Target</span>
-                              <span className={`text-4xl font-black ${speed > targetSpeed + 2 ? 'text-red-500 animate-pulse' : 'text-white'}`}>
+                              <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em] mb-1">Target Limit</span>
+                              <span className={`text-4xl font-black ${speed > targetSpeed + 2 ? 'text-red-500 animate-pulse' : 'text-white/80'}`}>
                                 {targetSpeed.toFixed(0)}
                               </span>
                            </motion.div>
                         </div>
 
-                        <div className="flex items-center justify-center relative scale-90">
+                        <div className="flex items-center justify-center relative scale-90 mb-2">
                           {/* Central Alert Glows */}
                           <div className="absolute inset-0 flex items-center justify-center -z-10">
                              {dsd > 0.5 && (
@@ -771,33 +783,35 @@ export const NexusDashboard: React.FC = () => {
                            
                            {/* Next Limit & Signal Data Below */}
                            <motion.div 
-                             className="mt-6 flex flex-col items-center border-t border-white/10 pt-4 gap-4"
+                             className="mt-6 flex flex-col items-center border-t border-white/10 pt-4"
                              animate={{ opacity: isConnected ? 0.8 : 0 }}
                            >
-                             <div className="flex gap-8">
-                                <div className="flex flex-col items-center">
-                                   <span className="text-[10px] font-black text-[#ffa547] uppercase tracking-widest">Next Lim</span>
-                                   <span className="text-3xl font-black text-[#ffa547]">
-                                     {nextLimit.toFixed(0)}
+                             <div className="flex gap-16">
+                                <div className="flex flex-col items-center min-w-[80px]">
+                                   <span className="text-[11px] font-black text-[#ffa547] uppercase tracking-widest mb-1">Next Lim</span>
+                                   <span className="text-4xl font-black text-[#ffa547]">
+                                     {nextLimitVal.toFixed(0)}
                                    </span>
                                    {nextLimitDist > 0 && (
-                                      <span className="text-[10px] font-bold text-neutral-500 italic">
+                                      <span className="text-[11px] font-bold text-neutral-500 italic mt-1 bg-black/20 px-2 py-0.5 rounded-full">
                                          en {nextLimitDist.toFixed(0)}m
                                       </span>
                                    )}
                                 </div>
 
                                 {hasSignalData && (
-                                   <div className="flex flex-col items-center">
-                                      <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: signalMeta.color }}>Señal</span>
+                                   <div className="flex flex-col items-center min-w-[120px]">
+                                      <span className="text-[11px] font-black uppercase tracking-widest mb-1" style={{ color: signalMeta.color }}>Señal</span>
                                       <div className="flex items-center gap-2">
-                                         <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: signalMeta.color, boxShadow: `0 0 10px ${signalMeta.color}` }} />
-                                         <span className="text-3xl font-black font-mono" style={{ color: signalMeta.color }}>
+                                         <div className="w-3.5 h-3.5 rounded-full animate-pulse" style={{ backgroundColor: signalMeta.color, boxShadow: `0 0 12px ${signalMeta.color}` }} />
+                                         <span className="text-4xl font-black font-mono" style={{ color: signalMeta.color }}>
                                            {displaySigDist > 0 ? displaySigDist.toFixed(0) : '0'}
                                          </span>
-                                         <span className="text-[10px] font-black opacity-40 ml-[-4px]">m</span>
+                                         <span className="text-[11px] font-black opacity-40 ml-[4px]">m</span>
                                       </div>
-                                      <span className="text-[9px] font-bold whitespace-nowrap opacity-60 uppercase">{signalMeta.label}</span>
+                                      <span className="text-[10px] font-black px-4 py-1 rounded-full mt-2 bg-black/70 border border-white/20 uppercase tracking-[0.1em] backdrop-blur-md shadow-lg whitespace-nowrap" style={{ color: signalMeta.color }}>
+                                        {signalMeta.label}
+                                      </span>
                                    </div>
                                 )}
                              </div>
@@ -811,7 +825,7 @@ export const NexusDashboard: React.FC = () => {
                 <div className="h-20 glass-panel rounded-3xl flex justify-around items-center px-4 border border-white/5 shadow-xl">
                   <MetricSquare label="Gradient" value={gradient.toFixed(1)} unit="%" color="#34d399" />
                   <div className="w-px h-8 bg-white/5" />
-                  <MetricSquare label="Next Lim" value={nextLimit.toFixed(0)} unit={speedUnit.toLowerCase()} color="#ffa547" />
+                  <MetricSquare label="Next Lim" value={nextLimitVal.toFixed(0)} unit={speedUnit.toLowerCase()} color="#ffa547" />
                   <div className="w-px h-8 bg-white/5" />
                   <MetricSquare label="Semaforo" value={displaySigDist > 0 ? displaySigDist.toFixed(0) : '---'} unit="m" color={signalMeta.color} />
                   {aws >= 2 && (
@@ -823,50 +837,41 @@ export const NexusDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* RIGHT: PLANNING & LOGS */}
-              <div className="col-span-3 flex flex-col gap-4">
-                 {/* G-FORCE / ACCEL MONITOR (Movido aquí para máxima visibilidad) */}
-                 <div className="h-44 glass-panel rounded-3xl p-4 flex items-center justify-between border-r-4 relative overflow-hidden" style={{ borderRightColor: `${brandColor}66` }}>
+              {/* RIGHT: PLANNING & LOGS (Grid Layout for Total Stability) */}
+              <div className="col-span-3 h-full flex flex-col gap-4 min-h-0 overflow-hidden bg-transparent">
+                 {/* G-FORCE / ACCEL MONITOR */}
+                 <div className="h-[120px] glass-panel rounded-3xl p-4 flex items-center justify-between border-r-4 relative overflow-hidden shrink-0" style={{ borderRightColor: `${brandColor}66` }}>
                     <div className="flex flex-col z-10">
-                      <h3 className="text-[10px] font-black text-neutral-500 uppercase tracking-widest mb-2">G-Force Monitor</h3>
-                      <div className="flex items-baseline gap-1">
-                        <span className={`text-4xl font-black ${acceleration > 0 ? '' : 'text-[#ffa547]'}`} style={{ color: acceleration > 0 ? brandColor : undefined }}>
+                      <h3 className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-1">G-Force Monitor</h3>
+                      <div className="flex items-baseline gap-2">
+                        <span className={`text-4xl font-black ${acceleration >= 0 ? 'text-[#4ef2ff]' : 'text-[#ffa547]'}`}>
                           {acceleration >= 0 ? '+' : ''}{acceleration.toFixed(2)}
                         </span>
-                        <span className="text-[10px] font-bold text-neutral-600 uppercase">m/s²</span>
+                        <span className="text-[10px] font-bold text-white/20 uppercase">m/s²</span>
                       </div>
                       
                       {/* Velocidad Estimada (Projected Speed) */}
-                      <div className="mt-3 p-2 bg-white/5 rounded-xl border border-white/5">
-                        <div className="text-[8px] font-black text-neutral-500 uppercase tracking-widest mb-1">Estimated Speed (10s)</div>
-                        <div className="flex items-baseline gap-2">
-                          <span className={`text-xl font-bold ${estimatedSpeed > speed ? 'text-emerald-400' : estimatedSpeed < speed ? 'text-amber-400' : 'text-white'}`}>
+                      <div className="mt-2 flex items-baseline gap-1.5 opacity-80">
+                         <span className="text-[8px] font-black text-white/30 uppercase tracking-widest">Est. (10s):</span>
+                         <span className={`text-sm font-bold ${estimatedSpeed > speed ? 'text-emerald-400' : estimatedSpeed < speed ? 'text-amber-400' : 'text-white'}`}>
                             {estimatedSpeed.toFixed(1)}
-                          </span>
-                          <span className="text-[9px] font-mono text-neutral-600 uppercase">{speedUnit.toLowerCase()}</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 text-[8px] font-bold text-neutral-500 uppercase tracking-tighter italic">
-                        {acceleration > 0.1 ? 'System: Gaining Momentum' : acceleration < -0.1 ? 'System: Active Deceleration' : 'System: Inertia Stable'}
+                         </span>
+                         <span className="text-[8px] font-mono text-white/20">{speedUnit}</span>
                       </div>
                     </div>
 
-                    <div className="h-32 w-4 bg-white/5 rounded-full relative overflow-hidden border border-white/10 shadow-inner mr-2 z-10">
-                        {/* Center Neutral Line */}
+                    <div className="h-20 w-4 bg-white/5 rounded-full relative overflow-hidden border border-white/10 shadow-inner mr-2 z-10">
                         <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/20 z-20" />
-                        
-                        {/* The Dynamic Bar */}
                         <motion.div 
                           className="absolute left-0 right-0 z-10"
                           style={{ 
-                            top: acceleration > 0 ? 'auto' : '50%',
-                            bottom: acceleration > 0 ? '50%' : 'auto',
-                            backgroundColor: acceleration > 0 ? brandColor : '#ffa547',
-                            boxShadow: acceleration > 0 ? `0 0 15px ${brandColor}88` : '0 0 15px #ffa54788'
+                            top: acceleration >= 0 ? 'auto' : '50%',
+                            bottom: acceleration >= 0 ? '50%' : 'auto',
+                            backgroundColor: acceleration >= 0 ? brandColor : '#ffa547',
+                            boxShadow: acceleration >= 0 ? `0 0 15px ${brandColor}` : '0 0 15px #ffa547'
                           }}
                           animate={{ 
-                            height: `${Math.min(50, Math.abs(acceleration * 40))}%` 
+                            height: `${Math.min(50, Math.abs(acceleration * 50))}%` 
                           }}
                           transition={{ type: 'spring', stiffness: 120, damping: 14 }}
                         />
@@ -874,140 +879,144 @@ export const NexusDashboard: React.FC = () => {
                  </div>
 
                  {/* TRACK STATUS (Signals & Restrictions) */}
-                 <div className="h-44 glass-panel rounded-3xl p-5 flex flex-col justify-between border-l-4 overflow-hidden relative" 
+                 <div className="h-[140px] glass-panel rounded-3xl p-4 flex flex-col justify-between border-l-4 overflow-hidden relative shrink-0" 
                       style={{ borderLeftColor: showSensorAlert ? '#fbbf24' : (hasSignalData ? signalMeta.color : '#ffa54766') }}>
                    
-                   <div className="absolute top-0 right-0 p-2 opacity-10">
-                     <Navigation size={80} style={{ color: signalMeta.color }} />
-                   </div>
-
-                   <div className="flex items-center gap-4 z-10 p-1">
+                   <div className="flex items-center gap-4 z-10">
                       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-lg transition-all duration-500 ${showSensorAlert ? 'animate-pulse' : ''}`}
                            style={{ 
-                             backgroundColor: `${showSensorAlert ? '#fbbf24' : signalMeta.color}22`,
-                             borderColor: `${showSensorAlert ? '#fbbf24' : signalMeta.color}44`,
-                             color: showSensorAlert ? '#fbbf24' : signalMeta.color,
-                             boxShadow: `0 0 20px ${(showSensorAlert ? '#fbbf24' : signalMeta.color)}33`
+                             backgroundColor: `${showSensorAlert ? '#fbbf24' : signalMeta.color}15`,
+                             borderColor: `${showSensorAlert ? '#fbbf24' : signalMeta.color}40`,
+                             boxShadow: `0 0 25px ${showSensorAlert ? '#fbbf24' : signalMeta.color}20`
                            }}>
-                        {showSensorAlert ? <Bell size={28} /> : (hasSignalData ? (currentSigState === 3 ? <ChevronRight size={32} /> : <AlertTriangle size={28} />) : <Navigation size={28} />)}
+                        {showSensorAlert ? <Bell size={28} className="text-[#fbbf24]" /> : <div className="w-8 h-8 rounded-full animate-pulse shadow-[0_0_20px_currentColor]" style={{ backgroundColor: signalMeta.color }} />}
                       </div>
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
-                          {showSensorAlert ? 'Track Sensor Control' : (hasSignalData ? 'Próximo Aspecto' : 'Ruta Navegación')}
+                      <div className="flex flex-col flex-grow min-w-0">
+                        <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">
+                          {showSensorAlert ? 'Control Restricción' : 'Target Signal'}
                         </span>
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-xl font-black tracking-tight leading-tight" style={{ color: showSensorAlert ? '#fbbf24' : (hasSignalData ? signalMeta.color : '#f5f6fb') }}>
-                            {showSensorAlert ? 'POSIBLE RESTRICCIÓN' : signalMeta.label}
+                        <div className="flex items-center justify-between">
+                          <span className="text-2xl font-black tracking-tighter" style={{ color: showSensorAlert ? '#fbbf24' : signalMeta.color }}>
+                            {showSensorAlert ? 'ALERTA SENSOR' : signalMeta.label}
                           </span>
-                          {displaySigDist > 0 && (
-                            <span className="text-xs font-mono opacity-60" style={{ color: signalMeta.color }}>{displaySigDist.toFixed(0)}m</span>
+                          {displaySigDist > 0 && !showSensorAlert && (
+                             <span className="text-2xl font-black font-mono" style={{ color: signalMeta.color }}>
+                               {displaySigDist.toFixed(0)}<span className="text-sm ml-1 opacity-50">m</span>
+                             </span>
                           )}
                         </div>
                       </div>
                    </div>
 
-                   <div className="flex justify-between items-end z-10 mt-2 bg-white/5 p-3 rounded-2xl border border-white/5">
+                   <div className="flex justify-between items-center z-10 bg-black/40 px-4 py-2.5 rounded-2xl border border-white/5 backdrop-blur-md">
                       <div className="flex flex-col">
-                        <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Aviso Límite</span>
-                        <span className="text-2xl font-mono font-black">
+                        <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">Next Restriction</span>
+                        <span className="text-xl font-mono font-black text-white/90">
                           {nextLimitDist > 0 ? `${nextLimitDist.toFixed(0)}m` : '---'}
                         </span>
                       </div>
-                      <div className="text-right flex flex-col">
-                        <span className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">Límite</span>
-                        <span className="text-xl font-black text-[#ffa547]">{nextLimit.toFixed(0)}<span className="text-[10px] ml-1 opacity-40">{speedUnit}</span></span>
+                      <div className="text-right flex flex-col items-end">
+                        <span className="text-[9px] font-bold text-white/30 uppercase tracking-widest">Limit</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-black text-[#ffa547] drop-shadow-lg">{nextLimitVal.toFixed(0)}</span>
+                          <span className="text-[10px] font-black text-white/20">{speedUnit}</span>
+                        </div>
                       </div>
                    </div>
                 </div>
 
-                 {/* Planning Strips */}
-                 <div className="flex-grow glass-panel rounded-3xl p-6 relative overflow-hidden flex flex-col gap-4">
-                   <div className="flex justify-between items-center mb-2">
-                       <h3 className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                          <Navigation size={14} className="text-[#4ef2ff]" /> Planning Tape (8km)
-                       </h3>
-                       <span className="text-[9px] bg-[#4ef2ff]/10 text-[#4ef2ff] px-3 py-0.5 rounded-full border border-[#4ef2ff]/20 uppercase font-black">Scanning</span>
-                    </div>
+                 {/* Planning Tape (8km Dynamic Extended) - FORCED MIN HEIGHT FOR VISIBILITY */}
+                 <div className="flex-grow min-h-[350px] glass-panel rounded-3xl p-4 relative border border-white/10 bg-[#060c1b]/60 overflow-hidden shadow-2xl">
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-blue-500/0 to-[#4ef2ff]/5 pointer-events-none" />
                     
-                    <div className="flex-grow relative bg-black/40 rounded-2xl border border-white/10 overflow-hidden shadow-[inset_0_0_30px_rgba(0,0,0,0.5)]">
-                       {/* Distances Scale (0 to 8000m) - Distributed along the tape */}
-                       <div className="absolute inset-y-4 left-0 w-16 pointer-events-none z-50 h-[calc(100%-32px)]">
-                          {[8000, 7000, 6000, 5000, 4000, 3000, 2000, 1000, 0].map(m => (
-                            <div 
-                              key={m} 
-                              className="absolute left-1 flex items-center gap-3 transition-all duration-500"
-                              style={{ bottom: `${(m / 8000) * 100}%`, transform: 'translateY(50%)' }}
-                            >
-                               <span className={"text-[11px] font-black w-10 text-right font-mono " + (m === 0 ? "text-[#4ef2ff] drop-shadow-[0_0_8px_#4ef2ffcc]" : "text-white/40")}>
-                                 {m > 0 ? (m/1000).toFixed(0)+'k' : '0m'}
-                               </span>
-                               <div className={"w-4 h-px " + (m === 0 ? "bg-[#4ef2ff]" : "bg-white/20")} />
-                            </div>
-                          ))}
-                       </div>
-                       
-                       {/* Background Track Highlights */}
-                       <div className="absolute inset-y-0 left-16 right-2 bg-white/[0.02] z-0" />
-                       <div className="absolute inset-y-0 left-1/2 w-px bg-white/5 z-0" />
+                    {/* Scale Labeling - REINFORCED VISIBILITY */}
+                    <div className="absolute inset-y-6 left-2 w-14 z-50">
+                      {[8, 7, 6, 5, 4, 3, 2, 1, 0.5].map((km) => (
+                        <div key={km} className="absolute left-0 right-0 h-0 flex items-center justify-end"
+                             style={{ bottom: `${getTapePosition(km * 1000)}%` }}>
+                           <span className="text-[11px] font-black text-white px-2 py-0.5 rounded shadow-xl bg-black/70 border border-white/10 mr-1 whitespace-nowrap">
+                             {km * 1000}m
+                           </span>
+                           <div className="w-4 h-[2px] bg-white/40 rounded-full" />
+                        </div>
+                      ))}
+                      <div className="absolute left-0 bottom-0 w-full h-0 flex items-center justify-end">
+                        <span className="text-[12px] font-black text-[#4ef2ff] px-2 py-0.5 rounded shadow-xl bg-black/80 border border-[#4ef2ff]/30 mr-1 animate-pulse">
+                          0m
+                        </span>
+                        <div className="w-6 h-[4px] bg-[#4ef2ff] rounded-full shadow-[0_0_15px_#4ef2ff]" />
+                      </div>
+                    </div>
 
-                       {/* The Planning Tape (Moving Entities) - 8km Range */}
-                       <div className="absolute inset-y-4 left-16 right-2 pointer-events-none z-40 h-[calc(100%-32px)]">
-                          
-                          {/* Next Speed Limit Marker */}
-                          {nextLimitDist > 0 && nextLimitDist < 8200 && (
-                            <div 
-                              className="absolute left-0 right-0 flex items-center justify-end transition-all duration-300 ease-linear"
-                              style={{ bottom: `${(nextLimitDist / 8000) * 100}%`, height: '40px', marginBottom: '-20px' }}
-                            >
-                               <div className="flex-grow h-px bg-[#f59e0b] shadow-[0_0_10px_#f59e0b] opacity-20 mr-2 ml-4" />
-                               <div className="flex items-center gap-2 bg-[#1a1a1a]/95 px-3 py-1.5 rounded-xl border-2 border-[#f59e0b] shadow-[0_0_20px_rgba(245,158,11,0.3)] z-10 shrink-0">
-                                  <div className="flex flex-col items-end">
-                                     <span className="text-[14px] font-black text-white leading-none tracking-tight">{nextLimit.toFixed(0)}</span>
-                                     <span className="text-[7px] font-black text-[#f59e0b] uppercase tracking-widest leading-none">LIMIT</span>
+                    {/* Tape Contents Area */}
+                    <div className="absolute inset-y-6 left-16 right-4 rounded-2xl border-l-2 border-white/10 bg-black/40 overflow-hidden">
+                       {/* Track Indicator Line */}
+                       <div className="absolute inset-y-0 left-6 w-px bg-white/10" />
+
+                       {/* CURRENT POSITION LINE (Anchor) */}
+                       <div className="absolute bottom-0 left-0 right-0 h-1 bg-[#4ef2ff] shadow-[0_0_30px_#4ef2ff] z-[100]" />
+
+                       {/* Markers Container */}
+                       <div className="absolute inset-0 pointer-events-none">
+                          {/* Speed Limit Marker */}
+                          {nextLimitDist > 0 && nextLimitDist < 8100 && (
+                            <motion.div 
+                                 initial={false}
+                                 animate={{ bottom: `${getTapePosition(nextLimitDist)}%` }}
+                                 transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                                 className="absolute left-0 right-0 h-0 z-20">
+                               <div className="absolute left-0 right-0 h-1 bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]" />
+                               <div className="absolute right-0 -translate-y-1/2 flex items-center">
+                                  <div className="bg-red-700 text-white text-[12px] font-black px-4 py-2 rounded-l-xl border-y border-l border-red-400 shadow-[0_0_30px_rgba(239,68,68,0.4)] flex flex-col items-center min-w-[70px]">
+                                    <span className="text-[18px] leading-none mb-0.5 drop-shadow-md">{nextLimitVal.toFixed(0)}</span>
+                                    <span className="text-[8px] font-black opacity-70 uppercase tracking-widest">{speedUnit}</span>
                                   </div>
-                                  <ChevronRight size={16} className="text-[#f59e0b]" />
+                                  <div className="w-2 h-14 bg-red-600 shadow-[0_0_20px_red]" />
                                </div>
-                            </div>
+                            </motion.div>
                           )}
 
-                          {/* Next Signal Marker */}
-                          {displaySigDist > 0 && displaySigDist < 8200 && (
-                            <div 
-                              className="absolute left-0 right-0 flex items-center justify-end transition-all duration-300 ease-linear"
-                              style={{ bottom: `${(displaySigDist / 8000) * 100}%`, height: '44px', marginBottom: '-22px' }}
-                            >
-                               <div className="flex-grow h-[2px] shadow-[0_0_15px_currentColor] opacity-30 mr-2 ml-4" style={{ backgroundColor: signalMeta.color }} />
-                               <div className="flex items-center gap-2.5 px-3 py-1.5 bg-black/95 rounded-xl border-2 shadow-2xl z-20 shrink-0" 
-                                    style={{ borderColor: signalMeta.color, color: signalMeta.color }}>
-                                 <div className="w-5 h-5 rounded-full flex items-center justify-center bg-black border border-white/10">
-                                    <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: signalMeta.color, boxShadow: `0 0 12px ${signalMeta.color}` }} />
-                                 </div>
-                                 <div className="flex flex-col items-start min-w-[40px]">
-                                    <span className="text-[13px] font-black text-white leading-none">{(displaySigDist/1000).toFixed(1)}k</span>
-                                    <span className="text-[7px] font-black uppercase text-white/50 tracking-tighter">SIGNAL</span>
-                                 </div>
+                          {/* Signal Marker */}
+                          {displaySigDist > 0 && displaySigDist < 8100 && (
+                            <motion.div 
+                                 initial={false}
+                                 animate={{ bottom: `${getTapePosition(displaySigDist)}%` }}
+                                 transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                                 className="absolute left-0 right-0 h-0 z-30">
+                               <div className="absolute left-0 right-0 h-1 opacity-80" style={{ backgroundColor: signalMeta.color, boxShadow: `0 0 15px ${signalMeta.color}` }} />
+                               <div className="absolute right-2 -translate-y-1/2 flex items-center gap-4 bg-black/95 p-3 rounded-2xl border-2 shadow-2xl backdrop-blur-xl"
+                                    style={{ borderColor: signalMeta.color }}>
+                                  <div className="flex flex-col items-end">
+                                    <span className="text-xl font-black leading-none drop-shadow-md" style={{ color: signalMeta.color }}>{signalMeta.label}</span>
+                                    <span className="text-[10px] font-black text-white/60 uppercase tracking-widest mt-1">{displaySigDist.toFixed(0)}m</span>
+                                  </div>
+                                  <div className="w-12 h-12 rounded-full flex items-center justify-center bg-black/60 border border-white/20 relative">
+                                    <div className="absolute inset-0 rounded-full animate-ping opacity-30" style={{ backgroundColor: signalMeta.color }} />
+                                    <div className="w-7 h-7 rounded-full shadow-[0_0_30px_currentColor]" style={{ backgroundColor: signalMeta.color }} />
+                                  </div>
                                </div>
-                            </div>
+                            </motion.div>
                           )}
-
-                          {/* Current Position (Always at 0m bottom) */}
-                          <div className="absolute bottom-0 left-0 right-0 h-px bg-[#4ef2ff] shadow-[0_0_15px_#4ef2ff] opacity-100 z-50">
-                             <div className="absolute left-0 -top-2 w-3 h-3 rotate-45 border-t-2 border-l-2 border-[#4ef2ff] shadow-[-2px_-2px_5px_#4ef2ff66]" />
-                          </div>
                        </div>
                     </div>
                  </div>
 
-                 {/* System Telemetry Logs */}
-                 <div className="h-48 glass-panel rounded-3xl p-5 flex flex-col overflow-hidden">
-                    <h3 className="text-[9px] font-black text-neutral-600 uppercase tracking-widest mb-4 flex items-center gap-2 px-2">
-                       <Activity size={14} className="text-[#4ef2ff]" /> Log Feed
-                    </h3>
-                    <div className="flex flex-col gap-3 overflow-y-auto px-2 custom-scrollbar">
-                       <LogEntry type="info" message="Neural link status: OK" time="14:20" />
-                       <LogEntry type="warn" message="Brake pressure variance +0.1" time="14:19" />
-                       <LogEntry type="info" message="Panto: FULL CONTACT" time="14:19" />
-                       <LogEntry type="info" message="OBCU integrity: 100%" time="14:18" />
+                 {/* System Telemetry Logs - Fixed Height */}
+                 <div className="h-32 glass-panel rounded-3xl p-4 overflow-hidden shrink-0 bg-black/50 border border-white/5 shadow-inner">
+                    <div className="flex items-center justify-between mb-3 px-1">
+                       <div className="flex items-center gap-2">
+                         <History size={14} className="text-[#4ef2ff]" />
+                         <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Operational Log Feed</span>
+                       </div>
+                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    </div>
+                    <div className="space-y-1.5 h-[calc(100%-28px)] overflow-y-auto px-1 custom-scrollbar">
+                       {logs.slice(-10).reverse().map(log => (
+                         <LogEntry key={log.id} type={log.type} message={log.message} time={log.time} />
+                       ))}
+                       {logs.length === 0 && (
+                         <div className="h-full flex items-center justify-center opacity-10 italic text-[11px] text-[#4ef2ff]/30 tracking-widest">BUFFER_EMPTY // NO_EVENTS</div>
+                       )}
                     </div>
                  </div>
               </div>
@@ -1223,14 +1232,30 @@ export const NexusDashboard: React.FC = () => {
   );
 };
 
-const MetricSquare = ({ label, value, unit, color, alert }: any) => (
+interface MetricSquareProps {
+  label: string;
+  value: string | number;
+  unit: string;
+  color: string;
+  alert?: boolean;
+}
+
+const MetricSquare: React.FC<MetricSquareProps> = ({ label, value, unit, color, alert }) => (
   <div className={`flex flex-col items-center px-8 border-r border-white/5 last:border-0 ${alert ? 'animate-pulse' : ''}`}>
     <span className="text-[9px] text-[#f5f6fb]/30 uppercase font-black tracking-tighter mb-1">{label}</span>
-    <span className="text-2xl font-black" style={{ color }}>{value}<span className="text-xs ml-1 opacity-40 font-normal">{unit}</span></span>
+    <span className="text-2xl font-black transition-colors duration-500" style={{ color }}>
+      {value}<span className={`text-[11px] font-black opacity-30 ${unit.length === 1 ? 'ml-[-2px]' : 'ml-0.5'}`}>{unit}</span>
+    </span>
   </div>
 );
 
-const LogEntry = ({ type, message, time }: any) => (
+interface LogEntryProps {
+  type: string;
+  message: string;
+  time: string;
+}
+
+const LogEntry: React.FC<LogEntryProps> = ({ type, message, time }) => (
   <div className="flex justify-between items-center text-[10px] border-b border-white/5 pb-2 last:border-0">
     <div className="flex gap-3 items-center">
       <div className={`w-1.5 h-1.5 rounded-full ${type === 'info' ? 'bg-[#4ef2ff] shadow-[0_0_8px_#4ef2ff]' : 'bg-[#ffa547] shadow-[0_0_8px_#ffa547]'}`} />
@@ -1240,7 +1265,15 @@ const LogEntry = ({ type, message, time }: any) => (
   </div>
 );
 
-const TelemetryBar = ({ label, value, max, unit, color }: any) => (
+interface TelemetryBarProps {
+  label: string;
+  value: number;
+  max: number;
+  unit: string;
+  color: string;
+}
+
+const TelemetryBar: React.FC<TelemetryBarProps> = ({ label, value, max, unit, color }) => (
   <div className="space-y-2">
     <div className="flex justify-between text-[10px] font-black uppercase text-neutral-500">
       <span>{label}</span>
