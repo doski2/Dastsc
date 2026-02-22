@@ -5,7 +5,7 @@ import os
 import time
 from typing import List
 
-# These will be copied next
+# Estos se copiarán a continuación
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
 # from physics.engine import PhysicsEngine
@@ -20,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Paths
+# Rutas
 GETDATA_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\RailWorks\plugins\GetData.txt"
 PROFILES_PATH = r"c:\Users\doski\Dastsc\profiles"
 
@@ -60,7 +60,7 @@ class TelemetryManager:
 manager = TelemetryManager()
 
 async def telemetry_reader():
-    """Main polling loop (Higher frequency for v3)."""
+    """Bucle principal de sondeo (mayor frecuencia para v3)."""
     last_mtime = 0
     while True:
         try:
@@ -73,7 +73,7 @@ async def telemetry_reader():
                         if line:
                             data = parse_telemetry_line(line)
                             
-                            # Profile auto-detection logic
+                            # Lógica de autodetección de perfil
                             loco_name = data.get("LocoName", "")
                             if loco_name and (not manager.current_profile or manager.current_profile['name'] != loco_name):
                                 profile = manager.profile_manager.get_profile_for_loco(loco_name)
@@ -86,10 +86,10 @@ async def telemetry_reader():
                                 "timestamp": time.time()
                             })
             
-            # Polling at 20Hz instead of 5Hz to catch all file updates
+            # Sondeo a 20Hz en lugar de 5Hz para capturar todas las actualizaciones de archivos
             await asyncio.sleep(0.05)
         except Exception as e:
-            print(f"Error in telemetry_reader: {e}")
+            print(f"Error en telemetry_reader: {e}")
             await asyncio.sleep(1)
 
 @app.on_event("startup")
@@ -102,7 +102,7 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             _data = await websocket.receive_text()
-            # Handle incoming commands (SendCommand.txt logic)
+            # Maneja comandos entrantes (lógica de SendCommand.txt)
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 

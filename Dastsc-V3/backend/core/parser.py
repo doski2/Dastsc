@@ -1,7 +1,7 @@
 def parse_telemetry_line(line: str) -> dict:
     """
-    Parses TSC output (key:val|key:val) into a typed dict.
-    Updated for v3: Strict types and safety checks.
+    Parsea la salida de TSC (clave:valor|clave:valor) en un diccionario tipado.
+    Actualizado para v3: Tipos estrictos y comprobaciones de seguridad.
     """
     data = {}
     if not line or "|" not in line:
@@ -12,7 +12,7 @@ def parse_telemetry_line(line: str) -> dict:
         if ":" in token:
             try:
                 key, val = token.split(":", 1)
-                # Numeric conversion
+                # Conversión numérica
                 if val.replace('.', '', 1).replace('-', '', 1).isdigit():
                     data[key] = float(val)
                 else:

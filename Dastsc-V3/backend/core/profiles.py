@@ -32,22 +32,22 @@ class ProfileManager:
 
     def get_profile_for_loco(self, loco_name: str):
         """
-        Attempts to find the best matching profile for a given loco name.
-        LocoName in TSC is usually the filename of the .bin without extension.
+        Intenta encontrar el perfil que mejor coincida para un nombre de locomotora dado.
+        LocoName en TSC es usualmente el nombre del archivo .bin sin extensión.
         """
         loco_name_lower = loco_name.lower()
         
-        # 1. Exact match by ID
+        # 1. Coincidencia exacta por ID
         for p in self.profiles:
             if p["id"].lower() == loco_name_lower:
                 return p
         
-        # 2. Contains match
+        # 2. Coincidencia por contenido
         for p in self.profiles:
             if p["id"].lower() in loco_name_lower or loco_name_lower in p["id"].lower():
                 return p
         
-        # 3. Default fallback
+        # 3. Respaldo por defecto
         for p in self.profiles:
             if p["id"] == "default_expert":
                 return p
