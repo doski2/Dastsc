@@ -21,7 +21,8 @@ Este documento sirve para el seguimiento de tareas, hitos y decisiones tomadas d
 - [x] **1.1 Setup de Entorno v3:** Configuración de Vite 7, Tailwind 4 y React 19. Estructura de carpetas modular creada.
 - [x] **1.2 El Telemetry Hub:** Creación del `TelemetryProvider` optimizado. Centraliza los datos en un único punto.
 - [x] **1.3 El Interpolador (Smooth Engine):** Hook `useSmoothValue` para 60fps constantes. Rellena los huecos entre actualizaciones.
-- [ ] **1.4 Normalizador de Datos:** Lógica de filtrado de "ruido" y normalización a metros (KM -> m).
+- [x] **1.4 Lanzador Automatizado:** Creado `Iniciar_Nexus_V3.bat` para despliegue rápido.
+- [ ] **1.5 Normalizador de Datos:** Lógica de filtrado de "ruido" y normalización a metros (KM -> m).
 - [ ] **1.5 Lógica de Frenado Proyectiva:** Cálculo de distancias de frenado dinámicas.
 
 ### Fase 2: El Motor de Renderizado (Canvas Engine)
