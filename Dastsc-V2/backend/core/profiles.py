@@ -36,18 +36,34 @@ class ProfileManager:
 
     def get_all_profiles(self):
         """Retorna lista simplificada para el selector UI."""
-        return [{"id": p["id"], "name": p["name"]} for p in self.profiles]
+        return [
+            {
+                "id": p["id"], 
+                "name": p["name"],
+                "visuals": p.get("visuals", {"unit": "MPH", "color": "#3498db"})
+            } for p in self.profiles
+        ]
 
     def select_manual_profile(self, profile_id: str):
         """Fuerza un perfil manualmente."""
-        if profile_id == "AUTO":
+        print(f"DEBUG Core: Seleccionando perfil [{profile_id}]")
+        if not profile_id:
             self.manual_profile = None
             return True
             
+        if str(profile_id).upper() == "AUTO":
+            self.manual_profile = None
+            return True
+            
+        # Búsqueda robusta (ignorando mayúsculas y espacios laterales)
+        target = str(profile_id).strip().lower()
         for p in self.profiles:
-            if p["id"] == profile_id:
+            if str(p["id"]).strip().lower() == target:
                 self.manual_profile = p
+                print(f"DEBUG Core: Perfil encontrado: {p['name']}")
                 return True
+        
+        print(f"DEBUG Core: No se encontró coincidencia para [{target}]")
         return False
 
     def detect_profile(self, telemetry_data: dict):

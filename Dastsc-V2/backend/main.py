@@ -35,9 +35,10 @@ class TelemetryManager:
         
         # Estrategia de búsqueda de perfiles más agresiva
         posibles_rutas = [
+            r"C:\Users\doski\Dastsc\profiles",
             os.path.normpath(os.path.join(os.getcwd(), "profiles")),
             os.path.normpath(os.path.join(os.getcwd(), "..", "profiles")),
-            r"C:\Users\doski\Dastsc\profiles"
+            os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "profiles"))
         ]
         
         self.profiles_path = posibles_rutas[0]
@@ -108,10 +109,10 @@ async def telemetry_reader():
                             data = parse_telemetry_line(line)
                             manager.last_data = data # Guardar para detección manual posterior
                             
-                            # Detección de Perfil automática
-                            profile = manager.profile_manager.detect_profile(data)
-                            if profile:
-                                manager.current_profile = profile
+                            # Detección de Perfil desactivada por petición: Solo manual
+                            # profile = manager.profile_manager.detect_profile(data)
+                            # if profile:
+                            #     manager.current_profile = profile
                             
                             current_time = time.time()
                             dt = current_time - last_processed_time
@@ -125,7 +126,8 @@ async def telemetry_reader():
                                 **physics, 
                                 "timestamp": current_time, 
                                 "source": "simulator",
-                                "active_profile": manager.current_profile
+                                "active_profile": manager.current_profile,
+                                "active_profile_id": manager.current_profile.get("id") if manager.current_profile else None
                             }
                             # Enviar la lista de perfiles periódicamente para asegurar sincronización
                             sync_counter += 1
@@ -148,10 +150,11 @@ async def startup_event():
 
 @app.get("/debug")
 async def get_debug():
+    perfil = manager.current_profile
     return {
         "profiles_loaded": len(manager.profile_manager.profiles),
-        "profiles_path": PROFILES_PATH,
-        "current_profile": manager.current_profile["name"] if manager.current_profile else "None",
+        "profiles_path": manager.profiles_path,
+        "current_profile": perfil.get("name") if perfil else "None",
         "active_connections": len(manager.active_connections)
     }
 
@@ -160,25 +163,33 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Recibir comandos del frontend
-            message = await websocket.receive_text()
+            # Recibir comandos del frontend usando receive_json para mayor seguridad
             try:
-                cmd = json.loads(message)
-                if cmd.get("type") == "SELECT_PROFILE":
-                    profile_id = cmd.get("profile_id")
+                cmd = await websocket.receive_json()
+                print(f"DEBUG: Comando recibido -> {cmd}")
+                
+                if cmd.get("type") == "SELECT_PROFILE" or cmd.get("type") == "SET_PROFILE":
+                    profile_id = cmd.get("profile_id") or cmd.get("profile")
+                    print(f"DEBUG: Frontend solicitó perfil ID -> [{profile_id}]")
+                    
                     if manager.profile_manager.select_manual_profile(profile_id):
-                        if profile_id == "AUTO":
-                            manager.current_profile = manager.profile_manager.detect_profile(manager.last_data)
-                        else:
-                            manager.current_profile = manager.profile_manager.manual_profile
+                        manager.current_profile = manager.profile_manager.manual_profile
+                        perfil_nombre = manager.current_profile.get("name") if manager.current_profile else "None"
+                        perfil_id = manager.current_profile.get("id") if manager.current_profile else "None"
+                        print(f"DEBUG: ÉXITO. Perfil activado: {perfil_nombre} (ID: {perfil_id})")
                         
-                        # Notificar el cambio inmediatamente
+                        # Forzar broadcast inmediato del cambio
                         await manager.broadcast({
                             "type": "PROFILE_CHANGED",
                             "active_profile": manager.current_profile,
-                            "available_profiles": manager.profile_manager.get_all_profiles() # Re-enviar para asegurar
+                            "active_profile_id": perfil_id
                         })
-            except Exception:
-                pass 
+                    else:
+                        print(f"DEBUG: FALLO. El ID [{profile_id}] no existe en los {len(manager.profile_manager.profiles)} perfiles cargados.")
+                        # Registrar IDs disponibles para depuración
+                        ids_disponibles = [p['id'] for p in manager.profile_manager.profiles[:5]]
+                        print(f"DEBUG: IDs ejemplo: {ids_disponibles}...")
+            except Exception as e:
+                print(f"DEBUG: Error procesando comando: {e}") 
     except WebSocketDisconnect:
         manager.disconnect(websocket)

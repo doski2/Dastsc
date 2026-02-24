@@ -6,9 +6,9 @@ Este documento sirve para el seguimiento de tareas, hitos y decisiones tomadas d
 
 ## 📊 Estado Actual del Proyecto
 
-- **Fase Actual:** 0 - Preparación
-- **Último Hito:** Arquitectura Base v3 Definida.
-- **Próximo Paso:** Inicialización de directorios y Telemetry Hub.
+- **Fase Actual:** 2 - Motor de Renderizado (Finalizando) / Inicio Fase 3
+- **Último Hito:** Implementación de Curva de Frenado Dinámica e Info Bar.
+- **Próximo Paso:** Gestión de Perfiles de Tren y refinamiento de Andenes.
 
 ---
 
@@ -22,31 +22,31 @@ Este documento sirve para el seguimiento de tareas, hitos y decisiones tomadas d
 - [x] **1.2 El Telemetry Hub:** Creación del `TelemetryProvider` optimizado. Centraliza los datos en un único punto.
 - [x] **1.3 El Interpolador (Smooth Engine):** Hook `useSmoothValue` para 60fps constantes. Rellena los huecos entre actualizaciones.
 - [x] **1.4 Lanzador Automatizado:** Creado `Iniciar_Nexus_V3.bat` para despliegue rápido.
-- [ ] **1.5 Normalizador de Datos:** Lógica de filtrado de "ruido" y normalización a metros (KM -> m).
-- [ ] **1.5 Lógica de Frenado Proyectiva:** Cálculo de distancias de frenado dinámicas.
+- [x] **1.5 Lógica de Frenado Proyectiva:** Implementación visual de la parábola de frenado en el bloque central e integración de datos base.
+- [x] **1.6 Normalizador de Datos:** Refinamiento de filtrado de "ruido" y normalización avanzada de sensores.
 
 ### Fase 2: El Motor de Renderizado (Canvas Engine)
 
 *Aquí es donde ocurre la magia del rendimiento, integrando el diseño visual de las propuestas de IA.*
 
-- [ ] **2.1 Contenedor de Capas Canvas:** Setup del lienzo base con soporte para sombras y glows.
-- [ ] **2.2 Transformación de Coordenadas de Vía:** Implementar la escala no lineal y la **línea de gradiente** (curvatura visual de la vía).
-- [ ] **2.3 Renderizado de Elementos Críticos:**
-  - Dibujo de **Speed Limit Circles** (estilo propuesta inicial).
-  - Visualización de **Señales** con glow según su aspecto.
-  - **Andenes Dinámicos:** Representación del largo del andén frente al tren.
+- [x] **2.1 Contenedor de Capas Canvas:** Setup del lienzo base con soporte para sombras y glows (`CanvasLayer.tsx`).
+- [x] **2.2 Transformación de Coordenadas de Vía:** Implementada vista horizontal con curvatura sinusoidal y gradiente visual.
+- [x] **2.3 Renderizado de Elementos Críticos:**
+  - [x] Dibujo de **Speed Limit Circles** proyectivos con código de colores.
+  - [x] Visualización de **Señales** estilo semáforo con glow dinámico.
+  - [ ] **Andenes Dinámicos:** Representación del largo del andén frente al tren.
 
 ### Fase 3: Modularidad y UI Blueprint
 
 *Montaje final fusionando los datos del juego original con la estética moderna (3 bloques inferiores).*
 
-- [ ] **3.1 Sistema de Slots:** Recrear el layout de 3 bloques inferiores + Barra superior ancha.
-- [ ] **3.2 Atomic Library:**
-  - **Velocímetro Proyectivo:** Con aguja de inercia y **Esfera de Fuerza G** (G-Force Sphere).
-  - **Dynamic Graph Widget:** Gráfico intercambiable (Curva de frenado, Eficiencia, Energía).
-  - **Adaptive Telemetry:** Bloque de datos con scroll o paginación para métricas secundarias.
-- [ ] **3.3 Navegación y Vistas:** Implementar pestañas para Pilot, IA Selection, Config y Logs.
-- [ ] **3.4 Perfiles de Tren (Blueprints):** Parser de JSON para auto-configuración de UI.
+- [x] **3.1 Sistema de Slots:** Layout de 3 bloques inferiores + Barra de información (Info Bar) interactiva.
+- [x] **3.2 Atomic Library:**
+  - [x] **Velocímetro Proyectivo:** Dial circular con aguja cian y **Esfera de Fuerza G** funcional.
+  - [x] **Dynamic Graph Widget:** Implementado `BrakingCurve` con rejilla técnica y relleno degradado.
+  - [x] **Adaptive Telemetry:** Bloque de datos secundarios con estado de señales e inputs de control.
+- [ ] **3.3 Navegación y Vistas:** Expandir las pestañas de IA Selection, Config y Logs (actualmente placeholders).
+- [ ] **3.4 Perfiles de Tren (Blueprints):** Integración total del Parser JSON para auto-configuración de rangos (máx. amperaje, frenos, etc.).
 
 ---
 
@@ -58,6 +58,8 @@ Este documento sirve para el seguimiento de tareas, hitos y decisiones tomadas d
 | :--- | :--- | :--- |
 | 22/02/26 | **Inicio de Documentación** | Se crea este Roadmap para separar el "Diseño" del "Seguimiento". |
 | 22/02/26 | **Fusión de Diseño (Gemini + ChatGPT)** | Se adopta el layout de 3 bloques inferiores con gráfico de frenado y perfil de vía superior curvo para maximizar datos esenciales. |
+| 23/02/26 | **Cambio a Vista Horizontal de Vía** | Se abandona la vista vertical para clonar fielmente el boceto "Aeronáutico/Cyberpunk" con escala métrica. |
+| 23/02/26 | **Implementación de Info Bar** | Se añade una barra de estado central para centralizar avisos de señales y ETAs, liberando espacio en los widgets inferiores. |
 
 ---
 

@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTelemetry } from './v3/core/TelemetryContext'
 import { TrackProfile } from './v3/components/display/TrackProfile'
 import { Speedometer } from './v3/components/display/Speedometer'
+import { BrakingCurve } from './v3/components/display/BrakingCurve'
+import { ProfileSelector } from './v3/components/display/ProfileSelector'
 
 function PhysicsRow({ label, value, unit, color = "text-white/70" }: { label: string, value: number, unit: string, color?: string }) {
   return (
@@ -28,7 +30,7 @@ function DataPoint({ label, value }: { label: string, value: string | number }) 
 
 function App() {
   const [activeTab, setActiveTab] = useState('PILOT')
-  const { data, isConnected } = useTelemetry()
+  const { data, isConnected, activeProfile } = useTelemetry()
 
   const tabs = [
     { id: 'PILOT', icon: Activity, label: 'PILOT HUD' },
@@ -43,10 +45,15 @@ function App() {
       <header className="h-12 border-b border-white/5 flex items-center justify-between px-6 bg-[#0a0a0a] shrink-0">
         <div className="flex items-center gap-3">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-cyan-500 animate-pulse' : 'bg-red-500'}`} />
-          <span className="text-xs font-bold tracking-[0.2em] text-white/60">NEXUS V3 // {data.LocoName || 'SEARCHING...'}</span>
+          <div className="flex flex-col">
+            <span className="text-xs font-bold tracking-[0.2em] text-white/60">NEXUS V3 // {activeProfile?.name || data.LocoName || 'SELECT TRAIN'}</span>
+            <span className="text-[9px] font-mono text-cyan-500/60 uppercase tracking-widest leading-none mt-1">
+              {activeProfile ? `PROFILE: ${activeProfile.id}` : 'NO PROFILE SELECTED'}
+            </span>
+          </div>
         </div>
         <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
-          {isConnected ? 'Link Active' : 'Link Offline'} // 3.0.0-PROTOTYPE
+          {data.TimeOfDay} // {isConnected ? 'Link Active' : 'Link Offline'} // 3.0.0-PROTOTYPE
         </div>
       </header>
 
@@ -64,55 +71,150 @@ function App() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col gap-4 h-full"
+                className="flex flex-col gap-0 h-full"
               >
                 {/* Sección superior: Perfil de vía */}
-                <TrackProfile />
+                <div className="h-[220px] relative">
+                  <TrackProfile />
+                  
+                  {/* Info Bar (Del nuevo boceto) */}
+                  <div className="absolute bottom-0 left-0 right-0 h-10 bg-black/60 border-y border-white/5 backdrop-blur-md flex items-center px-6 justify-between">
+                    <div className="flex items-center gap-6">
+                      <div className="flex items-center gap-2">
+                         <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                         <span className="text-[10px] font-mono text-white/60 tracking-tighter">LINK ACTIVE</span>
+                      </div>
+                      <div className="text-[11px] font-mono">
+                        <span className="text-white/30">NEXT SIGNAL:</span>{' '}
+                        <span className={`font-bold ${
+                          data.NextSignalAspect === 'DANGER' ? 'text-red-500' : 
+                          data.NextSignalAspect === 'CLEAR' ? 'text-green-500' : 'text-yellow-500'
+                        }`}>
+                          {data.NextSignalAspect} at {data.DistToNextSignal.toFixed(0)}m
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                       TRIP: {data.SpeedUnit === 'MPH' 
+                         ? `${(data.TripDistance * 0.000621371).toFixed(2)} mi` 
+                         : `${(data.TripDistance / 1000).toFixed(2)} km`
+                       } // Sta: {data.location}
+                    </div>
+                  </div>
+                </div>
 
-                {/* Sección inferior: Diseño de 3 columnas */}
-                <div className="grid grid-cols-3 gap-4 flex-1 px-4 pb-4">
+                {/* Sección inferior: Diseño de 3 columnas con espaciado ajustado */}
+                <div className="grid grid-cols-3 gap-4 flex-1 p-4">
                   {/* Columna 1: Velocidad y física */}
                   <div className="flex flex-col gap-4">
                     <Speedometer />
                     <div className="p-4 bg-white/5 border border-white/5 rounded-sm flex-1">
                       <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Physics Hub</h3>
                       <div className="space-y-3">
-                        <PhysicsRow label="Amperage" value={data.Amperage} unit="A" color="text-yellow-500" />
-                        <PhysicsRow label="Brake Cyl" value={data.BrakeCylinderPressure} unit="PSI" />
-                        <PhysicsRow label="Brake Pipe" value={data.BrakePipePressure} unit="PSI" />
+                        <PhysicsRow label="Amperage" value={data.Amperage} unit={data.AmperageUnit} color={data.Amperage >= 0 ? "text-yellow-500" : "text-cyan-400"} />
+                        <div className="flex justify-between items-center text-[11px] font-mono">
+                          <span className="text-white/30 uppercase tracking-tighter">Gradient</span>
+                          <div className="flex gap-1 items-baseline">
+                            <span className={data.Gradient > 0 ? 'text-red-400' : 'text-green-400'}>
+                              {data.Gradient.toFixed(2)}%
+                              {Math.abs(data.Gradient) > 0.01 && (
+                                <span className="text-[9px] opacity-40 ml-1">
+                                  (1:{Math.round(100 / Math.abs(data.Gradient))})
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                        <PhysicsRow label="Mass" value={data.TrainMass} unit="T" color="text-white/40" />
+                        <PhysicsRow label="Length" value={data.TrainLength} unit="m" color="text-white/40" />
+                        <PhysicsRow label="Brake Cyl" value={data.BrakeCylinderPressure} unit={data.PressureUnit} />
+                        <PhysicsRow label="Brake Pipe" value={data.BrakePipePressure} unit={data.PressureUnit} />
                       </div>
                     </div>
                   </div>
 
-                  {/* Columna 2: Marcador de posición del gráfico central */}
-                  <div className="col-span-1 bg-white/[0.02] border border-white/5 rounded-sm flex flex-col items-center justify-center relative backdrop-blur-sm group">
-                    <div className="absolute top-4 left-4 text-[10px] text-white/20 uppercase tracking-widest font-mono">Braking Curve // Dynamic</div>
-                    <div className="text-white/10 italic text-sm group-hover:text-cyan-500/40 transition-colors">Graph Engine Initialization...</div>
-                    
-                    {/* Línea de escaneo decorativa */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-500/[0.02] to-transparent h-20 w-full animate-scan" />
-                  </div>
+                  {/* Columna 2: Gráfico de IA proyectivo */}
+                  <BrakingCurve />
 
                   {/* Columna 3: Métricas secundarias */}
                   <div className="flex flex-col gap-4">
                     <div className="p-4 bg-white/5 border border-white/5 rounded-sm flex-1">
                       <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Adaptive Telemetry</h3>
                       <div className="space-y-4">
+                        <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
+                          <span className="text-[10px] text-white/30 uppercase font-mono">Next Speed</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono font-bold text-yellow-500">{Math.round(data.NextSpeedLimit)} {data.SpeedUnit}</span>
+                            <span className="text-[10px] text-white/40 font-mono">in {(data.DistToNextSpeedLimit / 1000).toFixed(2)}km</span>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
+                          <span className="text-[10px] text-white/30 uppercase font-mono">Next Signal</span>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full blur-[2px] ${
+                              data.NextSignalAspect === 'DANGER' ? 'bg-red-500 shadow-[0_0_8px_#ef4444]' :
+                              data.NextSignalAspect === 'CLEAR' ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' :
+                              'bg-yellow-500 shadow-[0_0_8px_#eab308]'
+                            }`} />
+                            <span className="text-xs font-mono">{data.DistToNextSignal >= 1000 ? `${(data.DistToNextSignal / 1000).toFixed(2)}km` : `${data.DistToNextSignal.toFixed(0)}m`}</span>
+                          </div>
+                        </div>
                         <DataPoint label="Reverser" value={data.Reverser > 0 ? 'FOR' : data.Reverser < 0 ? 'REV' : 'NEU'} />
                         <DataPoint label="Throttle" value={`${Math.round(data.Throttle * 100)}%`} />
                         <DataPoint label="Train Brake" value={`${Math.round(data.TrainBrake * 100)}%`} />
+                        <DataPoint label="Train Length" value={`${data.TrainLength.toFixed(1)}m`} />
                         <DataPoint label="Projected Dist" value={`${data.ProjectedBrakingDistance.toFixed(0)}m`} />
+                        <div className="flex justify-between items-center pt-2">
+                          <span className="text-[10px] text-white/30 uppercase font-mono">Sander</span>
+                          <span className={`text-[10px] font-bold font-mono ${data.Sander ? 'text-yellow-500' : 'text-white/10'}`}>
+                            {data.Sander ? 'ACTIVE' : 'OFF'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                    <div className="h-28 bg-cyan-500/5 border border-cyan-500/10 rounded-sm flex items-center justify-center">
-                      <span className="text-cyan-500/40 text-[10px] font-mono animate-pulse uppercase tracking-widest font-bold">Systems Nominal</span>
+                    <div className="h-28 bg-white/5 border border-white/5 rounded-sm p-3 grid grid-cols-2 gap-2">
+                      <div className={`flex items-center justify-center rounded-xs border ${data.AWS > 0 ? 'bg-yellow-500/20 border-yellow-500 text-yellow-500 animate-pulse' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                        <span className="text-[10px] font-bold font-mono">AWS</span>
+                      </div>
+                      <div className={`flex items-center justify-center rounded-xs border ${data.DSD > 0 ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                        <span className="text-[10px] font-bold font-mono">DSD</span>
+                      </div>
+                      <div className={`flex items-center justify-center rounded-xs border ${data.DRA ? 'bg-red-500/40 border-red-500 text-red-200' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                        <span className="text-[10px] font-bold font-mono">DRA</span>
+                      </div>
+                      <div className={`flex items-center justify-center rounded-xs border ${data.DoorsOpen.left || data.DoorsOpen.right ? 'bg-orange-500/20 border-orange-500 text-orange-500' : 'bg-white/5 border-white/10 text-white/20'}`}>
+                        <span className="text-[10px] font-bold font-mono uppercase">Doors</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </motion.div>
             )}
             
-            {activeTab !== 'PILOT' && (
+            {activeTab === 'CONFIG' && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="h-full p-6 flex flex-col gap-6"
+              >
+                <div className="flex-1 grid grid-cols-2 gap-6">
+                  <ProfileSelector />
+                  
+                  <div className="flex flex-col gap-6">
+                    <div className="p-4 bg-white/5 border border-white/5 rounded-sm">
+                       <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">System Parameters</h3>
+                       <div className="space-y-4">
+                          <PhysicsRow label="Units Override" value={0} unit={data.SpeedUnit} color="text-cyan-500" />
+                          <PhysicsRow label="Auto-detect" value={1} unit="BOOL" />
+                          <PhysicsRow label="Sim Frequency" value={60} unit="HZ" />
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab !== 'PILOT' && activeTab !== 'CONFIG' && (
               <div className="h-full flex items-center justify-center">
                 <span className="text-[10px] font-mono text-white/10 uppercase tracking-[1em]">Initialising {activeTab} Module...</span>
               </div>

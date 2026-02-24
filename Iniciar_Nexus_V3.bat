@@ -10,8 +10,12 @@ echo    NEXUS V3 - SISTEMA DE CONTROL DE TELEMETRIA
 echo ====================================================
 echo.
 
+echo [0/2] Limpiando procesos antiguos en puerto 8000...
+powershell -Command "$p = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue; if($p) { Stop-Process -Id $p.OwningProcess -Force -ErrorAction SilentlyContinue }"
+echo [✓] Limpieza completada.
+
 echo [1/2] Iniciando Backend (FastAPI + Websockets)...
-start "NEXUS_V3_BACKEND" cmd /k "cd /d %BACKEND_DIR% && %VENV_PATH% main.py"
+start "NEXUS_V3_BACKEND" cmd /k "cd /d %BACKEND_DIR% && %VENV_PATH% -m uvicorn main:app --host 0.0.0.0 --port 8000"
 
 echo [2/2] Iniciando Frontend (Vite + React 19)...
 start "NEXUS_V3_FRONTEND" cmd /k "cd /d %FRONTEND_DIR% && npm run dev"

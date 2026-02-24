@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
+import { DataNormalizer } from './DataNormalizer';
 
 /**
  * Esquema de Telemetría Nexus v3
@@ -6,9 +7,12 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef, Re
  */
 export interface TelemetryData {
   // Dinámica de Velocidad
-  Speed: number;           
+  Speed: number;           // Siempre en m/s (Interno)
+  SpeedDisplay: number;    // Convertido a MPH/KPH según perfil
+  SpeedUnit: 'MPH' | 'KPH';
   ProjectedSpeed: number;  
   Acceleration: number;    
+  GForce: number;          
   SpeedLimit: number;      
   
   // Geografía de la Vía
@@ -18,6 +22,11 @@ export interface TelemetryData {
   NextSpeedLimit: number;
   DistToNextSpeedLimit: number;
   
+  // Estaciones (Fase 2.3)
+  StationDistance: number;
+  StationName: string;
+  StationLength: number;
+  
   // Física y Mecánica
   Throttle: number;        
   TrainBrake: number;      
@@ -25,15 +34,35 @@ export interface TelemetryData {
   BrakeCylinderPressure: number; 
   BrakePipePressure: number;     
   MainResPressure: number;       
+  EqResPressure: number;         
+  PressureUnit: 'BAR' | 'PSI';
   Amperage: number;        
+  AmperageUnit: string;
+  TractionPercent: number; // -100 to 100
+  BrakingEffort: number;   // kN o Lbf
+  BrakingPercent: number;  // 0-100% de aplicación real
   
+  // Física y Geometría del Tren
+  TrainLength: number;
+  TrainMass: number;
+
   // IA / Predictivo
   ProjectedBrakingDistance: number; 
+  TripDistance: number;    // Metros totales recorridos en la sesión
   
   // Estado del sistema
   LocoName: string;
+  location: string;
   IsEmergency: boolean;
   Timestamp: number;
+  
+  // Sistemas de Seguridad y Auxiliares (Nuevos)
+  AWS: number; 
+  DSD: number;
+  DRA: boolean;
+  Sander: boolean;
+  DoorsOpen: { left: boolean; right: boolean };
+  TimeOfDay: string;
 }
 
 interface TelemetryContextType {
@@ -43,29 +72,52 @@ interface TelemetryContextType {
   activeProfile: any;
   availableProfiles: any[];
   sendCommand: (cmd: string, val: number) => void;
+  setProfile: (profileName: string) => void;
 }
 
 const DefaultData: TelemetryData = {
   Speed: 0,
+  SpeedDisplay: 0,
+  SpeedUnit: 'MPH',
   ProjectedSpeed: 0,
   Acceleration: 0,
+  GForce: 0,
   SpeedLimit: 0,
   Gradient: 0,
   DistToNextSignal: 0,
   NextSignalAspect: 'CLEAR',
   NextSpeedLimit: 0,
   DistToNextSpeedLimit: 0,
+  StationDistance: -1,
+  StationName: '',
+  StationLength: 200,
   Throttle: 0,
   TrainBrake: 0,
   Reverser: 0,
   BrakeCylinderPressure: 0,
   BrakePipePressure: 0,
   MainResPressure: 0,
+  EqResPressure: 0,
+  PressureUnit: 'BAR',
   Amperage: 0,
+  AmperageUnit: 'A',
+  TractionPercent: 0,
+  BrakingEffort: 0,
+  BrakingPercent: 0,
+  TripDistance: 0,
+  TrainLength: 0,
+  TrainMass: 0,
   ProjectedBrakingDistance: 0,
   LocoName: 'DETECTING...',
+  location: 'UNKNOWN',
   IsEmergency: false,
   Timestamp: 0,
+  AWS: 0,
+  DSD: 0,
+  DRA: false,
+  Sander: false,
+  DoorsOpen: { left: false, right: false },
+  TimeOfDay: '00:00:00',
 };
 
 const TelemetryContext = createContext<TelemetryContextType | undefined>(undefined);
@@ -77,7 +129,19 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   const [availableProfiles, setAvailableProfiles] = useState<any[]>([]);
   const [lastMessageTime, setLastMessageTime] = useState(0);
   
+  const activeProfileRef = useRef<any>(null);
+  const availableProfilesRef = useRef<any[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
+  const normalizerRef = useRef(new DataNormalizer());
+
+  // Sincronizar refs con el estado para que el closure del socket los vea
+  useEffect(() => {
+    activeProfileRef.current = activeProfile;
+  }, [activeProfile]);
+
+  useEffect(() => {
+    availableProfilesRef.current = availableProfiles;
+  }, [availableProfiles]);
 
   const connect = useCallback(() => {
     if (socketRef.current?.readyState === WebSocket.OPEN) return;
@@ -95,46 +159,59 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
         const message = JSON.parse(event.data);
         const now = Date.now();
         
-        if (message.type === 'DATA') {
-          const raw = message.data;
+        // 1. Actualización de Perfiles Disponibles (Siempre que vengan)
+        if (message.available_profiles) {
+          setAvailableProfiles(message.available_profiles);
+          availableProfilesRef.current = message.available_profiles;
+        }
+
+        // 2. Sincronización del Perfil Activo
+        if (message.active_profile !== undefined || message.active_profile_id !== undefined) {
+          let incomingProfile = message.active_profile;
+          const incomingId = message.active_profile_id || message.active_profile?.id || null;
+          const currentId = activeProfileRef.current?.id || null;
+
+          // Si el mensaje solo trae el ID, buscar en la lista local
+          if (!incomingProfile && incomingId) {
+            incomingProfile = availableProfilesRef.current.find(p => p.id === incomingId);
+          }
+
+          // Solo actualizar si hay un cambio real para evitar re-renders infinitos
+          if (incomingId !== currentId) {
+            console.log(`Hub: Profile Sync [${currentId} -> ${incomingId}]`, incomingProfile?.name);
+            setActiveProfile(incomingProfile || null);
+            activeProfileRef.current = incomingProfile || null;
+          }
+        }
+
+        // 3. Procesamiento de Telemetría
+        if (message.type === 'DATA' || message.type === 'TELEMETRY') {
+          const raw = message.type === 'DATA' ? message.data : message;
+          
           setData(prev => {
-            const speed = raw.Speed || 0;
-            const acceleration = raw.Acceleration || 0;
-            const projectedSpeed = Math.max(0, speed + (acceleration * 2.23694 * 10)); 
+            const currentProfile = activeProfileRef.current;
+            const normalized = normalizerRef.current.normalize(raw, prev, currentProfile);
 
             return {
               ...prev,
-              Speed: speed,
-              Acceleration: acceleration,
-              ProjectedSpeed: projectedSpeed,
-              SpeedLimit: parseFloat(raw.CurrentSpeedLimit) || 0,
-              Gradient: raw.Gradient || 0,
-              DistToNextSignal: raw.NextSignalDistance || 0,
-              NextSignalAspect: raw.NextSignalAspect || 'DEBUG',
-              NextSpeedLimit: parseFloat(raw.NextSpeedLimitSpeed) || 0,
-              DistToNextSpeedLimit: raw.NextSpeedLimitDistance || 0,
-              
+              ...normalized,
               Throttle: raw.Regulator || 0,
               TrainBrake: raw.TrainBrakeControl || 0,
               Reverser: raw.Reverser || 0,
-              BrakeCylinderPressure: raw.TrainBrakeCylinderPressureBAR || raw.EngineBrakeCylinderPressureBAR || 0,
-              BrakePipePressure: raw.TrainBrakePipePressureBAR || 0,
-              MainResPressure: raw.MainResPressureBAR || 0,
-              Amperage: raw.Ammeter || raw.TractiveEffort || 0,
-              
-              ProjectedBrakingDistance: (speed * speed) / (2 * 0.5),
-              
               LocoName: raw.LocoName || prev.LocoName,
-              IsEmergency: raw.EmergencyBrake === 1,
+              location: raw.location || raw.Location || prev.location, 
               Timestamp: now
             };
           });
           setLastMessageTime(now);
         } else if (message.type === 'INIT') {
-          setAvailableProfiles(message.available_profiles || []);
-          setActiveProfile(message.active_profile);
-        } else if (message.type === 'PROFILE_CHANGE') {
-          setActiveProfile(message.active_profile);
+          console.log('INIT received:', message);
+          if (message.available_profiles) {
+            setAvailableProfiles(message.available_profiles);
+            availableProfilesRef.current = message.available_profiles;
+          }
+          setActiveProfile(message.active_profile || null);
+          activeProfileRef.current = message.active_profile || null;
         }
       } catch (err) {
         console.error('Telemetry parse error:', err);
@@ -153,6 +230,18 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const setProfile = useCallback((profileId: string) => {
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      console.log('Hub: Sending SELECT_PROFILE ->', profileId);
+      socketRef.current.send(JSON.stringify({ 
+        type: 'SELECT_PROFILE', 
+        profile_id: profileId 
+      }));
+    } else {
+      console.warn('Hub: Cannot select profile, socket closed');
+    }
+  }, []);
+
   useEffect(() => {
     connect();
     return () => socketRef.current?.close();
@@ -165,7 +254,8 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       lastMessageTime, 
       activeProfile, 
       availableProfiles,
-      sendCommand 
+      sendCommand,
+      setProfile 
     }}>
       {children}
     </TelemetryContext.Provider>

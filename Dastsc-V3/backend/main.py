@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import os
 import time
+import json
+import traceback
 from typing import List
 
 # Estos se copiarán a continuación
@@ -11,6 +13,8 @@ from core.profiles import ProfileManager
 # from physics.engine import PhysicsEngine
 
 app = FastAPI(title="Nexus v3 Engine")
+print(f"DEBUG: V3 ENGINE STARTING")
+print(f"DEBUG: PATH: {os.path.abspath(__file__)}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,12 +26,29 @@ app.add_middleware(
 
 # Rutas
 GETDATA_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\RailWorks\plugins\GetData.txt"
+ALT_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\RailWorks\GetData.txt"
 PROFILES_PATH = r"c:\Users\doski\Dastsc\profiles"
 
 class TelemetryManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
-        self.profile_manager = ProfileManager(PROFILES_PATH)
+        
+        # Búsqueda dinámica de la carpeta de perfiles
+        posibles_rutas = [
+            PROFILES_PATH,
+            os.path.normpath(os.path.join(os.getcwd(), "profiles")),
+            os.path.normpath(os.path.join(os.getcwd(), "..", "profiles")),
+            os.path.normpath(os.path.join(os.getcwd(), "..", "..", "profiles"))
+        ]
+        
+        self.active_profiles_path = posibles_rutas[0]
+        for ruta in posibles_rutas:
+            if os.path.exists(ruta):
+                self.active_profiles_path = ruta
+                break
+
+        print(f"DEBUG: NEXUS V3 Engine usando perfiles en: {self.active_profiles_path}")
+        self.profile_manager = ProfileManager(self.active_profiles_path)
         self.current_profile = None
         self.last_payload = {}
 
@@ -40,6 +61,7 @@ class TelemetryManager:
             "type": "INIT",
             "available_profiles": profiles,
             "active_profile": self.current_profile,
+            "active_profile_id": self.current_profile.get("id") if self.current_profile else None,
             "isConnected": True,
             **self.last_payload
         }
@@ -62,38 +84,50 @@ manager = TelemetryManager()
 async def telemetry_reader():
     """Bucle principal de sondeo (mayor frecuencia para v3)."""
     last_mtime = 0
+    sync_counter = 0
     while True:
         try:
-            if os.path.exists(GETDATA_PATH):
-                mtime = os.path.getmtime(GETDATA_PATH)
+            # Detectar ruta activa de telemetría
+            active_path = GETDATA_PATH if os.path.exists(GETDATA_PATH) else ALT_PATH
+            
+            if os.path.exists(active_path):
+                mtime = os.path.getmtime(active_path)
                 if mtime != last_mtime:
                     last_mtime = mtime
-                    with open(GETDATA_PATH, "r") as f:
+                    with open(active_path, "r", encoding="utf-8") as f:
                         line = f.readline()
                         if line:
                             data = parse_telemetry_line(line)
                             
-                            # Lógica de autodetección de perfil
-                            loco_name = data.get("LocoName", "")
-                            if loco_name and (not manager.current_profile or manager.current_profile['name'] != loco_name):
-                                profile = manager.profile_manager.get_profile_for_loco(loco_name)
-                                manager.current_profile = profile
-                                await manager.broadcast({"type": "PROFILE_CHANGE", "active_profile": profile})
+                            # La autodetección está desactivada en favor del sistema manual de v3
+                            # Pero mantenemos la sincronización del perfil actual en cada tick
                             
-                            await manager.broadcast({
-                                "type": "DATA",
-                                "data": data,
+                            payload = {
+                                "type": "TELEMETRY", 
+                                **data,
+                                "active_profile": manager.current_profile,
+                                "active_profile_id": manager.current_profile.get("id") if manager.current_profile else None,
                                 "timestamp": time.time()
-                            })
+                            }
+
+                            # Enviar lista de perfiles cada 5 segundos (10Hz * 50) para asegurar que la UI tenga los datos
+                            sync_counter += 1
+                            if sync_counter % 50 == 0:
+                                payload["available_profiles"] = manager.profile_manager.get_all_profiles()
+
+                            await manager.broadcast(payload)
             
-            # Sondeo a 20Hz en lugar de 5Hz para capturar todas las actualizaciones de archivos
-            await asyncio.sleep(0.05)
+            # Sondeo a 10Hz (0.1s) es suficiente para el interpolador SmoothEngine
+            await asyncio.sleep(0.1)
         except Exception as e:
             print(f"Error en telemetry_reader: {e}")
             await asyncio.sleep(1)
 
 @app.on_event("startup")
 async def startup_event():
+    print("--------------------------------------------------")
+    print("   NEXUS V3 ENGINE - CORE UPDATED (JSON FIX)      ")
+    print("--------------------------------------------------")
     asyncio.create_task(telemetry_reader())
 
 @app.websocket("/ws/telemetry")
@@ -101,8 +135,28 @@ async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            _data = await websocket.receive_text()
-            # Maneja comandos entrantes (lógica de SendCommand.txt)
+            # Usar receive_json() de FastAPI para evitar dependencias directas de 'json' en este punto
+            try:
+                cmd = await websocket.receive_json()
+                if cmd.get("type") == "SELECT_PROFILE":
+                    profile_id = cmd.get("profile_id")
+                    print(f"DEBUG V3: Solicitud de perfil -> {profile_id}")
+                    if manager.profile_manager.select_manual_profile(profile_id):
+                        manager.current_profile = manager.profile_manager.manual_profile
+                        perfil_nombre = manager.current_profile.get("name") if manager.current_profile else "None"
+                        perfil_id = manager.current_profile.get("id") if manager.current_profile else "None"
+                        print(f"DEBUG V3: Perfil activo cambiado a -> {perfil_nombre}")
+                        
+                        await manager.broadcast({
+                            "type": "PROFILE_CHANGED",
+                            "active_profile": manager.current_profile,
+                            "active_profile_id": perfil_id
+                        })
+            except Exception as e:
+                # Si el mensaje no es JSON válido, receive_json lanzará error
+                print(f"Error procesando comando: {e}")
+                import traceback
+                traceback.print_exc()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
