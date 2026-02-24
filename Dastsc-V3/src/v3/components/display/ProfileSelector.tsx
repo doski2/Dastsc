@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 import { useTelemetry } from '../../core/TelemetryContext';
 import { Train, Check, Search } from 'lucide-react';
 
@@ -67,9 +68,10 @@ export const ProfileSelector: React.FC = () => {
             >
               <div className="flex flex-col items-start gap-1">
                 <div className="flex items-center gap-2">
-                  <div 
+                  <motion.div 
                     className="w-2 h-2 rounded-full shadow-[0_0_5px_rgba(255,255,255,0.2)]" 
-                    style={{ backgroundColor: profile.visuals?.color || '#3498db' }} 
+                    initial={false}
+                    animate={{ backgroundColor: profile.visuals?.color || '#3498db' }}
                   />
                   <span className={`text-[11px] font-bold uppercase tracking-tighter ${isActive ? 'text-cyan-400' : 'text-white/70'}`}>
                     {profile.name || profileId}

@@ -8,23 +8,25 @@ import { useSmoothValue } from './useSmoothValue';
 export function useTelemetrySmoothing() {
   const { data, isConnected, activeProfile } = useTelemetry();
 
-  // Factores de suavizado: 
-  // - Velocidad: Medio-rápido (0.15) para agujas reactivas
-  // - Presiones: Muy suave (0.05) para simular manómetros analógicos
-  // - Distancia: Rápido (0.3) para minimizar el retraso en el posicionamiento
+  // MODO MANIOBRA: Si la velocidad es < 2 m/s (aprox 7 km/h), aumentamos la reactividad
+  // para permitir acoplamientos y paradas de precisión.
+  const isManeuvering = data.Speed < 2;
+  const speedFactor = isManeuvering ? 0.4 : 0.15;
+  const distFactor = isManeuvering ? 0.6 : 0.3;
   
-  const smoothSpeed = useSmoothValue(data.Speed, 0.15);
-  const smoothSpeedDisplay = useSmoothValue(data.SpeedDisplay, 0.15);
+  const smoothSpeed = useSmoothValue(data.Speed, speedFactor);
+  const smoothSpeedDisplay = useSmoothValue(data.SpeedDisplay, speedFactor);
   const smoothBrakeCylinder = useSmoothValue(data.BrakeCylinderPressure, 0.08);
   const smoothBrakePipe = useSmoothValue(data.BrakePipePressure, 0.08);
   const smoothMainRes = useSmoothValue(data.MainResPressure, 0.05);
   const smoothAmperage = useSmoothValue(data.Amperage, 0.1);
-  const smoothSignalDist = useSmoothValue(data.DistToNextSignal, 0.3);
-  const smoothNextLimitDist = useSmoothValue(data.DistToNextSpeedLimit, 0.3);
+  const smoothSignalDist = useSmoothValue(data.DistToNextSignal, distFactor);
+  const smoothNextLimitDist = useSmoothValue(data.DistToNextSpeedLimit, distFactor);
   const smoothGradient = useSmoothValue(data.Gradient, 0.1);
   
   return {
     raw: data,
+    isManeuvering,
     smooth: {
       speed: smoothSpeed,
       speedDisplay: smoothSpeedDisplay,

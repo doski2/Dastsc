@@ -13,7 +13,9 @@ export interface TelemetryData {
   ProjectedSpeed: number;  
   Acceleration: number;    
   GForce: number;          
-  SpeedLimit: number;      
+  SpeedLimit: number;      // Límite efectivo (con protección de cola)
+  FrontalSpeedLimit: number; // Límite en la cabina
+  TailDistance: number;    // Distancia restante para limpiar hito (m)
   
   // Geografía de la Vía
   Gradient: number;        
@@ -30,6 +32,7 @@ export interface TelemetryData {
   // Física y Mecánica
   Throttle: number;        
   TrainBrake: number;      
+  CombinedControl: number; // -1 to 1 (Brake to Power)
   Reverser: number;        
   BrakeCylinderPressure: number; 
   BrakePipePressure: number;     
@@ -83,6 +86,7 @@ const DefaultData: TelemetryData = {
   Acceleration: 0,
   GForce: 0,
   SpeedLimit: 0,
+  FrontalSpeedLimit: 0,
   Gradient: 0,
   DistToNextSignal: 0,
   NextSignalAspect: 'CLEAR',
@@ -92,6 +96,7 @@ const DefaultData: TelemetryData = {
   StationName: '',
   StationLength: 200,
   Throttle: 0,
+  CombinedControl: 0,
   TrainBrake: 0,
   Reverser: 0,
   BrakeCylinderPressure: 0,
@@ -107,6 +112,7 @@ const DefaultData: TelemetryData = {
   TripDistance: 0,
   TrainLength: 0,
   TrainMass: 0,
+  TailDistance: 0,
   ProjectedBrakingDistance: 0,
   LocoName: 'DETECTING...',
   location: 'UNKNOWN',
@@ -132,6 +138,8 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   const activeProfileRef = useRef<any>(null);
   const availableProfilesRef = useRef<any[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<any>(null);
+  const isMounted = useRef(true);
   const normalizerRef = useRef(new DataNormalizer());
 
   // Sincronizar refs con el estado para que el closure del socket los vea
@@ -144,23 +152,34 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   }, [availableProfiles]);
 
   const connect = useCallback(() => {
-    if (socketRef.current?.readyState === WebSocket.OPEN) return;
+    if (!isMounted.current) return;
+    if (socketRef.current?.readyState === WebSocket.OPEN || socketRef.current?.readyState === WebSocket.CONNECTING) return;
 
+    // Limpiar cualquier timeout previo
+    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+
+    console.log('Nexus v3 Hub: Connecting...');
     const ws = new WebSocket('ws://localhost:8000/ws/telemetry');
     socketRef.current = ws;
 
     ws.onopen = () => {
+      if (!isMounted.current) {
+        ws.close();
+        return;
+      }
       console.log('Nexus v3 Hub Connected');
       setIsConnected(true);
     };
 
     ws.onmessage = (event) => {
+      if (!isMounted.current) return;
       try {
         const message = JSON.parse(event.data);
+        if (!message) return;
         const now = Date.now();
         
         // 1. Actualización de Perfiles Disponibles (Siempre que vengan)
-        if (message.available_profiles) {
+        if (message.available_profiles && Array.isArray(message.available_profiles)) {
           setAvailableProfiles(message.available_profiles);
           availableProfilesRef.current = message.available_profiles;
         }
@@ -172,7 +191,7 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
           const currentId = activeProfileRef.current?.id || null;
 
           // Si el mensaje solo trae el ID, buscar en la lista local
-          if (!incomingProfile && incomingId) {
+          if (!incomingProfile && incomingId && Array.isArray(availableProfilesRef.current)) {
             incomingProfile = availableProfilesRef.current.find(p => p.id === incomingId);
           }
 
@@ -187,26 +206,25 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
         // 3. Procesamiento de Telemetría
         if (message.type === 'DATA' || message.type === 'TELEMETRY') {
           const raw = message.type === 'DATA' ? message.data : message;
-          
+          if (!raw) return;
+
           setData(prev => {
+            if (!isMounted.current) return prev;
             const currentProfile = activeProfileRef.current;
             const normalized = normalizerRef.current.normalize(raw, prev, currentProfile);
 
             return {
               ...prev,
               ...normalized,
-              Throttle: raw.Regulator || 0,
-              TrainBrake: raw.TrainBrakeControl || 0,
-              Reverser: raw.Reverser || 0,
-              LocoName: raw.LocoName || prev.LocoName,
-              location: raw.location || raw.Location || prev.location, 
+              LocoName: raw.LocoName || normalized.LocoName || prev.LocoName,
+              location: raw.location || raw.Location || normalized.location || prev.location, 
               Timestamp: now
             };
           });
           setLastMessageTime(now);
         } else if (message.type === 'INIT') {
           console.log('INIT received:', message);
-          if (message.available_profiles) {
+          if (message.available_profiles && Array.isArray(message.available_profiles)) {
             setAvailableProfiles(message.available_profiles);
             availableProfilesRef.current = message.available_profiles;
           }
@@ -218,9 +236,25 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+      // Si el componente está desmontado (como en StrictMode), cerramos silenciosamente
+      if (!isMounted.current) return;
+
       setIsConnected(false);
-      setTimeout(connect, 2000); // Robust reconnection
+      console.log(`Hub: Connection closed (${event.code}). Reconnecting in 3s...`);
+      
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (isMounted.current) connect();
+      }, 3000);
+    };
+
+    ws.onerror = (err) => {
+      // Solo logeamos el error si no es un cierre intencionado por desmontaje
+      if (isMounted.current) {
+        console.error('Hub WebSocket Error:', err);
+      }
+      ws.close();
     };
   }, []);
 
@@ -243,8 +277,16 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    isMounted.current = true;
     connect();
-    return () => socketRef.current?.close();
+    return () => {
+      isMounted.current = false;
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+    };
   }, [connect]);
 
   return (

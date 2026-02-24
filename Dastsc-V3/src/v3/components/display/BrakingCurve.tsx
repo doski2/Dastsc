@@ -7,7 +7,15 @@ import { CanvasLayer } from './CanvasLayer';
  * Basado en la estética del boceto 'Switchable IA Graph'.
  */
 export const BrakingCurve: React.FC = () => {
-  const { smooth, raw, isConnected } = useTelemetrySmoothing();
+  const { smooth, raw, isConnected, activeProfile } = useTelemetrySmoothing();
+
+  const formatDistance = (m: number) => {
+    if (raw.SpeedUnit === 'MPH') {
+      const yards = m * 1.09361;
+      return yards < 1760 ? `${Math.round(yards)}yd` : `${(m * 0.000621371).toFixed(2)}mi`;
+    }
+    return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
+  };
 
   const drawGraph = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     if (!isConnected) return;
@@ -91,13 +99,15 @@ export const BrakingCurve: React.FC = () => {
   return (
     <div className="relative flex-1 bg-white/[0.02] border border-white/5 rounded-sm overflow-hidden flex flex-col">
       <div className="absolute top-4 left-4 flex flex-col gap-0.5 z-10">
-        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest font-mono">Braking Curve // Dynamic</span>
-        <span className="text-[9px] text-cyan-500/60 font-mono">Optimal Stop: {raw.ProjectedBrakingDistance.toFixed(0)}m</span>
+        <span className="text-xs font-bold text-white/40 uppercase tracking-widest font-mono">Braking Curve // Dynamic</span>
+        <span className="text-[11px] text-cyan-500/60 font-mono">
+          Optimal Stop: {formatDistance(raw.ProjectedBrakingDistance)}
+        </span>
       </div>
       
       <div className="absolute top-4 right-4 flex gap-2 z-10">
-         <div className="px-1.5 py-0.5 rounded-xs bg-cyan-500/10 border border-cyan-500/20 text-[8px] text-cyan-400 font-bold uppercase">Curve</div>
-         <div className="px-1.5 py-0.5 rounded-xs bg-white/5 text-[8px] text-white/20 font-bold uppercase">Efficiency</div>
+         <div className="px-2 py-1 rounded-xs bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400 font-bold uppercase">Curve</div>
+         <div className="px-2 py-1 rounded-xs bg-white/5 text-[10px] text-white/20 font-bold uppercase">Efficiency</div>
       </div>
 
       <CanvasLayer render={drawGraph} />
@@ -106,7 +116,7 @@ export const BrakingCurve: React.FC = () => {
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-500/[0.01] to-transparent h-20 w-full animate-scan pointer-events-none" />
       
       <div className="absolute bottom-4 right-6 text-right select-none">
-          <span className="text-[8px] font-mono text-white/10 uppercase tracking-widest">Auto-Dispatch Ready</span>
+          <span className="text-[10px] font-mono text-white/10 uppercase tracking-widest">Auto-Dispatch Ready</span>
       </div>
     </div>
   );

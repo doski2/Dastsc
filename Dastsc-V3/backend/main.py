@@ -3,8 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import os
 import time
-import json
-import traceback
 from typing import List
 
 # Estos se copiarán a continuación
@@ -13,7 +11,7 @@ from core.profiles import ProfileManager
 # from physics.engine import PhysicsEngine
 
 app = FastAPI(title="Nexus v3 Engine")
-print(f"DEBUG: V3 ENGINE STARTING")
+print("DEBUG: V3 ENGINE STARTING")
 print(f"DEBUG: PATH: {os.path.abspath(__file__)}")
 
 app.add_middleware(

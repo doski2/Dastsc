@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import os
 import time
-import json
 import glob
 from typing import List
 from core.parser import parse_telemetry_line

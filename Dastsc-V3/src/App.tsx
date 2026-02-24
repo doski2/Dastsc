@@ -9,11 +9,11 @@ import { ProfileSelector } from './v3/components/display/ProfileSelector'
 
 function PhysicsRow({ label, value, unit, color = "text-white/70" }: { label: string, value: number, unit: string, color?: string }) {
   return (
-    <div className="flex justify-between items-center text-[11px] font-mono">
+    <div className="flex justify-between items-center text-sm font-mono">
       <span className="text-white/30 uppercase tracking-tighter">{label}</span>
       <div className="flex gap-1 items-baseline">
         <span className={color}>{value.toFixed(2)}</span>
-        <span className="text-[8px] text-white/20">{unit}</span>
+        <span className="text-[10px] text-white/20">{unit}</span>
       </div>
     </div>
   )
@@ -22,8 +22,8 @@ function PhysicsRow({ label, value, unit, color = "text-white/70" }: { label: st
 function DataPoint({ label, value }: { label: string, value: string | number }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="text-[8px] text-white/20 uppercase tracking-widest leading-none">{label}</span>
-      <span className="text-sm font-light text-white/80">{value}</span>
+      <span className="text-[10px] text-white/20 uppercase tracking-widest leading-none">{label}</span>
+      <span className="text-base font-light text-white/80">{value}</span>
     </div>
   )
 }
@@ -31,6 +31,14 @@ function DataPoint({ label, value }: { label: string, value: string | number }) 
 function App() {
   const [activeTab, setActiveTab] = useState('PILOT')
   const { data, isConnected, activeProfile } = useTelemetry()
+
+  const formatDistance = (m: number) => {
+    if (data.SpeedUnit === 'MPH') {
+      const yards = m * 1.09361;
+      return yards < 1760 ? `${Math.round(yards)}yd` : `${(m * 0.000621371).toFixed(2)}mi`;
+    }
+    return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
+  };
 
   const tabs = [
     { id: 'PILOT', icon: Activity, label: 'PILOT HUD' },
@@ -46,13 +54,13 @@ function App() {
         <div className="flex items-center gap-3">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-cyan-500 animate-pulse' : 'bg-red-500'}`} />
           <div className="flex flex-col">
-            <span className="text-xs font-bold tracking-[0.2em] text-white/60">NEXUS V3 // {activeProfile?.name || data.LocoName || 'SELECT TRAIN'}</span>
-            <span className="text-[9px] font-mono text-cyan-500/60 uppercase tracking-widest leading-none mt-1">
+            <span className="text-sm font-bold tracking-[0.2em] text-white/60">NEXUS V3 // {activeProfile?.name || data.LocoName || 'SELECT TRAIN'}</span>
+            <span className="text-[11px] font-mono text-cyan-500/60 uppercase tracking-widest leading-none mt-1">
               {activeProfile ? `PROFILE: ${activeProfile.id}` : 'NO PROFILE SELECTED'}
             </span>
           </div>
         </div>
-        <div className="text-[10px] font-mono text-white/30 uppercase tracking-widest">
+        <div className="text-xs font-mono text-white/30 uppercase tracking-widest">
           {data.TimeOfDay} // {isConnected ? 'Link Active' : 'Link Offline'} // 3.0.0-PROTOTYPE
         </div>
       </header>
@@ -82,19 +90,36 @@ function App() {
                     <div className="flex items-center gap-6">
                       <div className="flex items-center gap-2">
                          <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
-                         <span className="text-[10px] font-mono text-white/60 tracking-tighter">LINK ACTIVE</span>
+                         <span className="text-xs font-mono text-white/60 tracking-tighter uppercase leading-none">Link Active</span>
                       </div>
-                      <div className="text-[11px] font-mono">
-                        <span className="text-white/30">NEXT SIGNAL:</span>{' '}
+                      <div className="text-sm font-mono leading-none">
+                        <span className="text-white/30">SIGNAL:</span>{' '}
                         <span className={`font-bold ${
                           data.NextSignalAspect === 'DANGER' ? 'text-red-500' : 
                           data.NextSignalAspect === 'CLEAR' ? 'text-green-500' : 'text-yellow-500'
                         }`}>
-                          {data.NextSignalAspect} at {data.DistToNextSignal.toFixed(0)}m
+                          {data.NextSignalAspect} @ {formatDistance(data.DistToNextSignal)}
                         </span>
                       </div>
                     </div>
-                    <div className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+
+                    {/* Safety Indicators (Movidos aquí) */}
+                    <div className="flex gap-2 h-7">
+                      <div className={`px-4 flex items-center justify-center rounded-sm border transition-all duration-300 ${data.AWS > 0 ? 'bg-yellow-500/20 border-yellow-500 text-yellow-500 animate-pulse shadow-[0_0_10px_rgba(234,179,8,0.2)]' : 'bg-white/5 border-white/5 text-white/10'}`}>
+                        <span className="text-[11px] font-bold font-mono">AWS</span>
+                      </div>
+                      <div className={`px-4 flex items-center justify-center rounded-sm border transition-all duration-300 ${data.DSD > 0 ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'bg-white/5 border-white/5 text-white/10'}`}>
+                        <span className="text-[11px] font-bold font-mono">DSD</span>
+                      </div>
+                      <div className={`px-4 flex items-center justify-center rounded-sm border transition-all duration-300 ${data.DRA ? 'bg-red-600/40 border-red-500 text-red-100' : 'bg-white/5 border-white/5 text-white/10'}`}>
+                        <span className="text-[11px] font-bold font-mono">DRA</span>
+                      </div>
+                      <div className={`px-4 flex items-center justify-center rounded-sm border transition-all duration-300 ${data.DoorsOpen.left || data.DoorsOpen.right ? 'bg-orange-500/20 border-orange-500 text-orange-500' : 'bg-white/5 border-white/5 text-white/10'}`}>
+                        <span className="text-[11px] font-bold font-mono uppercase">Doors</span>
+                      </div>
+                    </div>
+
+                    <div className="text-xs font-mono text-white/40 uppercase tracking-widest leading-none">
                        TRIP: {data.SpeedUnit === 'MPH' 
                          ? `${(data.TripDistance * 0.000621371).toFixed(2)} mi` 
                          : `${(data.TripDistance / 1000).toFixed(2)} km`
@@ -109,24 +134,22 @@ function App() {
                   <div className="flex flex-col gap-4">
                     <Speedometer />
                     <div className="p-4 bg-white/5 border border-white/5 rounded-sm flex-1">
-                      <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Physics Hub</h3>
+                      <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Physics Hub</h3>
                       <div className="space-y-3">
                         <PhysicsRow label="Amperage" value={data.Amperage} unit={data.AmperageUnit} color={data.Amperage >= 0 ? "text-yellow-500" : "text-cyan-400"} />
-                        <div className="flex justify-between items-center text-[11px] font-mono">
+                        <div className="flex justify-between items-center text-sm font-mono">
                           <span className="text-white/30 uppercase tracking-tighter">Gradient</span>
                           <div className="flex gap-1 items-baseline">
                             <span className={data.Gradient > 0 ? 'text-red-400' : 'text-green-400'}>
                               {data.Gradient.toFixed(2)}%
                               {Math.abs(data.Gradient) > 0.01 && (
-                                <span className="text-[9px] opacity-40 ml-1">
+                                <span className="text-[11px] opacity-40 ml-1">
                                   (1:{Math.round(100 / Math.abs(data.Gradient))})
                                 </span>
                               )}
                             </span>
                           </div>
                         </div>
-                        <PhysicsRow label="Mass" value={data.TrainMass} unit="T" color="text-white/40" />
-                        <PhysicsRow label="Length" value={data.TrainLength} unit="m" color="text-white/40" />
                         <PhysicsRow label="Brake Cyl" value={data.BrakeCylinderPressure} unit={data.PressureUnit} />
                         <PhysicsRow label="Brake Pipe" value={data.BrakePipePressure} unit={data.PressureUnit} />
                       </div>
@@ -139,51 +162,52 @@ function App() {
                   {/* Columna 3: Métricas secundarias */}
                   <div className="flex flex-col gap-4">
                     <div className="p-4 bg-white/5 border border-white/5 rounded-sm flex-1">
-                      <h3 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Adaptive Telemetry</h3>
+                      <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Adaptive Telemetry</h3>
                       <div className="space-y-4">
                         <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
-                          <span className="text-[10px] text-white/30 uppercase font-mono">Next Speed</span>
+                          <span className="text-[11px] text-white/30 uppercase font-mono">Next Speed</span>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-bold text-yellow-500">{Math.round(data.NextSpeedLimit)} {data.SpeedUnit}</span>
-                            <span className="text-[10px] text-white/40 font-mono">in {(data.DistToNextSpeedLimit / 1000).toFixed(2)}km</span>
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
-                          <span className="text-[10px] text-white/30 uppercase font-mono">Next Signal</span>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full blur-[2px] ${
-                              data.NextSignalAspect === 'DANGER' ? 'bg-red-500 shadow-[0_0_8px_#ef4444]' :
-                              data.NextSignalAspect === 'CLEAR' ? 'bg-green-500 shadow-[0_0_8px_#22c55e]' :
-                              'bg-yellow-500 shadow-[0_0_8px_#eab308]'
-                            }`} />
-                            <span className="text-xs font-mono">{data.DistToNextSignal >= 1000 ? `${(data.DistToNextSignal / 1000).toFixed(2)}km` : `${data.DistToNextSignal.toFixed(0)}m`}</span>
+                            <span className="text-sm font-mono font-bold text-yellow-500">{Math.round(data.NextSpeedLimit)} {data.SpeedUnit}</span>
+                            <span className="text-[11px] text-white/40 font-mono">
+                              in {formatDistance(data.DistToNextSpeedLimit)}
+                            </span>
                           </div>
                         </div>
                         <DataPoint label="Reverser" value={data.Reverser > 0 ? 'FOR' : data.Reverser < 0 ? 'REV' : 'NEU'} />
                         <DataPoint label="Throttle" value={`${Math.round(data.Throttle * 100)}%`} />
                         <DataPoint label="Train Brake" value={`${Math.round(data.TrainBrake * 100)}%`} />
-                        <DataPoint label="Train Length" value={`${data.TrainLength.toFixed(1)}m`} />
-                        <DataPoint label="Projected Dist" value={`${data.ProjectedBrakingDistance.toFixed(0)}m`} />
-                        <div className="flex justify-between items-center pt-2">
-                          <span className="text-[10px] text-white/30 uppercase font-mono">Sander</span>
-                          <span className={`text-[10px] font-bold font-mono ${data.Sander ? 'text-yellow-500' : 'text-white/10'}`}>
-                            {data.Sander ? 'ACTIVE' : 'OFF'}
-                          </span>
+                        <div className="grid grid-cols-2 gap-4">
+                          <DataPoint label="Train Length" value={`${data.TrainLength.toFixed(1)}m`} />
+                          <DataPoint label="Train Mass" value={`${data.TrainMass.toFixed(0)} T`} />
                         </div>
-                      </div>
-                    </div>
-                    <div className="h-28 bg-white/5 border border-white/5 rounded-sm p-3 grid grid-cols-2 gap-2">
-                      <div className={`flex items-center justify-center rounded-xs border ${data.AWS > 0 ? 'bg-yellow-500/20 border-yellow-500 text-yellow-500 animate-pulse' : 'bg-white/5 border-white/10 text-white/20'}`}>
-                        <span className="text-[10px] font-bold font-mono">AWS</span>
-                      </div>
-                      <div className={`flex items-center justify-center rounded-xs border ${data.DSD > 0 ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse' : 'bg-white/5 border-white/10 text-white/20'}`}>
-                        <span className="text-[10px] font-bold font-mono">DSD</span>
-                      </div>
-                      <div className={`flex items-center justify-center rounded-xs border ${data.DRA ? 'bg-red-500/40 border-red-500 text-red-200' : 'bg-white/5 border-white/10 text-white/20'}`}>
-                        <span className="text-[10px] font-bold font-mono">DRA</span>
-                      </div>
-                      <div className={`flex items-center justify-center rounded-xs border ${data.DoorsOpen.left || data.DoorsOpen.right ? 'bg-orange-500/20 border-orange-500 text-orange-500' : 'bg-white/5 border-white/10 text-white/20'}`}>
-                        <span className="text-[10px] font-bold font-mono uppercase">Doors</span>
+                        <DataPoint label="Projected Dist" value={formatDistance(data.ProjectedBrakingDistance)} />
+                        
+                        {data.TailDistance > 0 && (
+                          <div className="mt-4 p-3 bg-blue-500/10 border-l-4 border-l-blue-500 border-r border-t border-b border-white/5 rounded-r-md">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">COLA LIMPIANDO</span>
+                              <span className="text-[10px] font-bold text-white/40">
+                                OBJ: {Math.round(data.FrontalSpeedLimit)} {data.SpeedUnit}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-2xl font-black text-white leading-none">
+                                {data.TailDistance.toFixed(0)}
+                              </span>
+                              <span className="text-xs font-bold text-blue-400 uppercase">m</span>
+                            </div>
+                            <div className="mt-2 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
+                              <motion.div 
+                                className="h-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
+                                initial={false}
+                                animate={{ 
+                                  width: `${Math.max(0, Math.min(100, (1 - (data.TailDistance / data.TrainLength)) * 100))}%` 
+                                }}
+                                transition={{ type: "tween", ease: "linear", duration: 0.3 }}
+                              />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -238,8 +262,8 @@ function App() {
                   ${isActive ? 'text-cyan-400 bg-white/5 border-t-2 border-cyan-500' : 'text-white/30 hover:text-white/60'}
                 `}
               >
-                <Icon size={16} strokeWidth={isActive ? 2.5 : 1.5} />
-                <span className="text-[9px] font-bold tracking-tighter uppercase">{tab.label}</span>
+                <Icon size={18} strokeWidth={isActive ? 2.5 : 1.5} />
+                <span className="text-[11px] font-bold tracking-tighter uppercase">{tab.label}</span>
               </button>
             )
           })}

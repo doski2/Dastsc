@@ -12,6 +12,7 @@ export interface NormalizerState {
   lastSimTime: number;
   effectiveSpeedLimit: number;
   lastNextLimitDist: number;
+  lastNextLimitSpeed: number;
   emaAcceleration: number;
   emaAmperage: number; // Raw smoothed
   emaBrakeCyl: number;
@@ -34,6 +35,7 @@ export class DataNormalizer {
     lastSimTime: 0,
     effectiveSpeedLimit: 0,
     lastNextLimitDist: 0,
+    lastNextLimitSpeed: 0,
     emaAcceleration: 0,
     emaAmperage: 0,
     emaBrakeCyl: 0,
@@ -152,28 +154,51 @@ export class DataNormalizer {
 
     if (this.state.effectiveSpeedLimit === 0) this.state.effectiveSpeedLimit = rawLimit;
 
-    // Detección de salto de hito
-    if (this.state.lastNextLimitDist < 15 && nextLimitDist > 100) {
-      if (nextLimitSpeed > rawLimit) {
-        this.state.distanceTravelled = 0;
+    // Detección de hito por el frente (Head Check)
+    // Cuando la distancia al próximo límite salta (p.ej de 5m a 1500m), el frente ha cruzado
+    const headJustPassedPost = this.state.lastNextLimitDist < 12 && nextLimitDist > 100;
+
+    if (headJustPassedPost) {
+      const newPotentialLimit = this.state.lastNextLimitSpeed;
+      
+      // Si el límite que acabamos de pasar es superior al que tenemos
+      if (newPotentialLimit > this.state.effectiveSpeedLimit + 0.1) {
+        // Activamos odómetro de cola: la cabina ya pasó, empezamos a contar
+        this.state.distanceTravelled = 0.1; // Valor centinela > 0
       } else {
+        // Si es una reducción o igual, aplicamos inmediatamente
         this.state.effectiveSpeedLimit = rawLimit;
         this.state.distanceTravelled = 0;
       }
     }
 
-    if (rawLimit > this.state.effectiveSpeedLimit) {
+    // Lógica de avance del odómetro
+    if (this.state.distanceTravelled > 0) {
       this.state.distanceTravelled += speedMS * dtSim;
       
+      // Si ya hemos recorrido toda la longitud, el tren ha limpiado el hito
       if (this.state.distanceTravelled >= trainLength) {
-        this.state.effectiveSpeedLimit = rawLimit;
+        this.state.effectiveSpeedLimit = rawLimit; // Sincronizamos con el valor real del simulador
         this.state.distanceTravelled = 0;
       }
     } else {
-      this.state.effectiveSpeedLimit = rawLimit;
+      // Sincronización normal si no hay limpieza de cola activa
+      // Importante: Si el simulador baja el límite (reducción), lo seguimos al instante
+      if (rawLimit < this.state.effectiveSpeedLimit - 0.1) {
+        this.state.effectiveSpeedLimit = rawLimit;
+      } else if (this.state.distanceTravelled === 0) {
+        // En tramos constantes, mantenemos sincronía
+        this.state.effectiveSpeedLimit = rawLimit;
+      }
     }
+
     this.state.lastNextLimitDist = nextLimitDist;
+    this.state.lastNextLimitSpeed = nextLimitSpeed;
     this.state.lastSimTime = simTime;
+
+    const tailDist = this.state.distanceTravelled > 0 
+      ? Math.max(0, trainLength - this.state.distanceTravelled) 
+      : 0;
 
     // 5. Unificación de Señales y Distancias
     const sigStateRaw = raw.NextSignalState ?? -1;
@@ -222,6 +247,9 @@ export class DataNormalizer {
     const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 
     // 7. Proyecciones y Retorno
+    const currentThrottle = raw.Throttle ?? raw.Regulator ?? 0;
+    const currentBrake = raw.TrainBrake ?? raw.TrainBrakeControl ?? 0;
+    const combinedControl = raw.CombinedControl ?? (currentThrottle - currentBrake);
     const projectedSpeedMS = Math.max(0, speedMS + (this.state.emaAcceleration * 10));
     
     // 8. Cálculo de Física Predictiva (Braking Curve)
@@ -233,12 +261,18 @@ export class DataNormalizer {
 
     return {
       Speed: speedMS,
+      Throttle: currentThrottle,
+      TrainBrake: currentBrake,
+      CombinedControl: combinedControl,
+      Reverser: raw.Reverser || 0,
       SpeedDisplay: speedMS * fromMS,
       SpeedUnit: speedUnit,
       Acceleration: this.state.emaAcceleration,
       GForce: this.state.gForce,
       ProjectedSpeed: projectedSpeedMS * fromMS,
       SpeedLimit: this.state.effectiveSpeedLimit * fromMS,
+      FrontalSpeedLimit: rawLimit * fromMS,
+      TailDistance: tailDist,
       DistToNextSpeedLimit: nextLimitDist,
       NextSpeedLimit: nextLimitSpeed * fromMS,
       Gradient: this.state.emaGradient,

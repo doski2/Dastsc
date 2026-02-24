@@ -9,6 +9,14 @@ import { useTelemetrySmoothing } from '../../hooks/useTelemetrySmoothing';
 export const TrackProfile: React.FC = () => {
   const { smooth, raw, isConnected } = useTelemetrySmoothing();
 
+  const formatDistance = (m: number) => {
+    if (raw.SpeedUnit === 'MPH') {
+      const yards = m * 1.09361;
+      return yards < 1760 ? `${Math.round(yards)}yd` : `${(m * 0.000621371).toFixed(2)}mi`;
+    }
+    return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
+  };
+
   // Lógica de dibujo
   const drawTrack = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     if (!isConnected) return;
@@ -74,15 +82,15 @@ export const TrackProfile: React.FC = () => {
     const ratio = gradVal > 0 ? Math.round(100 / gradVal) : 0;
     
     ctx.fillStyle = gradColor;
-    ctx.font = 'bold 12px JetBrains Mono';
+    ctx.font = 'bold 13px JetBrains Mono';
     const gradText = `${gradIcon} ${gradVal.toFixed(2)}% ${ratio > 0 ? `(1:${ratio})` : ''}`;
-    ctx.fillText(gradText, 45, targetY - 20);
+    ctx.fillText(gradText, 45, targetY - 25);
 
     // Dibuja la Escala de Distancia (Regla inferior)
     const drawScale = () => {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
       ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.font = '10px JetBrains Mono';
+      ctx.font = '11px JetBrains Mono';
       ctx.lineWidth = 1;
       
       for (let i = 0; i <= viewRange; i += 500) {
@@ -93,7 +101,8 @@ export const TrackProfile: React.FC = () => {
         ctx.stroke();
         
         if (i % 1000 === 0) {
-          ctx.fillText(`${i/1000} km`, x + 5, height - 15);
+          const text = raw.SpeedUnit === 'MPH' ? `${(i * 0.000621371).toFixed(1)}mi` : `${i/1000}km`;
+          ctx.fillText(text, x + 5, height - 15);
         }
       }
     };
@@ -120,11 +129,12 @@ export const TrackProfile: React.FC = () => {
       
       // Etiquetas de estación
       ctx.fillStyle = '#fff';
-      ctx.font = 'bold 10px JetBrains Mono';
+      ctx.font = 'bold 11px JetBrains Mono';
       ctx.fillText(raw.StationName || 'STATION', xStart, currentYAtStation + 35);
       
       // Icono de andén
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.font = 'bold 11px JetBrains Mono';
       ctx.fillText('▊▊▊', xStart, currentYAtStation + 22);
     }
 
@@ -171,6 +181,14 @@ export const TrackProfile: React.FC = () => {
       drawLight(8, raw.NextSignalAspect === 'DANGER');
       drawLight(17, raw.NextSignalAspect === 'CAUTION' || raw.NextSignalAspect === 'ADV_CAUTION');
       drawLight(26, raw.NextSignalAspect === 'CLEAR' || raw.NextSignalAspect === 'PROCEED');
+
+      // Distancia a la señal (Label)
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = '11px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(formatDistance(sigDist), xPos, currentYAtSignal - 105);
+      ctx.textAlign = 'left';
     }
 
     // Dibuja Límite de Velocidad (Speed Limit Circles)
@@ -179,10 +197,21 @@ export const TrackProfile: React.FC = () => {
     
     if (limitDist > 0 && limitDist < viewRange) {
       const xPosLimit = limitDist * pixelsPerMeter;
-      ctx.strokeStyle = raw.NextSpeedLimit < raw.SpeedLimit ? "#ef4444" : "#22c55e";
-      ctx.lineWidth = 2;
+      const limitColor = raw.NextSpeedLimit < raw.SpeedLimit ? "#ef4444" : "#22c55e";
       
+      // Línea vertical de conexión
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(xPosLimit, currentYAtLimit);
+      ctx.lineTo(xPosLimit, currentYAtLimit - 85);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
       // Circle
+      ctx.strokeStyle = limitColor;
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(xPosLimit, currentYAtLimit - 100, 15, 0, Math.PI * 2);
       ctx.stroke();
@@ -190,8 +219,14 @@ export const TrackProfile: React.FC = () => {
       // Valor
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
-      ctx.font = "bold 12px JetBrains Mono";
+      ctx.font = "bold 13px JetBrains Mono";
       ctx.fillText(Math.round(raw.NextSpeedLimit).toString(), xPosLimit, currentYAtLimit - 96);
+
+      // Distancia al límite (Label)
+      ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.font = "10px JetBrains Mono";
+      ctx.fillText(formatDistance(limitDist), xPosLimit, currentYAtLimit - 75);
+      
       ctx.textAlign = "left";
     }
 
@@ -216,7 +251,9 @@ export const TrackProfile: React.FC = () => {
       {/* Superposición decorativa para sensación de HUD */}
       <div className="absolute inset-0 border-x border-white/5 pointer-events-none" />
       <div className="absolute top-4 left-6 py-1 px-3 bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400 font-bold tracking-tighter uppercase rounded">
-        Track Focus // Active
+        {raw.NextSpeedLimit !== undefined 
+          ? `Next Limit: ${Math.round(raw.NextSpeedLimit)} ${raw.SpeedUnit} in ${formatDistance(raw.DistToNextSpeedLimit)}`
+          : 'Track Focus // Active'}
       </div>
     </div>
   );
