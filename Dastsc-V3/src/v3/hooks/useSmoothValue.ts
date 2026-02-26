@@ -16,6 +16,13 @@ export function useSmoothValue(targetValue: number, factor: number = 0.1): numbe
 
   // Actualiza el objetivo cuando cambia el valor bruto
   useEffect(() => {
+    // Si hay un salto brusco (ej: cambio de señal o límite > 200m de golpe)
+    // teletransportamos el valor actual para evitar el efecto "zip" (vuelo rápido)
+    const delta = Math.abs(targetValue - currentRef.current);
+    if (delta > 200) {
+      currentRef.current = targetValue;
+      setSmoothedValue(targetValue);
+    }
     targetRef.current = targetValue;
   }, [targetValue]);
 

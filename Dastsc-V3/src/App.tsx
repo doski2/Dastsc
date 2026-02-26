@@ -182,7 +182,7 @@ function App() {
                         </div>
                         <DataPoint label="Projected Dist" value={formatDistance(data.ProjectedBrakingDistance)} />
                         
-                        {data.TailDistance > 0 && (
+                        {data.TailDistance > 1 && (
                           <div className="mt-4 p-3 bg-blue-500/10 border-l-4 border-l-blue-500 border-r border-t border-b border-white/5 rounded-r-md">
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">COLA LIMPIANDO</span>

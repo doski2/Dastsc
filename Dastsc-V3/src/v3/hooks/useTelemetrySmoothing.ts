@@ -23,6 +23,7 @@ export function useTelemetrySmoothing() {
   const smoothSignalDist = useSmoothValue(data.DistToNextSignal, distFactor);
   const smoothNextLimitDist = useSmoothValue(data.DistToNextSpeedLimit, distFactor);
   const smoothGradient = useSmoothValue(data.Gradient, 0.1);
+  const smoothStationDist = useSmoothValue(data.StationDistance, distFactor);
   
   return {
     raw: data,
@@ -36,7 +37,8 @@ export function useTelemetrySmoothing() {
       amperage: smoothAmperage,
       signalDistance: smoothSignalDist,
       nextLimitDistance: smoothNextLimitDist,
-      gradient: smoothGradient
+      gradient: smoothGradient,
+      stationDistance: smoothStationDist
     },
     isConnected,
     activeProfile

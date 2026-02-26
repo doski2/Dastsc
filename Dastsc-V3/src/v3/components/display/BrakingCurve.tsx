@@ -12,7 +12,8 @@ export const BrakingCurve: React.FC = () => {
   const formatDistance = (m: number) => {
     if (raw.SpeedUnit === 'MPH') {
       const yards = m * 1.09361;
-      return yards < 1760 ? `${Math.round(yards)}yd` : `${(m * 0.000621371).toFixed(2)}mi`;
+      // Estándar UK: Usar yardas hasta 1000yd para precisión de frenado
+      return yards < 1000 ? `${Math.round(yards)}yd` : `${(m * 0.000621371).toFixed(2)}mi`;
     }
     return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
   };
@@ -20,31 +21,64 @@ export const BrakingCurve: React.FC = () => {
   const drawGraph = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     if (!isConnected) return;
 
-    const padding = 40;
-    const graphWidth = width - padding * 2;
-    const graphHeight = height - padding * 2;
+    const padding = 45; // Aumentado para etiquetas de eje
+    const topPadding = 60; // Más espacio arriba para el título HTML
+    const graphWidth = width - padding * 1.5;
+    const graphHeight = height - (padding + topPadding);
 
     ctx.save();
-    ctx.translate(padding, padding);
+    ctx.translate(padding, topPadding);
 
-    // 1. Dibujar rejilla (Grid)
+    // 1. Dibujar rejilla (Grid) y Etiquetas de Ejes
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.font = '9px JetBrains Mono';
     ctx.lineWidth = 1;
+    ctx.textAlign = 'right';
+
     for (let i = 0; i <= 4; i++) {
-        // Líneas horizontales
-        const y = (graphHeight / 4) * i;
+        const ratio = i / 4;
+        // Líneas horizontales (Velocidad)
+        const y = graphHeight - (graphHeight * ratio);
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(graphWidth, y);
         ctx.stroke();
+        
+        // Etiqueta Velocidad
+        if (smooth.speedDisplay > 0) {
+            const speedLabel = Math.round(smooth.speedDisplay * ratio);
+            ctx.fillText(speedLabel.toString(), -10, y + 3);
+        }
 
-        // Líneas verticales
-        const x = (graphWidth / 4) * i;
+        // Líneas verticales (Distancia)
+        const x = graphWidth * ratio;
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, graphHeight);
         ctx.stroke();
+
+        // Etiqueta Distancia (en la base)
+        const targetDist = raw.ProjectedBrakingDistance || 500;
+        const distAtX = targetDist * ratio;
+        ctx.save();
+        ctx.textAlign = 'center';
+        let label = '';
+        if (raw.SpeedUnit === 'MPH') {
+            const yards = distAtX * 1.09361;
+            label = yards < 1000 ? `${Math.round(yards)}` : `${(distAtX * 0.000621371).toFixed(1)}`;
+        } else {
+            label = distAtX < 1000 ? `${Math.round(distAtX)}` : `${(distAtX/1000).toFixed(1)}`;
+        }
+        ctx.fillText(label, x, graphHeight + 15);
+        ctx.restore();
     }
+
+    // Unidades en los ejes
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.fillText(raw.SpeedUnit || 'KM/H', -10, -5);
+    ctx.textAlign = 'right';
+    ctx.fillText(raw.SpeedUnit === 'MPH' ? 'yd/mi' : 'm/km', graphWidth, graphHeight + 28);
 
     // 2. Dibujar Ejes
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
@@ -98,16 +132,18 @@ export const BrakingCurve: React.FC = () => {
 
   return (
     <div className="relative flex-1 bg-white/[0.02] border border-white/5 rounded-sm overflow-hidden flex flex-col">
-      <div className="absolute top-4 left-4 flex flex-col gap-0.5 z-10">
-        <span className="text-xs font-bold text-white/40 uppercase tracking-widest font-mono">Braking Curve // Dynamic</span>
-        <span className="text-[11px] text-cyan-500/60 font-mono">
-          Optimal Stop: {formatDistance(raw.ProjectedBrakingDistance)}
+      <div className="absolute top-4 left-4 flex flex-col gap-1 z-10">
+        <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] font-mono leading-none">
+          Braking Curve // Dynamic
+        </span>
+        <span className="text-[14px] text-cyan-400 font-mono font-bold drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]">
+          Optimal Stop: <span className="text-white">{formatDistance(raw.ProjectedBrakingDistance)}</span>
         </span>
       </div>
       
-      <div className="absolute top-4 right-4 flex gap-2 z-10">
-         <div className="px-2 py-1 rounded-xs bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400 font-bold uppercase">Curve</div>
-         <div className="px-2 py-1 rounded-xs bg-white/5 text-[10px] text-white/20 font-bold uppercase">Efficiency</div>
+      <div className="absolute top-4 right-4 flex gap-1.5 z-10">
+         <div className="px-2 py-0.5 rounded-xs bg-cyan-500/10 border border-cyan-500/30 text-[9px] text-cyan-400 font-black uppercase tracking-tighter">Live Curve</div>
+         <div className="px-2 py-0.5 rounded-xs bg-white/5 border border-white/5 text-[9px] text-white/30 font-black uppercase tracking-tighter">Physics V3</div>
       </div>
 
       <CanvasLayer render={drawGraph} />

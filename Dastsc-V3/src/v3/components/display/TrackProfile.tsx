@@ -10,9 +10,12 @@ export const TrackProfile: React.FC = () => {
   const { smooth, raw, isConnected } = useTelemetrySmoothing();
 
   const formatDistance = (m: number) => {
+    if (m === undefined || m < 0) return '---';
     if (raw.SpeedUnit === 'MPH') {
       const yards = m * 1.09361;
-      return yards < 1760 ? `${Math.round(yards)}yd` : `${(m * 0.000621371).toFixed(2)}mi`;
+      // Para trenes ingleses (UK): Usar yardas hasta 1000 yd, luego millas
+      if (yards < 1000) return `${Math.round(yards)}yd`;
+      return `${(m * 0.000621371).toFixed(2)}mi`;
     }
     return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
   };
@@ -22,8 +25,22 @@ export const TrackProfile: React.FC = () => {
     if (!isConnected) return;
 
     const centerY = height / 2;
-    const viewRange = 5000; // 5km de rango visual
-    const pixelsPerMeter = width / viewRange;
+    const viewRange = 8000; // 8km de alcance (Pro-HUD)
+    
+    // Escala NO LINEAL (User Memory: 0-3km = 50% width, 3-8km = 50% width)
+    const getX = (m: number) => {
+      const startX = 25; // La punta de la locomotora (triángulo naranja) está en x=25
+      const availableWidth = width - (startX + 20); // Margen derecho
+      
+      let relativeX = 0;
+      if (m <= 3000) {
+        relativeX = (m / 3000) * (availableWidth * 0.5);
+      } else {
+        const extra = Math.min(5000, m - 3000);
+        relativeX = (availableWidth * 0.5) + (extra / 5000) * (availableWidth * 0.5);
+      }
+      return startX + relativeX;
+    };
 
     ctx.save();
     
@@ -35,13 +52,15 @@ export const TrackProfile: React.FC = () => {
     // Configuración de la línea de la vía (Horizontal con Curvatura de Gradiente)
     const renderTrackLine = () => {
       ctx.beginPath();
-      // Empezamos un poco desplazados para el degradado de entrada
-      ctx.moveTo(0, centerY);
+      // Empezamos en la posición 0m (punta del tren)
+      const startX = getX(0);
+      ctx.moveTo(startX, centerY);
 
-      const segments = 20;
+      const segments = 40;
       for (let i = 0; i <= segments; i++) {
-        const x = (width / segments) * i;
         const progress = i / segments;
+        const m = progress * viewRange;
+        const x = getX(m);
         
         // Efecto de inclinación por gradiente: la línea sube o baja suavemente
         const currentY = centerY - (gradientOffset * progress);
@@ -88,54 +107,108 @@ export const TrackProfile: React.FC = () => {
 
     // Dibuja la Escala de Distancia (Regla inferior)
     const drawScale = () => {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.font = '11px JetBrains Mono';
-      ctx.lineWidth = 1;
+      ctx.save();
+      ctx.shadowBlur = 0; 
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = '#22d3ee'; // Cian neón tenue
+      ctx.fillStyle = '#ffffff'; // Blanco sólido
+      ctx.globalAlpha = 1.0;
+      ctx.font = 'bold 11px JetBrains Mono, monospace, sans-serif'; 
+      ctx.textAlign = 'center';
       
-      for (let i = 0; i <= viewRange; i += 500) {
-        const x = i * pixelsPerMeter;
+      const isImperial = raw.SpeedUnit === 'MPH';
+      
+      // Marcadores basados en el sistema (Métricas o Imperiales/UK)
+      const scaleMarkers = isImperial 
+        ? [0, 91.44, 182.88, 365.76, 731.52, 1609.34, 3218.68, 4828.03, 6437.38, 8046.72] // 0, 100yd, 200yd, 400yd, 800yd, 1mi, 2mi...
+        : [0, 100, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7000, 8000];      // Metros
+
+      for (const m of scaleMarkers) {
+        const x = getX(m);
+        const yBase = centerY + 15; 
+        
+        // Marca vertical
         ctx.beginPath();
-        ctx.moveTo(x, height - 20);
-        ctx.lineTo(x, height - 10);
+        ctx.moveTo(x, yBase);
+        ctx.lineTo(x, yBase + 10);
         ctx.stroke();
         
-        if (i % 1000 === 0) {
-          const text = raw.SpeedUnit === 'MPH' ? `${(i * 0.000621371).toFixed(1)}mi` : `${i/1000}km`;
-          ctx.fillText(text, x + 5, height - 15);
+        // Texto de distancia (Optimizado para UK/Imperial)
+        let label = '';
+        if (isImperial) {
+          const yards = Math.round(m * 1.09361);
+          if (yards === 0) label = '0';
+          else if (yards < 1760) label = `${yards}yd`;
+          else label = `${Math.round(yards / 1760)}mi`;
+        } else {
+          if (m === 0) label = '0';
+          else if (m < 1000) label = `${m}m`;
+          else label = `${m/1000}km`;
         }
+          
+        ctx.fillText(label, x, yBase + 22);
       }
+      ctx.restore();
     };
 
     drawScale();
 
-    // Dibuja Andenes (Fase 2.3)
-    const stationDist = raw.StationDistance || -1;
-    if (stationDist > 0 && stationDist < viewRange) {
+    // Dibuja Puntos de Parada (Estaciones de Horario)
+    // Usamos >= 0 para que no desaparezca justo al llegar (distancia 0)
+    const stationDist = smooth.stationDistance;
+    if (stationDist !== undefined && stationDist >= 0 && stationDist < viewRange) {
+      const xStop = getX(stationDist);
+      const currentYAtStop = centerY - (gradientOffset * (stationDist / viewRange));
+
+      // 1. Línea indicadora de parada (Muesca vertical)
+      ctx.setLineDash([2, 2]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(xStop, currentYAtStop - 20);
+      ctx.lineTo(xStop, currentYAtStop + 20);
+      ctx.stroke();
+      ctx.setLineDash([]); // Reset dash
+
+      // 2. Icono de parada (Bandera / Diamond)
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.moveTo(xStop, currentYAtStop);
+      ctx.lineTo(xStop - 6, currentYAtStop - 6);
+      ctx.lineTo(xStop, currentYAtStop - 12);
+      ctx.lineTo(xStop + 6, currentYAtStop - 6);
+      ctx.closePath();
+      ctx.fill();
+
+      // 3. Etiqueta de la Parada
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 12px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText(raw.StationName || 'NEXT STOP', xStop, currentYAtStop - 35);
+      
+      // 4. Distancia debajo
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.font = 'bold 11px JetBrains Mono';
+      ctx.fillText(formatDistance(stationDist), xStop, currentYAtStop + 35);
+      
+      ctx.textAlign = 'left';
+    }
+
+    // Dibuja Andenes (Fase 2.3 - Estático por perfil o mapa)
+    if (stationDist !== undefined && stationDist >= 0 && stationDist < viewRange) {
       const stationLen = raw.StationLength || 200;
-      const xStart = stationDist * pixelsPerMeter;
-      const xEnd = (stationDist + stationLen) * pixelsPerMeter;
+      const xStart = getX(stationDist);
+      const xEnd = getX(stationDist + stationLen);
       const currentYAtStation = centerY - (gradientOffset * (stationDist / viewRange));
 
-      // Rectángulo del andén con degradado
       const platGrad = ctx.createLinearGradient(xStart, 0, xEnd, 0);
       platGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
-      platGrad.addColorStop(0.1, 'rgba(255, 255, 255, 0.4)');
-      platGrad.addColorStop(0.9, 'rgba(255, 255, 255, 0.4)');
+      platGrad.addColorStop(0.1, 'rgba(255, 255, 255, 0.2)');
+      platGrad.addColorStop(0.9, 'rgba(255, 255, 255, 0.2)');
       platGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
       ctx.fillStyle = platGrad;
-      ctx.fillRect(xStart, currentYAtStation + 10, xEnd - xStart, 8);
-      
-      // Etiquetas de estación
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 11px JetBrains Mono';
-      ctx.fillText(raw.StationName || 'STATION', xStart, currentYAtStation + 35);
-      
-      // Icono de andén
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.font = 'bold 11px JetBrains Mono';
-      ctx.fillText('▊▊▊', xStart, currentYAtStation + 22);
+      ctx.fillRect(xStart, currentYAtStation + 5, Math.max(1, xEnd - xStart), 4);
     }
 
     // Dibuja Señales (Posicionamiento Horizontal)
@@ -143,7 +216,7 @@ export const TrackProfile: React.FC = () => {
     const currentYAtSignal = centerY - (gradientOffset * (sigDist / viewRange));
 
     if (sigDist > 0 && sigDist < viewRange) {
-      const xPos = sigDist * pixelsPerMeter;
+      const xPos = getX(sigDist);
       const aspectColors: Record<string, string> = {
         "DANGER": "#ef4444",
         "CAUTION": "#fbbf24",
@@ -182,53 +255,103 @@ export const TrackProfile: React.FC = () => {
       drawLight(17, raw.NextSignalAspect === 'CAUTION' || raw.NextSignalAspect === 'ADV_CAUTION');
       drawLight(26, raw.NextSignalAspect === 'CLEAR' || raw.NextSignalAspect === 'PROCEED');
 
-      // Distancia a la señal (Label)
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.font = '11px JetBrains Mono';
+      // Distancia a la señal (Label) - Más visible con borde/sombra
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = 'black';
+      ctx.fillStyle = color; // Usar el mismo color del aspecto para el texto de distancia
+      ctx.font = 'bold 12px JetBrains Mono';
       ctx.textAlign = 'center';
       ctx.fillText(formatDistance(sigDist), xPos, currentYAtSignal - 105);
+      
+      // Dibujar etiqueta de "SIG" pequeña debajo de la distancia
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.font = '8px JetBrains Mono';
+      ctx.fillText('SIGNAL', xPos, currentYAtSignal - 117);
+      
       ctx.textAlign = 'left';
+      ctx.shadowBlur = 0;
     }
 
-    // Dibuja Límite de Velocidad (Speed Limit Circles)
-    const limitDist = smooth.nextLimitDistance;
-    const currentYAtLimit = centerY - (gradientOffset * (limitDist / viewRange));
-    
-    if (limitDist > 0 && limitDist < viewRange) {
-      const xPosLimit = limitDist * pixelsPerMeter;
-      const limitColor = raw.NextSpeedLimit < raw.SpeedLimit ? "#ef4444" : "#22c55e";
-      
-      // Línea vertical de conexión
-      ctx.setLineDash([3, 3]);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(xPosLimit, currentYAtLimit);
-      ctx.lineTo(xPosLimit, currentYAtLimit - 85);
-      ctx.stroke();
-      ctx.setLineDash([]);
+    // Dibuja Límites de Velocidad (múltiples hitos con desduplicación)
+    const renderSpeedLimits = () => {
+      // Usar los límites múltiples del normalizador (UpcomingLimits)
+      const limits = raw.UpcomingLimits || [];
+      if (limits.length === 0) return;
 
-      // Circle
-      ctx.strokeStyle = limitColor;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(xPosLimit, currentYAtLimit - 100, 15, 0, Math.PI * 2);
-      ctx.stroke();
-      
-      // Valor
-      ctx.fillStyle = "#fff";
-      ctx.textAlign = "center";
-      ctx.font = "bold 13px JetBrains Mono";
-      ctx.fillText(Math.round(raw.NextSpeedLimit).toString(), xPosLimit, currentYAtLimit - 96);
+      // 1. Ordenar por distancia (Garantiza que el más cercano sea el índice 0)
+      const sortedLimits = [...limits].sort((a, b) => a.distance - b.distance);
 
-      // Distancia al límite (Label)
-      ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-      ctx.font = "10px JetBrains Mono";
-      ctx.fillText(formatDistance(limitDist), xPosLimit, currentYAtLimit - 75);
-      
-      ctx.textAlign = "left";
-    }
+      // 2. Filtrar y Desduplicar
+      const uniqueLimits: any[] = [];
+      sortedLimits.forEach((limit: any) => {
+        // Ignorar si es el mismo límite que ya tenemos delante y está muy cerca (<500m)
+        if (Math.abs(limit.speed - raw.FrontalSpeedLimit) < 0.5 && limit.distance < 500) return;
+
+        const isDuplicate = uniqueLimits.some(ul => 
+          Math.abs(ul.distance - limit.distance) < 150 && Math.abs(ul.speed - limit.speed) < 2
+        );
+        
+        // El hito desaparece justo al ser "pisado" por el tren (0m)
+        if (!isDuplicate && limit.distance > 0.1) { 
+          uniqueLimits.push(limit);
+        }
+      });
+
+      // 3. LIMITAR A SÓLO 2 LÍMITES FUTUROS (Siguiente + Posterior)
+      const displayLimits = uniqueLimits.slice(0, 2);
+
+      displayLimits.forEach((limit: any, index: number) => {
+        const dist = limit.distance;
+        if (dist < viewRange) {
+          const xPosLimit = getX(dist);
+          const limitValue = limit.speed;
+          
+          // Escala Progresiva de UI: Más pequeño a medida que se aleja
+          const distanceScale = Math.max(0.4, 1 - (dist / viewRange));
+          const circleRadius = 16 * distanceScale;
+          const fontSize = Math.max(9, 14 * distanceScale);
+          
+          // Comparar contra el límite anterior o contra el actual si es el primero
+          const prevLimit = index === 0 ? raw.SpeedLimit : uniqueLimits[index-1].speed;
+          const isReduction = limitValue < prevLimit - 0.5;
+          const limitColor = isReduction ? "#ef4444" : "#22c55e"; // Rojo si baja, Verde si sube
+          
+          const currentYAtL = centerY - (gradientOffset * (dist / viewRange));
+
+          // Línea vertical punteada indicadora de posición exacta
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 * distanceScale})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(xPosLimit, currentYAtL);
+          ctx.lineTo(xPosLimit, currentYAtL - (50 * distanceScale));
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Círculo del cartel de velocidad
+          ctx.beginPath();
+          ctx.arc(xPosLimit, currentYAtL - (65 * distanceScale), circleRadius, 0, Math.PI * 2);
+          ctx.fillStyle = "black";
+          ctx.fill();
+          ctx.strokeStyle = limitColor;
+          ctx.lineWidth = index === 0 ? 3 : 2; 
+          ctx.stroke();
+          
+          // Valor de velocidad (Número)
+          ctx.fillStyle = "#fff";
+          ctx.textAlign = "center";
+          ctx.font = `bold ${fontSize}px JetBrains Mono`;
+          ctx.fillText(Math.round(limitValue).toString(), xPosLimit, currentYAtL - (61 * distanceScale));
+
+          // Etiqueta de Distancia debajo del círculo
+          ctx.fillStyle = `rgba(255, 255, 255, ${0.5 * distanceScale})`;
+          ctx.font = `${Math.max(8, 10 * distanceScale)}px JetBrains Mono`;
+          ctx.fillText(formatDistance(dist), xPosLimit, currentYAtL - (42 * distanceScale));
+        }
+      });
+    };
+
+    renderSpeedLimits();
 
     // Marcador de Posición del Tren (Triángulo naranja del boceto)
     ctx.fillStyle = "#f97316"; // Naranja
@@ -250,10 +373,23 @@ export const TrackProfile: React.FC = () => {
       
       {/* Superposición decorativa para sensación de HUD */}
       <div className="absolute inset-0 border-x border-white/5 pointer-events-none" />
-      <div className="absolute top-4 left-6 py-1 px-3 bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400 font-bold tracking-tighter uppercase rounded">
-        {raw.NextSpeedLimit !== undefined 
-          ? `Next Limit: ${Math.round(raw.NextSpeedLimit)} ${raw.SpeedUnit} in ${formatDistance(raw.DistToNextSpeedLimit)}`
-          : 'Track Focus // Active'}
+      <div className="absolute top-4 left-6 py-1 px-3 bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400 font-bold tracking-tighter uppercase rounded flex items-center gap-3">
+        {raw.StationName && raw.StationName !== 'NONE' ? (
+          <span className="animate-pulse">STATION: {raw.StationName} // {formatDistance(raw.StationDistance)}</span>
+        ) : (
+          <>
+            {raw.DistToNextSignal > 0 && raw.DistToNextSignal < 3000 && (
+              <span className={raw.NextSignalAspect === 'DANGER' ? 'text-red-400' : 'text-cyan-400'}>
+                SIG: {raw.NextSignalAspect} // {formatDistance(raw.DistToNextSignal)}
+              </span>
+            )}
+            {raw.DistToNextSignal > 0 && raw.DistToNextSignal < 3000 && raw.NextSpeedLimit !== undefined && <span className="text-white/20">|</span>}
+            {raw.NextSpeedLimit !== undefined && (
+              <span>LIMIT: {Math.round(raw.NextSpeedLimit)} {raw.SpeedUnit} // {formatDistance(raw.DistToNextSpeedLimit)}</span>
+            )}
+            {!raw.StationName && !raw.NextSpeedLimit && (raw.DistToNextSignal <= 0 || raw.DistToNextSignal >= 3000) && <span>TRACK FOCUS // ACTIVE</span>}
+          </>
+        )}
       </div>
     </div>
   );

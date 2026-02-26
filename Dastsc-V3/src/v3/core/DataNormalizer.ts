@@ -22,6 +22,14 @@ export interface NormalizerState {
   emaGradient: number;
   gForce: number;
   lastSpeedMS: number;
+  
+  // G-Lateral Tracking
+  posX: number;
+  posZ: number;
+  lastHeading: number;
+  emaLateralG: number;
+  lastFrontalLimit: number;
+  cleaningTargetLimit: number;
 }
 
 const EMA_ALPHA = 0.15; 
@@ -44,7 +52,13 @@ export class DataNormalizer {
     emaEqRes: 0,
     emaGradient: 0,
     gForce: 0,
-    lastSpeedMS: 0
+    lastSpeedMS: 0,
+    posX: 0,
+    posZ: 0,
+    lastHeading: 999, // Centinela para indicar que no hay heading previo
+    emaLateralG: 0,
+    lastFrontalLimit: 0,
+    cleaningTargetLimit: 0
   };
 
   /**
@@ -100,6 +114,48 @@ export class DataNormalizer {
     const rawAcc = raw.Acceleration || 0;
     this.state.emaAcceleration = (rawAcc * EMA_ALPHA) + (this.state.emaAcceleration * (1 - EMA_ALPHA));
     this.state.gForce = this.state.emaAcceleration / G_CONSTANT;
+
+    // 2.1 Cálculo de G-Lateral (Prioridad Curvatura, Fallback Yaw Rate)
+    const rawCurvature = Number(raw.Curvature || 0);
+    const rawHeading = Number(raw.Heading || 0);
+    const currX = Number(raw.PosX || 0);
+    const currZ = Number(raw.PosZ || 0);
+    let lateralG = 0;
+
+    if (Math.abs(rawCurvature) > 0.00001) {
+      // Método A: v^2 * k / g (Deducido de TSEngineScripts.pdf)
+      // k es 1/R. Fuerza centrífuga a = v^2 / R
+      lateralG = (speedMS * speedMS * rawCurvature) / G_CONSTANT;
+    } else {
+      // Método B: Yaw Rate (Basado en cambio de heading/posición)
+      let currentHeading = 0;
+      let validHeading = false;
+
+      if (this.state.posX !== 0 && (currX !== this.state.posX || currZ !== this.state.posZ)) {
+        const dx = currX - this.state.posX;
+        const dz = currZ - this.state.posZ;
+        currentHeading = Math.atan2(dx, dz);
+        validHeading = true;
+      } else if (rawHeading !== 0) {
+        currentHeading = rawHeading * (Math.PI / 180);
+        validHeading = true;
+      }
+      
+      if (validHeading && dtSim > 0 && speedMS > 1 && this.state.lastHeading !== 999) {
+        let deltaHeading = currentHeading - this.state.lastHeading;
+        if (deltaHeading > Math.PI) deltaHeading -= 2 * Math.PI;
+        if (deltaHeading < -Math.PI) deltaHeading += 2 * Math.PI;
+        const yawRate = deltaHeading / dtSim;
+        lateralG = -(speedMS * yawRate) / G_CONSTANT;
+      }
+      if (validHeading) this.state.lastHeading = currentHeading;
+    }
+    
+    // Filtro suave para el G-Lateral
+    this.state.emaLateralG = (lateralG * 0.15) + (this.state.emaLateralG * 0.85);
+    
+    this.state.posX = currX;
+    this.state.posZ = currZ;
     
     // 3. Sistema de Tracción / Amperaje
     // El amperaje puede ser negativo (Freno Dinámico / Regenerativo)
@@ -136,63 +192,87 @@ export class DataNormalizer {
     const totalBrakingEffort = pneumaticBrakingForce + dynamicBrakingForce;
 
     // Suavizado del gradiente para evitar saltos en la línea del track
-    const rawGrad = raw.Gradient || 0;
+    // NOTA: El signo ya viene corregido desde el script Lua (Uphill = Positivo)
+    const rawGrad = (raw.Gradient || 0);
     this.state.emaGradient = (rawGrad * EMA_SLOW) + (this.state.emaGradient * (1 - EMA_SLOW));
 
     const pressureUnit = profile?.visuals?.pressure_unit || (speedUnit === 'MPH' ? 'PSI' : 'BAR');
     const pFactor = pressureUnit === 'PSI' ? 14.5038 : 1;
 
-    // 5. Lógica de "Cola de Tren" y Límites de Velocidad
+    // 5. Lógica de "Cola de Tren" (Tail Protection)
     const rawLimit = (parseFloat(raw.CurrentSpeedLimit) || 0) * toMS;
-    const nextLimitSpeed = (parseFloat(raw.NextSpeedLimitSpeed) || 0) * toMS;
-    const nextLimitDistRaw = parseFloat(raw.NextSpeedLimitDistance) || 0;
+    const rawNextLimitDist = parseFloat(raw.NextSpeedLimitDistance) || (parseFloat(raw.NextLimit0Dist) || 0);
     
-    // Corrección TSC: Si la distancia es < 50 probablemente sea KM, convertimos a M
-    const nextLimitDist = (nextLimitDistRaw < 50 && nextLimitDistRaw > 0) ? nextLimitDistRaw * 1000 : nextLimitDistRaw;
+    // Parseo de límites múltiples (Filtro > 0.1m para no ver el que acabamos de pasar, pero permitir trigger)
+    const upcomingLimits: { speed: number, distance: number }[] = [];
+    for (let i = 0; i < 4; i++) {
+        const s = parseFloat(raw[`NextLimit${i}Speed`]);
+        const d = parseFloat(raw[`NextLimit${i}Dist`]);
+        if (!isNaN(s) && !isNaN(d) && d > 0.1) {
+            upcomingLimits.push({ speed: s, distance: d });
+        }
+    }
+
+    // El "Siguiente Límite" principal debe ser el primero de los próximos válidos
+    const nextLimitSpeedMPH = upcomingLimits.length > 0 ? upcomingLimits[0].speed : (parseFloat(raw.NextSpeedLimitDistance) > 0 ? (parseFloat(raw.NextSpeedLimitSpeed) || 0) : 0);
+    const nextLimitDist = upcomingLimits.length > 0 ? upcomingLimits[0].distance : (parseFloat(raw.NextSpeedLimitDistance) || 0);
+    const nextLimitSpeed = nextLimitSpeedMPH * toMS;
     
     const trainLength = raw.TrainLength || 100;
 
+    // Inicialización del estado
+    if (this.state.lastFrontalLimit === 0) this.state.lastFrontalLimit = rawLimit;
     if (this.state.effectiveSpeedLimit === 0) this.state.effectiveSpeedLimit = rawLimit;
 
-    // Detección de hito por el frente (Head Check)
-    // Cuando la distancia al próximo límite salta (p.ej de 5m a 1500m), el frente ha cruzado
-    const headJustPassedPost = this.state.lastNextLimitDist < 12 && nextLimitDist > 100;
+    // DETECCIÓN DE TRIGGER (PASO DE CABINA POR SEÑAL)
+    // 1. Detección por salto de distancia (Cabina rebasando el hito)
+    // Se dispara si veníamos acercándonos (<15m) y el hito desaparece o salta al siguiente (>50m)
+    const distanceJumped = this.state.lastNextLimitDist > 0 && 
+                           this.state.lastNextLimitDist < 15 && 
+                           (rawNextLimitDist > 50 || rawNextLimitDist === 0);
 
-    if (headJustPassedPost) {
-      const newPotentialLimit = this.state.lastNextLimitSpeed;
-      
-      // Si el límite que acabamos de pasar es superior al que tenemos
-      if (newPotentialLimit > this.state.effectiveSpeedLimit + 0.1) {
-        // Activamos odómetro de cola: la cabina ya pasó, empezamos a contar
-        this.state.distanceTravelled = 0.1; // Valor centinela > 0
-      } else {
-        // Si es una reducción o igual, aplicamos inmediatamente
+    // 2. Detección por cambio de límite nominal (Fallback si el sim lo hace en cabina)
+    const limitIncreased = rawLimit > this.state.lastFrontalLimit + 0.1;
+    const limitDecreased = rawLimit < this.state.lastFrontalLimit - 0.1;
+    
+    // Solo nos interesa limpiar cola si es un AUMENTO de velocidad
+    const isIncreaseEvent = limitIncreased || (distanceJumped && this.state.lastNextLimitSpeed > rawLimit + 0.1);
+
+    // ACTIVACIÓN DEL ODÓMETRO
+    // Solo activamos si hay un evento de aumento Y el límite nominal es mayor al que tenemos bloqueado actualmente
+    if (isIncreaseEvent && this.state.distanceTravelled === 0 && rawLimit > this.state.effectiveSpeedLimit + 0.1) {
+        // La locomotora acaba de cruzar el cartel. Empezamos a contar metros desde 0.
+        this.state.distanceTravelled = 0.001; 
+        // Guardamos la velocidad de la señal que acabamos de rebasar como objetivo
+        this.state.cleaningTargetLimit = limitIncreased ? rawLimit : this.state.lastNextLimitSpeed;
+    } 
+    
+    if (limitDecreased) {
+        // Reducción: Se aplica al instante (Cabeza del tren manda)
         this.state.effectiveSpeedLimit = rawLimit;
         this.state.distanceTravelled = 0;
-      }
+        this.state.cleaningTargetLimit = 0;
     }
 
-    // Lógica de avance del odómetro
+    // Progresión del odómetro de cola
     if (this.state.distanceTravelled > 0) {
-      this.state.distanceTravelled += speedMS * dtSim;
-      
-      // Si ya hemos recorrido toda la longitud, el tren ha limpiado el hito
-      if (this.state.distanceTravelled >= trainLength) {
-        this.state.effectiveSpeedLimit = rawLimit; // Sincronizamos con el valor real del simulador
-        this.state.distanceTravelled = 0;
-      }
-    } else {
-      // Sincronización normal si no hay limpieza de cola activa
-      // Importante: Si el simulador baja el límite (reducción), lo seguimos al instante
-      if (rawLimit < this.state.effectiveSpeedLimit - 0.1) {
+        if (dtSim > 0 && dtSim < 2) {
+            this.state.distanceTravelled += speedMS * dtSim;
+        }
+        
+        // Bloqueamos la actualización del límite efectivo hasta que pase todo el tren
+        if (this.state.distanceTravelled >= trainLength) {
+            this.state.effectiveSpeedLimit = this.state.cleaningTargetLimit > 0 ? this.state.cleaningTargetLimit : rawLimit; 
+            this.state.distanceTravelled = 0;
+            this.state.cleaningTargetLimit = 0;
+        }
+    } else if (!limitDecreased) {
+        // Sincronización normal
         this.state.effectiveSpeedLimit = rawLimit;
-      } else if (this.state.distanceTravelled === 0) {
-        // En tramos constantes, mantenemos sincronía
-        this.state.effectiveSpeedLimit = rawLimit;
-      }
     }
 
-    this.state.lastNextLimitDist = nextLimitDist;
+    this.state.lastFrontalLimit = rawLimit;
+    this.state.lastNextLimitDist = rawNextLimitDist;
     this.state.lastNextLimitSpeed = nextLimitSpeed;
     this.state.lastSimTime = simTime;
 
@@ -204,10 +284,15 @@ export class DataNormalizer {
     const sigStateRaw = raw.NextSignalState ?? -1;
     const sigInternal = raw.InternalAspect ?? -1;
     const restrState = raw.RestrictiveState ?? -1;
-    const rawSigDist = raw.NextSignalDistance || 0;
     
-    // Corrección distancia señal (igual que límites)
-    const sigDist = (rawSigDist < 50 && rawSigDist > 0) ? rawSigDist * 1000 : rawSigDist;
+    // Intentar obtener la distancia de varias fuentes comunes en Railworks
+    let sigDist = parseFloat(raw.NextSignalDistance || raw.DistanceToNextSignal || -1);
+    const restrDist = parseFloat(raw.RestrictiveDistance || -1);
+
+    // Fallback: Si la distancia principal es -1 o 0, y tenemos una restrictiva válida, usar esa
+    if ((sigDist <= 0) && restrDist > 0) {
+      sigDist = restrDist;
+    }
     
     let aspect = 'CLEAR';
     let sigVal = sigStateRaw;
@@ -271,12 +356,16 @@ export class DataNormalizer {
       GForce: this.state.gForce,
       ProjectedSpeed: projectedSpeedMS * fromMS,
       SpeedLimit: this.state.effectiveSpeedLimit * fromMS,
-      FrontalSpeedLimit: rawLimit * fromMS,
+      FrontalSpeedLimit: (this.state.distanceTravelled > 0 && this.state.cleaningTargetLimit > 0) 
+        ? this.state.cleaningTargetLimit * fromMS 
+        : rawLimit * fromMS,
       TailDistance: tailDist,
       DistToNextSpeedLimit: nextLimitDist,
       NextSpeedLimit: nextLimitSpeed * fromMS,
+      UpcomingLimits: upcomingLimits,
       Gradient: this.state.emaGradient,
-      StationDistance: raw.StationDistance || -1,
+      LateralG: this.state.emaLateralG,
+      StationDistance: raw.StationDistance !== undefined ? raw.StationDistance : -1,
       StationName: raw.StationName || '',
       StationLength: raw.StationLength || 200, // Default 200m si no viene dato
       BrakeCylinderPressure: this.state.emaBrakeCyl * pFactor,

@@ -13,6 +13,7 @@ export interface TelemetryData {
   ProjectedSpeed: number;  
   Acceleration: number;    
   GForce: number;          
+  LateralG: number;        // Fuerza lateral estimada (G)
   SpeedLimit: number;      // Límite efectivo (con protección de cola)
   FrontalSpeedLimit: number; // Límite en la cabina
   TailDistance: number;    // Distancia restante para limpiar hito (m)
@@ -23,6 +24,7 @@ export interface TelemetryData {
   NextSignalAspect: string;
   NextSpeedLimit: number;
   DistToNextSpeedLimit: number;
+  UpcomingLimits: { speed: number, distance: number }[];
   
   // Estaciones (Fase 2.3)
   StationDistance: number;
@@ -85,6 +87,7 @@ const DefaultData: TelemetryData = {
   ProjectedSpeed: 0,
   Acceleration: 0,
   GForce: 0,
+  LateralG: 0,
   SpeedLimit: 0,
   FrontalSpeedLimit: 0,
   Gradient: 0,
@@ -92,6 +95,7 @@ const DefaultData: TelemetryData = {
   NextSignalAspect: 'CLEAR',
   NextSpeedLimit: 0,
   DistToNextSpeedLimit: 0,
+  UpcomingLimits: [],
   StationDistance: -1,
   StationName: '',
   StationLength: 200,

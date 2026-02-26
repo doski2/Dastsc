@@ -7,7 +7,9 @@ export const ProfileSelector: React.FC = () => {
   const { availableProfiles, activeProfile, setProfile, isConnected } = useTelemetry();
   const [search, setSearch] = React.useState('');
 
-  console.log('ProfileSelector: activeProfile ->', activeProfile?.id || 'NONE');
+  React.useEffect(() => {
+    console.log('ProfileSelector: activeProfile changed ->', activeProfile?.id || 'NONE');
+  }, [activeProfile?.id]);
 
   const filtered = (availableProfiles || []).filter(p => 
     p?.name?.toLowerCase().includes(search.toLowerCase()) ||

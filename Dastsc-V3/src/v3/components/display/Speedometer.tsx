@@ -85,8 +85,13 @@ export const Speedometer: React.FC = () => {
 
     // El punto de inercia (G-Point)
     const accelerationG = raw.GForce;
-    const pointX = gX;
-    const pointY = gY - (accelerationG * 25); // Sensibilidad ajustada para mayor visibilidad
+    const lateralG = raw.LateralG || 0;
+    
+    // Inversión de Inercia: 
+    // Si aceleras (+), tu cuerpo se mueve hacia Atras (Y+)
+    // Si giras Derecha (+ Curvature), tu cuerpo se mueve hacia la Izquierda (X-)
+    const pointX = gX - (lateralG * 25); 
+    const pointY = gY + (accelerationG * 25); 
 
     ctx.shadowBlur = 10;
     ctx.shadowColor = '#22d3ee';
@@ -94,6 +99,13 @@ export const Speedometer: React.FC = () => {
     ctx.beginPath();
     ctx.arc(pointX, pointY, 3, 0, Math.PI * 2);
     ctx.fill();
+
+    // Texto de valores G debajo del globo
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = '9px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(`L:${lateralG.toFixed(2)} Lon:${accelerationG.toFixed(2)}`, gX, gY + gSize/2 + 10);
+    ctx.textAlign = 'left';
 
     ctx.restore();
   };
