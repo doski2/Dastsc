@@ -243,15 +243,13 @@ function GetSpeedLimits ()
 	local factor = (speedoType == 2) and KPH or MPH
 	gData = gData .. "|CurrentSpeedLimit:" .. string.format("%.1f", currentLimit * factor)
 
-	-- 2. Escaneo de múltiples límites próximos (Hasta 4 hitos)
-	-- El primer parámetro de GetNextSpeedLimit es el índice (0=Primero, 1=Segundo...)
-	-- El segundo parámetro es la dirección (0=Frente, 1=Atrás - aunque el script original lo usaba al revés)
-	for i = 0, 3 do
-		local lType, lSpeed, lDist = Call("GetNextSpeedLimit", i, 0)
+	-- 2. Escaneo de múltiples límites próximos (Hasta 8 hitos para saltar duplicados)
+	-- API CORRECTA: Call("GetNextSpeedLimit", dirección, índice)
+	for i = 0, 7 do
+		local lType, lSpeed, lDist = Call("GetNextSpeedLimit", 0, i)
 		
-		-- Si no hay más límites, el simulador devuelve valores absurdos o nulos
 		if lDist ~= nil and lDist > 0 and lDist < 15000 then
-			if lSpeed > 1000 then lSpeed = 0 end -- Protección contra bugs de vía
+			if lSpeed > 1000 then lSpeed = 0 end 
 			
 			local prefix = "|NextLimit" .. i
 			gData = gData .. prefix .. "Speed:" .. string.format("%.1f", lSpeed * factor)

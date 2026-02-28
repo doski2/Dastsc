@@ -5,9 +5,9 @@
  */
 
 import { TelemetryData } from './TelemetryContext';
+import { TailProtectionService } from './TailProtectionService';
 
 export interface NormalizerState {
-  distanceTravelled: number;
   totalDistance: number;
   lastSimTime: number;
   effectiveSpeedLimit: number;
@@ -29,7 +29,7 @@ export interface NormalizerState {
   lastHeading: number;
   emaLateralG: number;
   lastFrontalLimit: number;
-  cleaningTargetLimit: number;
+  lastRealTime: number;
 }
 
 const EMA_ALPHA = 0.15; 
@@ -37,8 +37,8 @@ const EMA_SLOW = 0.05; // Para presiones, más inercia
 const G_CONSTANT = 9.80665;
 
 export class DataNormalizer {
+  private tailProtection = new TailProtectionService();
   private state: NormalizerState = {
-    distanceTravelled: 0,
     totalDistance: 0,
     lastSimTime: 0,
     effectiveSpeedLimit: 0,
@@ -58,21 +58,16 @@ export class DataNormalizer {
     lastHeading: 999, // Centinela para indicar que no hay heading previo
     emaLateralG: 0,
     lastFrontalLimit: 0,
-    cleaningTargetLimit: 0
+    lastRealTime: 0
   };
 
   /**
    * Procesa los datos brutos y devuelve un estado normalizado.
    */
   normalize(raw: any, prevData: TelemetryData, profile: any): Partial<TelemetryData> {
-    const now = Date.now();
-    const simTime = raw.SimulationTime || 0;
-    const dtSim = (this.state.lastSimTime > 0 && simTime > this.state.lastSimTime) 
-      ? simTime - this.state.lastSimTime 
-      : 0;
-
-    // 0. Determinación de Unidades y Factores
-    // Prioridad: 1. Perfil activo, 2. SpeedoType del simulador
+    const rawSimTime = Number(raw.SimulationTime || 0);
+    const now = Date.now() / 1000;
+    const trainLength = profile?.physics_config?.train_length || raw.TrainLength || 100;
     const profileUnit = profile?.visuals?.unit;
     let speedUnit: 'MPH' | 'KPH' = profileUnit === 'KPH' ? 'KPH' : profileUnit === 'MPH' ? 'MPH' : 'MPH';
     
@@ -82,11 +77,25 @@ export class DataNormalizer {
       speedUnit = speedoType === 2 ? 'KPH' : 'MPH';
     }
 
-    const toMS = speedUnit === 'KPH' ? 0.277778 : 0.44704;
+    const toMS = speedUnit === 'KPH' ? 1/3.6 : 1/2.2369400000000003;
     const fromMS = speedUnit === 'KPH' ? 3.6 : 2.23694;
 
+    let dtSim = 0;
+
+    // Lógica de Delta Time robusta (Evita avanzar el odómetro en pausa)
+    if (this.state.lastSimTime > 0) {
+        if (rawSimTime > this.state.lastSimTime) {
+            dtSim = rawSimTime - this.state.lastSimTime;
+        } else if (raw.SimulationTime === undefined && this.state.lastRealTime > 0) {
+            // Solo usamos fallback de tiempo real si el simulador no reporta simTime (para locos incompatibles)
+            dtSim = Math.min(0.2, now - this.state.lastRealTime);
+        }
+    }
+    
+    this.state.lastSimTime = rawSimTime;
+    this.state.lastRealTime = now;
+
     // 1. Unificación de Velocidad (m/s)
-    // Prioridad: 1. CabSpeed (Plugin), 2. CurrentSpeed (MPS), 3. Speed (MPH/KPH)
     let speedMS = 0;
     if (raw.CabSpeed !== undefined && raw.CabSpeed !== 0) {
       speedMS = raw.CabSpeed * toMS;
@@ -96,11 +105,12 @@ export class DataNormalizer {
       speedMS = Math.abs(raw.Speed || 0) * toMS;
     }
 
-    // 1.1 Filtrado de picos absurdos (Denoising avanzado)
-    // Un cambio de > 20 m/s en un tick de 0.1s es físicamente imposible (72 km/h de cambio instantáneo)
+    // 1.1 Límite de Velocidad (Normalizar a m/s inmediatamente)
+    const rawLimitMS = Number(raw.CurrentSpeedLimit || 0) * toMS;
+
+    // 1.2 Filtrado de picos absurdos (Denoising avanzado)
     const speedDelta = Math.abs(speedMS - this.state.lastSpeedMS);
     if (this.state.lastSimTime > 0 && speedDelta > 20 && dtSim < 0.5) {
-      console.warn(`Normalizer: Velocity spike detected (${(speedMS * fromMS).toFixed(1)} ${speedUnit}). Filtering...`);
       speedMS = this.state.lastSpeedMS;
     }
     this.state.lastSpeedMS = speedMS;
@@ -200,85 +210,127 @@ export class DataNormalizer {
     const pFactor = pressureUnit === 'PSI' ? 14.5038 : 1;
 
     // 5. Lógica de "Cola de Tren" (Tail Protection)
-    const rawLimit = (parseFloat(raw.CurrentSpeedLimit) || 0) * toMS;
-    const rawNextLimitDist = parseFloat(raw.NextSpeedLimitDistance) || (parseFloat(raw.NextLimit0Dist) || 0);
-    
-    // Parseo de límites múltiples (Filtro > 0.1m para no ver el que acabamos de pasar, pero permitir trigger)
-    const upcomingLimits: { speed: number, distance: number }[] = [];
-    for (let i = 0; i < 4; i++) {
+    // DEPURACIÓN V3.9: Recolección única y global de límites (8 hitos de Lua)
+    const rawUpcoming: { speed: number, distance: number }[] = [];
+    for (let i = 0; i < 8; i++) {
         const s = parseFloat(raw[`NextLimit${i}Speed`]);
         const d = parseFloat(raw[`NextLimit${i}Dist`]);
         if (!isNaN(s) && !isNaN(d) && d > 0.1) {
-            upcomingLimits.push({ speed: s, distance: d });
+            rawUpcoming.push({ speed: s, distance: d });
+        }
+    }
+    rawUpcoming.sort((a, b) => a.distance - b.distance);
+
+    // Buscamos el primer cambio real para la lógica de cola
+    let nextDiffLimit = { speed: rawLimitMS * fromMS, distance: 0 };
+    for(const l of rawUpcoming) {
+        if(Math.abs((l.speed * toMS) - rawLimitMS) > 0.1) {
+            nextDiffLimit = l;
+            break;
         }
     }
 
-    // El "Siguiente Límite" principal debe ser el primero de los próximos válidos
-    const nextLimitSpeedMPH = upcomingLimits.length > 0 ? upcomingLimits[0].speed : (parseFloat(raw.NextSpeedLimitDistance) > 0 ? (parseFloat(raw.NextSpeedLimitSpeed) || 0) : 0);
-    const nextLimitDist = upcomingLimits.length > 0 ? upcomingLimits[0].distance : (parseFloat(raw.NextSpeedLimitDistance) || 0);
-    const nextLimitSpeed = nextLimitSpeedMPH * toMS;
-    
-    const trainLength = raw.TrainLength || 100;
+    const rawNextLimitDist = nextDiffLimit.distance;
+    const rawNextLimitSpeedMS = nextDiffLimit.speed * toMS;
 
-    // Inicialización del estado
-    if (this.state.lastFrontalLimit === 0) this.state.lastFrontalLimit = rawLimit;
-    if (this.state.effectiveSpeedLimit === 0) this.state.effectiveSpeedLimit = rawLimit;
+    // Inicialización del estado (En MPS)
+    if (this.state.lastFrontalLimit === 0 && rawLimitMS !== 0) {
+        this.state.lastFrontalLimit = rawLimitMS;
+    }
+    if (this.state.effectiveSpeedLimit === 0 && rawLimitMS !== 0) {
+        this.state.effectiveSpeedLimit = rawLimitMS;
+    }
 
     // DETECCIÓN DE TRIGGER (PASO DE CABINA POR SEÑAL)
-    // 1. Detección por salto de distancia (Cabina rebasando el hito)
-    // Se dispara si veníamos acercándonos (<15m) y el hito desaparece o salta al siguiente (>50m)
-    const distanceJumped = this.state.lastNextLimitDist > 0 && 
+    // Detección por cambio de límite nominal (Lo más común)
+    const limitIncreased = rawLimitMS > (this.state.lastFrontalLimit + 0.1);
+    const limitDecreased = rawLimitMS < (this.state.lastFrontalLimit - 0.1);
+
+    // Detección por salto de distancia en el radar (Para señales que el simulador no reporta en nominal)
+    // Solo se activa si el límite NOMINAL no ha cambiado aún para sincronizarse con el radar.
+    const distanceJumped = !limitIncreased && 
+                           this.state.lastNextLimitDist > 0 && 
                            this.state.lastNextLimitDist < 15 && 
-                           (rawNextLimitDist > 50 || rawNextLimitDist === 0);
-
-    // 2. Detección por cambio de límite nominal (Fallback si el sim lo hace en cabina)
-    const limitIncreased = rawLimit > this.state.lastFrontalLimit + 0.1;
-    const limitDecreased = rawLimit < this.state.lastFrontalLimit - 0.1;
+                           (rawNextLimitDist > (this.state.lastNextLimitDist + 50) || rawNextLimitDist === 0) &&
+                           Math.abs(this.state.lastNextLimitSpeed - rawLimitMS) > 0.1;
     
-    // Solo nos interesa limpiar cola si es un AUMENTO de velocidad
-    const isIncreaseEvent = limitIncreased || (distanceJumped && this.state.lastNextLimitSpeed > rawLimit + 0.1);
+    // Objetivo tras limpiar cola: si saltó, usamos lo que teníamos en el radar
+    const targetLimitMS = limitIncreased ? rawLimitMS : (distanceJumped ? this.state.lastNextLimitSpeed : rawLimitMS);
+    const isIncreaseEvent = limitIncreased || (distanceJumped && targetLimitMS > (rawLimitMS + 0.1));
 
-    // ACTIVACIÓN DEL ODÓMETRO
-    // Solo activamos si hay un evento de aumento Y el límite nominal es mayor al que tenemos bloqueado actualmente
-    if (isIncreaseEvent && this.state.distanceTravelled === 0 && rawLimit > this.state.effectiveSpeedLimit + 0.1) {
-        // La locomotora acaba de cruzar el cartel. Empezamos a contar metros desde 0.
-        this.state.distanceTravelled = 0.001; 
-        // Guardamos la velocidad de la señal que acabamos de rebasar como objetivo
-        this.state.cleaningTargetLimit = limitIncreased ? rawLimit : this.state.lastNextLimitSpeed;
+    // 1. RESTRICCIÓN INMEDIATA (La seguridad manda)
+    if (limitDecreased) {
+        this.tailProtection.reset();
+        this.state.effectiveSpeedLimit = rawLimitMS;
+    }
+
+    // 2. ACTIVACIÓN DEL ODÓMETRO (La cabina cruza primero un aumento)
+    // Solo permitimos trigger si es un evento reciente (limitIncreased o distanceJumped)
+    // para evitar que se re-active si el odómetro termina pero ya estábamos en una zona superior.
+    const isApplyingProtection = targetLimitMS > (this.state.effectiveSpeedLimit + 0.1);
+
+    if (isIncreaseEvent && isApplyingProtection) {
+        // ...
+        const initialOffset = (distanceJumped && !limitIncreased) ? Math.max(0.2, 5.0 - this.state.lastNextLimitDist) : 0.01;
+        this.tailProtection.trigger(targetLimitMS, this.state.effectiveSpeedLimit, trainLength, initialOffset);
     } 
     
-    if (limitDecreased) {
-        // Reducción: Se aplica al instante (Cabeza del tren manda)
-        this.state.effectiveSpeedLimit = rawLimit;
-        this.state.distanceTravelled = 0;
-        this.state.cleaningTargetLimit = 0;
+    // 3. ACTUALIZACIÓN DE LA PROTECCIÓN
+    const protection = this.tailProtection.update(speedMS, dtSim, trainLength, rawLimitMS);
+    
+    // El servicio siempre devuelve un límite numérico (ya sea el de la cola o el de la vía)
+    const nominal = protection.effectiveLimit ?? rawLimitMS;
+    const current = this.state.effectiveSpeedLimit;
+    
+    const isSignificantDiff = Math.abs(nominal - current) > 0.1;
+    const isReduction = nominal < (current - 0.5);
+    
+    // Sincronización final del velocímetro
+    if (isSignificantDiff) {
+        if (!isReduction || limitDecreased) {
+            this.state.effectiveSpeedLimit = nominal;
+        }
     }
 
-    // Progresión del odómetro de cola
-    if (this.state.distanceTravelled > 0) {
-        if (dtSim > 0 && dtSim < 2) {
-            this.state.distanceTravelled += speedMS * dtSim;
+    const tailDist = protection.tailDist;
+
+    // FrontalLimitMS para el HUD (Límite que ve la cabina, ignorando cola)
+    const frontalLimitMS = this.tailProtection.getIsProtecting()
+        ? this.tailProtection.getCleaningTarget()
+        : rawLimitMS;
+
+    // Próximos hitos visibles para la UI (máximo 3 cambios)
+    const upcomingLimits: { speed: number, distance: number }[] = [];
+    
+    // Filtramos redundancias. Usamos frontalLimitMS como referencia inicial
+    // para que la lista no muestre el límite en el que ya está la cabina.
+    let lastRefSpeedMS = frontalLimitMS; 
+
+    for (const limit of rawUpcoming) {
+        const limitSpeedMS = limit.speed * toMS;
+        const dist = limit.distance;
+
+        // Umbral de 2m para evitar que la señal desaparezca antes de que el usuario la vea pasar
+        if (dist <= 2.0) continue;
+
+        // Filtramos redundancias de la misma velocidad
+        const isDifferentSpeed = Math.abs(limitSpeedMS - lastRefSpeedMS) > 0.1;
+
+        if (isDifferentSpeed) {
+            upcomingLimits.push(limit);
+            lastRefSpeedMS = limitSpeedMS;
+            if (upcomingLimits.length >= 3) break;
         }
-        
-        // Bloqueamos la actualización del límite efectivo hasta que pase todo el tren
-        if (this.state.distanceTravelled >= trainLength) {
-            this.state.effectiveSpeedLimit = this.state.cleaningTargetLimit > 0 ? this.state.cleaningTargetLimit : rawLimit; 
-            this.state.distanceTravelled = 0;
-            this.state.cleaningTargetLimit = 0;
-        }
-    } else if (!limitDecreased) {
-        // Sincronización normal
-        this.state.effectiveSpeedLimit = rawLimit;
     }
 
-    this.state.lastFrontalLimit = rawLimit;
+    const nextLimitSpeedMPH = upcomingLimits.length > 0 ? upcomingLimits[0].speed : (this.tailProtection.getCleaningTarget() * fromMS);
+    const nextLimitDist = upcomingLimits.length > 0 ? upcomingLimits[0].distance : 0;
+    const nextLimitSpeedMS = nextLimitSpeedMPH * toMS;
+
+    // Actualización de estado para el próximo tick
+    this.state.lastFrontalLimit = rawLimitMS;
     this.state.lastNextLimitDist = rawNextLimitDist;
-    this.state.lastNextLimitSpeed = nextLimitSpeed;
-    this.state.lastSimTime = simTime;
-
-    const tailDist = this.state.distanceTravelled > 0 
-      ? Math.max(0, trainLength - this.state.distanceTravelled) 
-      : 0;
+    this.state.lastNextLimitSpeed = rawNextLimitSpeedMS;
 
     // 5. Unificación de Señales y Distancias
     const sigStateRaw = raw.NextSignalState ?? -1;
@@ -356,12 +408,10 @@ export class DataNormalizer {
       GForce: this.state.gForce,
       ProjectedSpeed: projectedSpeedMS * fromMS,
       SpeedLimit: this.state.effectiveSpeedLimit * fromMS,
-      FrontalSpeedLimit: (this.state.distanceTravelled > 0 && this.state.cleaningTargetLimit > 0) 
-        ? this.state.cleaningTargetLimit * fromMS 
-        : rawLimit * fromMS,
+      FrontalSpeedLimit: frontalLimitMS * fromMS,
       TailDistance: tailDist,
       DistToNextSpeedLimit: nextLimitDist,
-      NextSpeedLimit: nextLimitSpeed * fromMS,
+      NextSpeedLimit: nextLimitSpeedMS * fromMS,
       UpcomingLimits: upcomingLimits,
       Gradient: this.state.emaGradient,
       LateralG: this.state.emaLateralG,

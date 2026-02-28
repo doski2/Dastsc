@@ -203,9 +203,21 @@ export const Speedometer: React.FC = () => {
                    {activeNotchLabel}
                </div>
             </div>
-            <div className={`mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${raw.SpeedDisplay > raw.SpeedLimit ? 'bg-red-500/20 text-red-500' : 'bg-white/5 text-white/40'}`}>
-                LIMIT: {Math.round(raw.SpeedLimit)}
+            <div className={`mt-1 px-3 py-1 rounded-full text-xs font-bold transition-all ${
+              raw.SpeedDisplay > raw.SpeedLimit ? 'bg-red-500/30 text-red-400' : 'bg-white/10 text-white/50'
+            }`}>
+                LIMIT: {Math.round(raw.SpeedLimit)} {raw.TailDistance > 0 && (
+                  <span className="opacity-40 font-normal"> [Actual: {Math.round(raw.FrontalSpeedLimit)}]</span>
+                )}
             </div>
+            {raw.TailDistance > 0 && (
+                <div className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-cyan-500/10 border border-cyan-500/30 animate-pulse">
+                    <span className="text-[9px] font-black text-cyan-400 tracking-tighter">OBJETIVO: {Math.round(raw.FrontalSpeedLimit)}</span>
+                    <span className="text-xs font-mono font-bold text-white">
+                        -{Math.round(raw.TailDistance)}m
+                    </span>
+                </div>
+            )}
         </div>
       </div>
 

@@ -45,32 +45,40 @@ export const TrackProfile: React.FC = () => {
     ctx.save();
     
     // Gradiente: Desplazamiento máximo de 50px para 5% de gradiente
-    const currentGradient = smooth.gradient || 0;
+    // Gradiente y Curvatura
+    // CORRECCIÓN Nexus/Railworks: Invertimos el signo para que (-) sea subida y (+) sea bajada visualmente
+    const rawGradient = smooth.gradient || 0;
+    const currentGradient = -rawGradient;
+    const currentLateralG = smooth.lateralG || 0;
+    
     const gradientOffset = currentGradient * 15; 
-    const targetY = centerY - gradientOffset;
+    const curvatureIntensity = currentLateralG * 100; // Multiplicador para el offset visual de la curva
 
-    // Configuración de la línea de la vía (Horizontal con Curvatura de Gradiente)
+    // Helper para obtener Y con gradiente y curvatura
+    const getY = (m: number) => {
+      const progress = m / viewRange;
+      const currentY = centerY - (gradientOffset * progress);
+      const curveOffset = Math.pow(progress, 1.5) * curvatureIntensity;
+      return currentY + curveOffset;
+    };
+
+    // Configuración de la línea de la vía (Horizontal con Curvatura y Gradiente)
     const renderTrackLine = () => {
       ctx.beginPath();
-      // Empezamos en la posición 0m (punta del tren)
-      const startX = getX(0);
-      ctx.moveTo(startX, centerY);
-
+      
       const segments = 40;
       for (let i = 0; i <= segments; i++) {
         const progress = i / segments;
         const m = progress * viewRange;
         const x = getX(m);
-        
-        // Efecto de inclinación por gradiente: la línea sube o baja suavemente
-        const currentY = centerY - (gradientOffset * progress);
+        const y = getY(m);
         
         // Micro-vibración por velocidad
         const vIntensity = smooth.speed * 0.1;
         const wiggle = Math.sin(x / 50 + (Date.now() / 800)) * (vIntensity / 2);
         
-        if (i === 0) ctx.moveTo(x, currentY + wiggle);
-        else ctx.lineTo(x, currentY + wiggle);
+        if (i === 0) ctx.moveTo(x, y + wiggle);
+        else ctx.lineTo(x, y + wiggle);
       }
 
       // Estilo: Brillo exterior (Glow)
@@ -96,14 +104,15 @@ export const TrackProfile: React.FC = () => {
 
     // Texto de Gradiente sobre la línea (Más detallado)
     const gradVal = Math.abs(currentGradient);
-    const gradColor = currentGradient > 0 ? '#f87171' : currentGradient < 0 ? '#4ade80' : '#94a3b8';
-    const gradIcon = currentGradient > 0 ? '▲' : currentGradient < 0 ? '▼' : '─';
+    // Usamos rawGradient para la lógica de colores/iconos de modo que (-) sea SUBIDA y (+) sea BAJADA
+    const gradColor = rawGradient < 0 ? '#f87171' : rawGradient > 0 ? '#4ade80' : '#94a3b8';
+    const gradIcon = rawGradient < 0 ? '▲' : rawGradient > 0 ? '▼' : '─';
     const ratio = gradVal > 0 ? Math.round(100 / gradVal) : 0;
     
     ctx.fillStyle = gradColor;
     ctx.font = 'bold 13px JetBrains Mono';
     const gradText = `${gradIcon} ${gradVal.toFixed(2)}% ${ratio > 0 ? `(1:${ratio})` : ''}`;
-    ctx.fillText(gradText, 45, targetY - 25);
+    ctx.fillText(gradText, 45, centerY - 25);
 
     // Dibuja la Escala de Distancia (Regla inferior)
     const drawScale = () => {
@@ -158,25 +167,25 @@ export const TrackProfile: React.FC = () => {
     const stationDist = smooth.stationDistance;
     if (stationDist !== undefined && stationDist >= 0 && stationDist < viewRange) {
       const xStop = getX(stationDist);
-      const currentYAtStop = centerY - (gradientOffset * (stationDist / viewRange));
+      const yStop = getY(stationDist);
 
       // 1. Línea indicadora de parada (Muesca vertical)
       ctx.setLineDash([2, 2]);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(xStop, currentYAtStop - 20);
-      ctx.lineTo(xStop, currentYAtStop + 20);
+      ctx.moveTo(xStop, yStop - 20);
+      ctx.lineTo(xStop, yStop + 20);
       ctx.stroke();
       ctx.setLineDash([]); // Reset dash
 
       // 2. Icono de parada (Bandera / Diamond)
       ctx.fillStyle = '#fff';
       ctx.beginPath();
-      ctx.moveTo(xStop, currentYAtStop);
-      ctx.lineTo(xStop - 6, currentYAtStop - 6);
-      ctx.lineTo(xStop, currentYAtStop - 12);
-      ctx.lineTo(xStop + 6, currentYAtStop - 6);
+      ctx.moveTo(xStop, yStop);
+      ctx.lineTo(xStop - 6, yStop - 6);
+      ctx.lineTo(xStop, yStop - 12);
+      ctx.lineTo(xStop + 6, yStop - 6);
       ctx.closePath();
       ctx.fill();
 
@@ -184,12 +193,12 @@ export const TrackProfile: React.FC = () => {
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 12px JetBrains Mono';
       ctx.textAlign = 'center';
-      ctx.fillText(raw.StationName || 'NEXT STOP', xStop, currentYAtStop - 35);
+      ctx.fillText(raw.StationName || 'NEXT STOP', xStop, yStop - 35);
       
       // 4. Distancia debajo
       ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
       ctx.font = 'bold 11px JetBrains Mono';
-      ctx.fillText(formatDistance(stationDist), xStop, currentYAtStop + 35);
+      ctx.fillText(formatDistance(stationDist), xStop, yStop + 35);
       
       ctx.textAlign = 'left';
     }
@@ -199,7 +208,7 @@ export const TrackProfile: React.FC = () => {
       const stationLen = raw.StationLength || 200;
       const xStart = getX(stationDist);
       const xEnd = getX(stationDist + stationLen);
-      const currentYAtStation = centerY - (gradientOffset * (stationDist / viewRange));
+      const yStation = getY(stationDist);
 
       const platGrad = ctx.createLinearGradient(xStart, 0, xEnd, 0);
       platGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
@@ -208,12 +217,12 @@ export const TrackProfile: React.FC = () => {
       platGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
 
       ctx.fillStyle = platGrad;
-      ctx.fillRect(xStart, currentYAtStation + 5, Math.max(1, xEnd - xStart), 4);
+      ctx.fillRect(xStart, yStation + 5, Math.max(1, xEnd - xStart), 4);
     }
 
     // Dibuja Señales (Posicionamiento Horizontal)
     const sigDist = smooth.signalDistance;
-    const currentYAtSignal = centerY - (gradientOffset * (sigDist / viewRange));
+    const ySignal = getY(sigDist);
 
     if (sigDist > 0 && sigDist < viewRange) {
       const xPos = getX(sigDist);
@@ -232,14 +241,14 @@ export const TrackProfile: React.FC = () => {
       ctx.setLineDash([2, 4]);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.beginPath();
-      ctx.moveTo(xPos, currentYAtSignal);
-      ctx.lineTo(xPos, currentYAtSignal - 60);
+      ctx.moveTo(xPos, ySignal);
+      ctx.lineTo(xPos, ySignal - 60);
       ctx.stroke();
       ctx.setLineDash([]);
 
       // Semáforo (Cuerpo)
       ctx.fillStyle = "#111";
-      ctx.fillRect(xPos - 8, currentYAtSignal - 95, 16, 35);
+      ctx.fillRect(xPos - 8, ySignal - 95, 16, 35);
       
       // Luces del semáforo
       const drawLight = (yOff: number, active: boolean) => {
@@ -247,7 +256,7 @@ export const TrackProfile: React.FC = () => {
         ctx.shadowColor = color;
         ctx.fillStyle = active ? color : "#222";
         ctx.beginPath();
-        ctx.arc(xPos, currentYAtSignal - 95 + yOff, 4, 0, Math.PI * 2);
+        ctx.arc(xPos, ySignal - 95 + yOff, 4, 0, Math.PI * 2);
         ctx.fill();
       };
 
@@ -261,44 +270,25 @@ export const TrackProfile: React.FC = () => {
       ctx.fillStyle = color; // Usar el mismo color del aspecto para el texto de distancia
       ctx.font = 'bold 12px JetBrains Mono';
       ctx.textAlign = 'center';
-      ctx.fillText(formatDistance(sigDist), xPos, currentYAtSignal - 105);
+      ctx.fillText(formatDistance(sigDist), xPos, ySignal - 105);
       
       // Dibujar etiqueta de "SIG" pequeña debajo de la distancia
       ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
       ctx.font = '8px JetBrains Mono';
-      ctx.fillText('SIGNAL', xPos, currentYAtSignal - 117);
+      ctx.fillText('SIGNAL', xPos, ySignal - 117);
       
       ctx.textAlign = 'left';
       ctx.shadowBlur = 0;
     }
 
-    // Dibuja Límites de Velocidad (múltiples hitos con desduplicación)
+    // Dibuja Límites de Velocidad (Renderiza lo que el normalizador ya ha filtrado)
     const renderSpeedLimits = () => {
-      // Usar los límites múltiples del normalizador (UpcomingLimits)
       const limits = raw.UpcomingLimits || [];
       if (limits.length === 0) return;
 
-      // 1. Ordenar por distancia (Garantiza que el más cercano sea el índice 0)
-      const sortedLimits = [...limits].sort((a, b) => a.distance - b.distance);
-
-      // 2. Filtrar y Desduplicar
-      const uniqueLimits: any[] = [];
-      sortedLimits.forEach((limit: any) => {
-        // Ignorar si es el mismo límite que ya tenemos delante y está muy cerca (<500m)
-        if (Math.abs(limit.speed - raw.FrontalSpeedLimit) < 0.5 && limit.distance < 500) return;
-
-        const isDuplicate = uniqueLimits.some(ul => 
-          Math.abs(ul.distance - limit.distance) < 150 && Math.abs(ul.speed - limit.speed) < 2
-        );
-        
-        // El hito desaparece justo al ser "pisado" por el tren (0m)
-        if (!isDuplicate && limit.distance > 0.1) { 
-          uniqueLimits.push(limit);
-        }
-      });
-
-      // 3. LIMITAR A SÓLO 2 LÍMITES FUTUROS (Siguiente + Posterior)
-      const displayLimits = uniqueLimits.slice(0, 2);
+      // 1. Ya vienen ordenados y filtrados del normalizador (DataNormalizer.ts)
+      // Usamos el mismo umbral de 2.0m que el normalizador para sincronía perfecta
+      const displayLimits = limits.filter((l: any) => l.distance > 2.0).slice(0, 3);
 
       displayLimits.forEach((limit: any, index: number) => {
         const dist = limit.distance;
@@ -306,47 +296,53 @@ export const TrackProfile: React.FC = () => {
           const xPosLimit = getX(dist);
           const limitValue = limit.speed;
           
-          // Escala Progresiva de UI: Más pequeño a medida que se aleja
-          const distanceScale = Math.max(0.4, 1 - (dist / viewRange));
-          const circleRadius = 16 * distanceScale;
-          const fontSize = Math.max(9, 14 * distanceScale);
+          // Escala Progresiva de UI
+          const distanceScale = Math.max(0.35, 1 - (dist / viewRange));
+          const circleRadius = 15 * distanceScale;
+          const fontSize = Math.max(9, 13 * distanceScale);
           
-          // Comparar contra el límite anterior o contra el actual si es el primero
-          const prevLimit = index === 0 ? raw.SpeedLimit : uniqueLimits[index-1].speed;
-          const isReduction = limitValue < prevLimit - 0.5;
-          const limitColor = isReduction ? "#ef4444" : "#22c55e"; // Rojo si baja, Verde si sube
+          // Color basado en el cambio real
+          const prevLimitValue = index === 0 ? raw.FrontalSpeedLimit : displayLimits[index-1].speed;
           
-          const currentYAtL = centerY - (gradientOffset * (dist / viewRange));
+          let limitColor = "#ffffff";
+          if (limitValue < prevLimitValue - 0.5) limitColor = "#ef4444"; // Reducción
+          else if (limitValue > prevLimitValue + 0.5) limitColor = "#22c55e"; // Aumento
+          
+          const yPosLimit = getY(dist);
 
-          // Línea vertical punteada indicadora de posición exacta
-          ctx.setLineDash([3, 3]);
-          ctx.strokeStyle = `rgba(255, 255, 255, ${0.3 * distanceScale})`;
+          // Línea vertical indicadora (Glow sutil)
+          ctx.setLineDash([2, 4]);
+          ctx.strokeStyle = `rgba(255, 255, 255, ${0.15 * distanceScale})`;
           ctx.lineWidth = 1;
           ctx.beginPath();
-          ctx.moveTo(xPosLimit, currentYAtL);
-          ctx.lineTo(xPosLimit, currentYAtL - (50 * distanceScale));
+          ctx.moveTo(xPosLimit, yPosLimit);
+          ctx.lineTo(xPosLimit, yPosLimit - (60 * distanceScale));
           ctx.stroke();
           ctx.setLineDash([]);
 
-          // Círculo del cartel de velocidad
+          // Círculo del cartel (Con sombra para legibilidad)
+          ctx.shadowBlur = index === 0 ? 15 : 5;
+          ctx.shadowColor = limitColor;
+          
           ctx.beginPath();
-          ctx.arc(xPosLimit, currentYAtL - (65 * distanceScale), circleRadius, 0, Math.PI * 2);
-          ctx.fillStyle = "black";
+          ctx.arc(xPosLimit, yPosLimit - (75 * distanceScale), circleRadius, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
           ctx.fill();
           ctx.strokeStyle = limitColor;
           ctx.lineWidth = index === 0 ? 3 : 2; 
           ctx.stroke();
+          ctx.shadowBlur = 0;
           
           // Valor de velocidad (Número)
           ctx.fillStyle = "#fff";
           ctx.textAlign = "center";
           ctx.font = `bold ${fontSize}px JetBrains Mono`;
-          ctx.fillText(Math.round(limitValue).toString(), xPosLimit, currentYAtL - (61 * distanceScale));
+          ctx.fillText(Math.round(limitValue).toString(), xPosLimit, yPosLimit - (71 * distanceScale));
 
-          // Etiqueta de Distancia debajo del círculo
-          ctx.fillStyle = `rgba(255, 255, 255, ${0.5 * distanceScale})`;
-          ctx.font = `${Math.max(8, 10 * distanceScale)}px JetBrains Mono`;
-          ctx.fillText(formatDistance(dist), xPosLimit, currentYAtL - (42 * distanceScale));
+          // Etiqueta de Distancia (Label informativo)
+          ctx.fillStyle = `rgba(255, 255, 255, ${0.4 * distanceScale})`;
+          ctx.font = `bold ${Math.max(8, 10 * distanceScale)}px JetBrains Mono`;
+          ctx.fillText(formatDistance(dist), xPosLimit, yPosLimit - (50 * distanceScale));
         }
       });
     };

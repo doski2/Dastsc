@@ -6,9 +6,9 @@ Este documento sirve para el seguimiento de tareas, hitos y decisiones tomadas d
 
 ## 📊 Estado Actual del Proyecto
 
-- **Fase Actual:** 2 - Motor de Renderizado (Finalizando) / Inicio Fase 3
-- **Último Hito:** Implementación de Curva de Frenado Dinámica e Info Bar.
-- **Próximo Paso:** Gestión de Perfiles de Tren y refinamiento de Andenes.
+- **Fase Actual:** 3 - Modularidad y UI Blueprint (En Progreso)
+- **Último Hito:** Estabilización de Telemetría v3 (Multi-Checkpoint) y Batería de Tests de Integración Unificada.
+- **Próximo Paso:** Gestión de Perfiles de Tren y Refinamiento de Andenes 2D/3D.
 
 ---
 
@@ -24,6 +24,8 @@ Este documento sirve para el seguimiento de tareas, hitos y decisiones tomadas d
 - [x] **1.4 Lanzador Automatizado:** Creado `Iniciar_Nexus_V3.bat` para despliegue rápido.
 - [x] **1.5 Lógica de Frenado Proyectiva:** Implementación visual de la parábola de frenado en el bloque central e integración de datos base.
 - [x] **1.6 Normalizador de Datos:** Refinamiento de filtrado de "ruido" y normalización avanzada de sensores.
+- [x] **1.7 Servicio de Protección de Cola (v3.11):** Implementación de odómetro multi-checkpoint para cambios de velocidad secuenciales (40->60->80) con prioridad de seguridad en reducciones.
+- [x] **1.8 Suite de Validación Unificada:** Creación de `EJECUTAR_TESTS_V3.bat` que integra pruebas de Core, Lua (Denoising), Seguridad y Métricas.
 
 ### Fase 2: El Motor de Renderizado (Canvas Engine)
 
@@ -60,6 +62,9 @@ Este documento sirve para el seguimiento de tareas, hitos y decisiones tomadas d
 | 22/02/26 | **Fusión de Diseño (Gemini + ChatGPT)** | Se adopta el layout de 3 bloques inferiores con gráfico de frenado y perfil de vía superior curvo para maximizar datos esenciales. |
 | 23/02/26 | **Cambio a Vista Horizontal de Vía** | Se abandona la vista vertical para clonar fielmente el boceto "Aeronáutico/Cyberpunk" con escala métrica. |
 | 23/02/26 | **Implementación de Info Bar** | Se añade una barra de estado central para centralizar avisos de señales y ETAs, liberando espacio en los widgets inferiores. |
+| 27/02/26 | **Core: Protección Multi-Checkpoint** | Se migra a un sistema de cola de odómetros para soportar secuencias de señales (ej: 40-60-80). |
+| 27/02/26 | **Seguridad: Override de Límite** | Se decide que cualquier reducción de límite de vía anule inmediatamente la protección de cola por seguridad ferroviaria. |
+| 27/02/26 | **Testing: Suite de Validación Core** | Creación de `EJECUTAR_TESTS_V3.bat` para asegurar la integridad de la lógica matemática sin necesidad de abrir el simulador. |
 
 ---
 

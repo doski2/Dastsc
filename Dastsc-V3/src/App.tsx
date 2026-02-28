@@ -137,19 +137,6 @@ function App() {
                       <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Physics Hub</h3>
                       <div className="space-y-3">
                         <PhysicsRow label="Amperage" value={data.Amperage} unit={data.AmperageUnit} color={data.Amperage >= 0 ? "text-yellow-500" : "text-cyan-400"} />
-                        <div className="flex justify-between items-center text-sm font-mono">
-                          <span className="text-white/30 uppercase tracking-tighter">Gradient</span>
-                          <div className="flex gap-1 items-baseline">
-                            <span className={data.Gradient > 0 ? 'text-red-400' : 'text-green-400'}>
-                              {data.Gradient.toFixed(2)}%
-                              {Math.abs(data.Gradient) > 0.01 && (
-                                <span className="text-[11px] opacity-40 ml-1">
-                                  (1:{Math.round(100 / Math.abs(data.Gradient))})
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </div>
                         <PhysicsRow label="Brake Cyl" value={data.BrakeCylinderPressure} unit={data.PressureUnit} />
                         <PhysicsRow label="Brake Pipe" value={data.BrakePipePressure} unit={data.PressureUnit} />
                       </div>
