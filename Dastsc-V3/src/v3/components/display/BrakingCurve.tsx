@@ -333,35 +333,38 @@ export const BrakingCurve: React.FC = () => {
   const info = getTargetInfo();
 
   return (
-    <div className="relative flex-1 bg-white/[0.02] border border-white/5 rounded-sm overflow-hidden flex flex-col">
-      <div className="absolute top-4 left-4 flex flex-col gap-1 z-10">
-        <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] font-mono leading-none">
-          Braking Curve // {mode}
-        </span>
-        <span className="text-[14px] text-cyan-400 font-mono font-bold drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" style={{ color: mode === 'DYNAMIC' ? '#22d3ee' : mode === 'SIGNAL' ? '#f87171' : '#fbbf24' }}>
-          {info.label}: <span className="text-white">{formatDistance(info.dist)}</span>
-          <span className="ml-2 text-[10px] opacity-40">[{info.val}]</span>
-        </span>
-        {mode === 'DYNAMIC' && (
-          <div className="mt-1">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="mi"
-              value={customMiles}
-              onChange={e => setCustomMiles(e.target.value)}
-              className="w-24 text-xs rounded px-1 py-0.5 bg-white/10 text-white"
-            />
-            <span className="text-[10px] text-white/30 ml-1">manual</span>
-          </div>
-        )}
-      </div>
-      
-      <div className="absolute top-4 right-4 flex gap-1.5 z-10">
-         <button onClick={() => setMode('DYNAMIC')} className={`px-2 py-0.5 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-colors ${mode === 'DYNAMIC' ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' : 'bg-white/5 border-white/5 text-white/30'}`}>Dynamic</button>
-         <button onClick={() => setMode('SIGNAL')} className={`px-2 py-0.5 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-colors ${mode === 'SIGNAL' ? 'bg-red-500/20 border-red-500/50 text-red-400' : 'bg-white/5 border-white/5 text-white/30'}`}>Signal</button>
-         <button onClick={() => setMode('LIMIT')} className={`px-2 py-0.5 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-colors ${mode === 'LIMIT' ? 'bg-amber-500/20 border-amber-500/50 text-amber-400' : 'bg-white/5 border-white/5 text-white/30'}`}>Limit</button>
+    <div className="relative flex-1 bg-white/[0.02] border border-white/5 rounded-sm overflow-hidden flex flex-col min-h-[300px]">
+      <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10 pointer-events-none">
+        <div className="flex flex-col gap-1 pointer-events-auto max-w-[60%]">
+          <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] font-mono leading-none">
+            Braking Curve // {mode}
+          </span>
+          <span className="text-[14px] text-cyan-400 font-mono font-bold drop-shadow-[0_0_8px_rgba(34,211,238,0.4)] truncate" 
+                style={{ color: mode === 'DYNAMIC' ? '#22d3ee' : mode === 'SIGNAL' ? '#f87171' : '#fbbf24' }}>
+            {info.label}: <span className="text-white">{formatDistance(info.dist)}</span>
+            <span className="ml-2 text-[10px] opacity-40">[{info.val}]</span>
+          </span>
+          {mode === 'DYNAMIC' && (
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="mi"
+                value={customMiles}
+                onChange={e => setCustomMiles(e.target.value)}
+                className="w-20 text-[10px] rounded border border-white/10 px-1.5 py-0.5 bg-black/40 text-white focus:border-cyan-500/50 outline-none transition-colors"
+              />
+              <span className="text-[9px] text-white/30 uppercase font-mono tracking-tighter">Set manual dist (mi)</span>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex gap-1.5 pointer-events-auto flex-wrap justify-end">
+           <button onClick={() => setMode('DYNAMIC')} className={`px-2 py-1 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-all ${mode === 'DYNAMIC' ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'}`}>Dynamic</button>
+           <button onClick={() => setMode('SIGNAL')} className={`px-2 py-1 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-all ${mode === 'SIGNAL' ? 'bg-red-500/20 border-red-500/50 text-red-400' : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'}`}>Signal</button>
+           <button onClick={() => setMode('LIMIT')} className={`px-2 py-1 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-all ${mode === 'LIMIT' ? 'bg-amber-500/20 border-amber-500/50 text-amber-400' : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'}`}>Limit</button>
+        </div>
       </div>
 
       <CanvasLayer render={drawGraph} />
@@ -369,13 +372,20 @@ export const BrakingCurve: React.FC = () => {
       {/* Línea de escaneo decorativa */}
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-500/[0.01] to-transparent h-20 w-full animate-scan pointer-events-none" />
       
-      <div className="absolute bottom-4 right-6 text-right select-none flex flex-col items-end">
+      <div className="absolute bottom-1.5 left-4 right-4 flex justify-between items-end pointer-events-none z-10">
+        <div className="flex flex-col items-start select-none">
+          <span className="text-[9px] font-mono text-white/10 uppercase tracking-widest">Auto-Dispatch Ready</span>
+        </div>
+        
+        <div className="text-right select-none flex flex-col items-end">
           {raw.TrainMass > 0 && (
-            <span className="text-[8px] font-mono text-white/20 uppercase">
-              M: {Math.round(raw.TrainMass)}t // L: {Math.round(raw.TrainLength)}m // G: {(raw.Gradient || 0).toFixed(1)}%
-            </span>
+            <div className="bg-black/40 backdrop-blur-md p-1 rounded border border-white/5 flex gap-3 text-[8px] font-mono text-white/40 uppercase shadow-lg">
+              <span>M: <strong className="text-white/60">{Math.round(raw.TrainMass)}t</strong></span>
+              <span>L: <strong className="text-white/60">{Math.round(raw.TrainLength)}m</strong></span>
+              <span>G: <strong className={raw.Gradient > 0 ? 'text-red-400/60' : raw.Gradient < 0 ? 'text-green-400/60' : 'text-white/60'}>{(raw.Gradient || 0).toFixed(1)}%</strong></span>
+            </div>
           )}
-          <span className="text-[10px] font-mono text-white/10 uppercase tracking-widest">Auto-Dispatch Ready</span>
+        </div>
       </div>
     </div>
   );
