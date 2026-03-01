@@ -5,7 +5,6 @@
  */
 
 import { TelemetryData } from './TelemetryContext';
-import { TailProtectionService } from './TailProtectionService';
 
 export interface NormalizerState {
   totalDistance: number;
@@ -30,6 +29,7 @@ export interface NormalizerState {
   emaLateralG: number;
   lastFrontalLimit: number;
   lastRealTime: number;
+  activeCab: number; // 1 = Front, 2 = Back
 }
 
 const EMA_ALPHA = 0.15; 
@@ -37,7 +37,6 @@ const EMA_SLOW = 0.05; // Para presiones, más inercia
 const G_CONSTANT = 9.80665;
 
 export class DataNormalizer {
-  private tailProtection = new TailProtectionService();
   private state: NormalizerState = {
     totalDistance: 0,
     lastSimTime: 0,
@@ -58,7 +57,8 @@ export class DataNormalizer {
     lastHeading: 999, // Centinela para indicar que no hay heading previo
     emaLateralG: 0,
     lastFrontalLimit: 0,
-    lastRealTime: 0
+    lastRealTime: 0,
+    activeCab: 1 // Default Front
   };
 
   /**
@@ -68,6 +68,12 @@ export class DataNormalizer {
     const rawSimTime = Number(raw.SimulationTime || 0);
     const now = Date.now() / 1000;
     const trainLength = profile?.physics_config?.train_length || raw.TrainLength || 100;
+    
+    // SOPORTE OnCameraEnter / ActiveCab (1=Front, 2=Back)
+    const rawActiveCab = Number(raw.ActiveCab || 1);
+    const cabChanged = this.state.activeCab !== rawActiveCab;
+    this.state.activeCab = rawActiveCab;
+
     const profileUnit = profile?.visuals?.unit;
     let speedUnit: 'MPH' | 'KPH' = profileUnit === 'KPH' ? 'KPH' : profileUnit === 'MPH' ? 'MPH' : 'MPH';
     
@@ -80,12 +86,13 @@ export class DataNormalizer {
     const toMS = speedUnit === 'KPH' ? 1/3.6 : 0.44704;
     const fromMS = speedUnit === 'KPH' ? 3.6 : 2.23694;
 
-    // Procesamiento de límites de velocidad (Formato Horizontal V3)
+    // Procesamiento de límites de velocidad (Formato Horizontal V4.1)
     const currentLimitConverted = Number(raw.CurrentSpeedLimit || 0); // Ya viene convertido desde Lua
-    const nextLimit0Speed = Number(raw.NextLimit0Speed || 0);
-    const nextLimit0Dist = Number(raw.NextLimit0Dist || -1);
+    const rawNextLimitSpeed = Number(raw.NextLimitSpeed || 0);
+    const rawNextLimitDistFromLua = Number(raw.NextLimitDist || -1);
 
-    this.state.effectiveSpeedLimit = currentLimitConverted * toMS; // Almacenamos en m/s interno
+    // V3 Fix: Eliminamos la sobreescritura inmediata del estado para permitir que el TailProtection mande.
+    // this.state.effectiveSpeedLimit = currentLimitConverted * toMS; // <--- ELIMINADO
 
     let dtSim = 0;
     // Lógica de Delta Time robusta (Evita avanzar el odómetro en pausa)
@@ -229,130 +236,47 @@ export class DataNormalizer {
 
     const pFactor = pressureUnit === 'PSI' ? 14.5038 : 1;
 
-    // 5. Lógica de "Cola de Tren" (Tail Protection)
-    // DEPURACIÓN V3.9: Recolección única y global de límites (8 hitos de Lua)
+    // 5. Lógica de "Cola de Tren" (Tail Protection) - V4.1
+    // TSC ahora entrega NextLimitSpeed y NextLimitDist de forma directa
     const rawUpcoming: { speed: number, distance: number }[] = [];
-    for (let i = 0; i < 8; i++) {
-        const s = parseFloat(raw[`NextLimit${i}Speed`]);
-        const d = parseFloat(raw[`NextLimit${i}Dist`]);
-        if (!isNaN(s) && !isNaN(d) && d > 0.1) {
-            rawUpcoming.push({ speed: s, distance: d });
-        }
+    if (rawNextLimitDistFromLua > 0) {
+        rawUpcoming.push({ speed: rawNextLimitSpeed, distance: rawNextLimitDistFromLua });
     }
-    rawUpcoming.sort((a, b) => a.distance - b.distance);
-
+    
     // Buscamos el primer cambio real para la lógica de cola
     let nextDiffLimit = { speed: rawLimitMS * fromMS, distance: 0 };
-    for(const l of rawUpcoming) {
-        if(Math.abs((l.speed * toMS) - rawLimitMS) > 0.1) {
-            nextDiffLimit = l;
-            break;
-        }
+    if (rawUpcoming.length > 0) {
+        nextDiffLimit = rawUpcoming[0];
     }
 
     const rawNextLimitDist = nextDiffLimit.distance;
     const rawNextLimitSpeedMS = nextDiffLimit.speed * toMS;
 
-    // Inicialización del estado (En MPS)
-    if (this.state.lastFrontalLimit === 0 && rawLimitMS !== 0) {
-        this.state.lastFrontalLimit = rawLimitMS;
-    }
-    if (this.state.effectiveSpeedLimit === 0 && rawLimitMS !== 0) {
-        this.state.effectiveSpeedLimit = rawLimitMS;
-    }
+    // Sincronización inmediata de límites (Se ha eliminado la protección de cola)
+    this.state.effectiveSpeedLimit = rawLimitMS;
+    this.state.lastFrontalLimit = rawLimitMS;
+    this.state.lastNextLimitDist = rawNextLimitDist;
+    this.state.lastNextLimitSpeed = rawNextLimitSpeedMS;
+    this.state.lastSimTime = rawSimTime;
+    this.state.lastRealTime = now;
 
-    // DETECCIÓN DE TRIGGER (PASO DE CABINA POR SEÑAL)
-    // Detección por cambio de límite nominal (Lo más común)
-    const limitIncreased = rawLimitMS > (this.state.lastFrontalLimit + 0.1);
-    const limitDecreased = rawLimitMS < (this.state.lastFrontalLimit - 0.1);
-
-    // Detección por salto de distancia en el radar (Para señales que el simulador no reporta en nominal)
-    // Solo se activa si el límite NOMINAL no ha cambiado aún para sincronizarse con el radar.
-    const distanceJumped = !limitIncreased && 
-                           this.state.lastNextLimitDist > 0 && 
-                           this.state.lastNextLimitDist < 15 && 
-                           (rawNextLimitDist > (this.state.lastNextLimitDist + 50) || rawNextLimitDist === 0) &&
-                           Math.abs(this.state.lastNextLimitSpeed - rawLimitMS) > 0.1;
-    
-    // Objetivo tras limpiar cola: si saltó, usamos lo que teníamos en el radar
-    const targetLimitMS = limitIncreased ? rawLimitMS : (distanceJumped ? this.state.lastNextLimitSpeed : rawLimitMS);
-    const isIncreaseEvent = limitIncreased || (distanceJumped && targetLimitMS > (rawLimitMS + 0.1));
-
-    // 1. RESTRICCIÓN INMEDIATA (La seguridad manda)
-    if (limitDecreased) {
-        this.tailProtection.reset();
-        this.state.effectiveSpeedLimit = rawLimitMS;
-    }
-
-    // 2. ACTIVACIÓN DEL ODÓMETRO (La cabina cruza primero un aumento)
-    // Solo permitimos trigger si es un evento reciente (limitIncreased o distanceJumped)
-    // para evitar que se re-active si el odómetro termina pero ya estábamos en una zona superior.
-    const isApplyingProtection = targetLimitMS > (this.state.effectiveSpeedLimit + 0.1);
-
-    if (isIncreaseEvent && isApplyingProtection) {
-        // ...
-        const initialOffset = (distanceJumped && !limitIncreased) ? Math.max(0.2, 5.0 - this.state.lastNextLimitDist) : 0.01;
-        this.tailProtection.trigger(targetLimitMS, this.state.effectiveSpeedLimit, trainLength, initialOffset);
-    } 
-    
-    // 3. ACTUALIZACIÓN DE LA PROTECCIÓN
-    const protection = this.tailProtection.update(speedMS, dtSim, trainLength, rawLimitMS);
-    
-    // El servicio siempre devuelve un límite numérico (ya sea el de la cola o el de la vía)
-    const nominal = protection.effectiveLimit ?? rawLimitMS;
-    const current = this.state.effectiveSpeedLimit;
-    
-    const isSignificantDiff = Math.abs(nominal - current) > 0.1;
-    const isReduction = nominal < (current - 0.5);
-    
-    // Sincronización final del velocímetro
-    if (isSignificantDiff) {
-        if (!isReduction || limitDecreased) {
-            this.state.effectiveSpeedLimit = nominal;
-        }
-    }
-
-    const tailDist = protection.tailDist;
-
-    // FrontalLimitMS para el HUD (Límite que ve la cabina, ignorando cola)
-    const frontalLimitMS = this.tailProtection.getIsProtecting()
-        ? this.tailProtection.getCleaningTarget()
-        : rawLimitMS;
-
-    // Próximos hitos visibles para la UI (máximo 3 cambios)
     const upcomingLimits: { speed: number, distance: number }[] = [];
-    
-    // Filtramos redundancias. Usamos frontalLimitMS como referencia inicial
-    // para que la lista no muestre el límite en el que ya está la cabina.
-    let lastRefSpeedMS = frontalLimitMS; 
+    let lastRefSpeedMS = rawLimitMS; 
 
     for (const limit of rawUpcoming) {
         const limitSpeedMS = limit.speed * toMS;
-        const dist = limit.distance;
-
-        // Umbral de 2m para evitar que la señal desaparezca antes de que el usuario la vea pasar
-        if (dist <= 2.0) continue;
-
-        // Filtramos redundancias de la misma velocidad
-        const isDifferentSpeed = Math.abs(limitSpeedMS - lastRefSpeedMS) > 0.1;
-
-        if (isDifferentSpeed) {
+        if (limit.distance <= 2.0) continue;
+        if (Math.abs(limitSpeedMS - lastRefSpeedMS) > 0.1) {
             upcomingLimits.push(limit);
             lastRefSpeedMS = limitSpeedMS;
             if (upcomingLimits.length >= 3) break;
         }
     }
 
-    const nextLimitSpeedMPH = upcomingLimits.length > 0 ? upcomingLimits[0].speed : (this.tailProtection.getCleaningTarget() * fromMS);
+    const nextLimitSpeedMPH = upcomingLimits.length > 0 ? upcomingLimits[0].speed : 0;
     const nextLimitDist = upcomingLimits.length > 0 ? upcomingLimits[0].distance : 0;
     const nextLimitSpeedMS = nextLimitSpeedMPH * toMS;
 
-    // Actualización de estado para el próximo tick
-    this.state.lastFrontalLimit = rawLimitMS;
-    this.state.lastNextLimitDist = rawNextLimitDist;
-    this.state.lastNextLimitSpeed = rawNextLimitSpeedMS;
-
-    // 5. Unificación de Señales y Distancias (V4.1 Pro)
     const rawSigRes = Number(raw.SigRes ?? -1);
     const rawSigState = Number(raw.SigState ?? -1);
     const rawSigDist = Number(raw.SigDist ?? -1);
@@ -436,8 +360,8 @@ export class DataNormalizer {
       GForce: this.state.gForce,
       ProjectedSpeed: projectedSpeedMS * fromMS,
       SpeedLimit: this.state.effectiveSpeedLimit * fromMS,
-      FrontalSpeedLimit: frontalLimitMS * fromMS,
-      TailDistance: tailDist,
+      FrontalSpeedLimit: rawLimitMS * fromMS,
+      TailDistance: 0,
       DistToNextSpeedLimit: nextLimitDist,
       NextSpeedLimit: nextLimitSpeedMS * fromMS,
       UpcomingLimits: upcomingLimits,
@@ -456,6 +380,7 @@ export class DataNormalizer {
       Amperage: this.state.emaAmperage,
       AmperageUnit: ampUnit,
       TractionPercent: tractionPercent,
+      ActiveCab: this.state.activeCab, 
       NextSignalAspect: aspect,
       DistToNextSignal: sigDist,
       TrainLength: trainLength,

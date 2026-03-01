@@ -133,7 +133,32 @@ export const Speedometer: React.FC = () => {
     ctx.font = '9px JetBrains Mono';
     ctx.textAlign = 'center';
     ctx.fillText(`L:${lateralG.toFixed(2)} Lon:${accelerationG.toFixed(2)}`, gX, gY + gSize/2 + 10);
-    ctx.textAlign = 'left';
+    
+    // 4. Indicador de Limpieza de Cola (Tail Distance)
+    const tailDist = raw.TailDistance || 0;
+    const isActiveCabBack = raw.ActiveCab === 2; // Soporte para OnCameraEnter
+
+    if (tailDist > 0.5) {
+      ctx.textAlign = 'center';
+      
+      // Color dinámico: Azul si es cabina invertida, Amarillo si es normal
+      ctx.fillStyle = isActiveCabBack ? '#60a5fa' : '#fde047'; 
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = ctx.fillStyle;
+      
+      ctx.font = 'bold 22px JetBrains Mono';
+      ctx.fillText(`${Math.ceil(tailDist)}m`, centerX, centerY + radius * 0.4);
+      
+      ctx.font = '9px JetBrains Mono';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      const text = isActiveCabBack ? 'REVERSE CLEANING' : 'CLEANING TAIL';
+      ctx.fillText(text, centerX, centerY + radius * 0.4 + 14);
+
+      // Pequeño indicador de dirección de cabina
+      ctx.font = '7px Monospace';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.fillText(`CAB: ${isActiveCabBack ? 'BACK (REV)' : 'FRONT'}`, centerX, centerY + radius * 0.4 + 24);
+    }
 
     ctx.restore();
   };
@@ -217,37 +242,11 @@ export const Speedometer: React.FC = () => {
             <span className="text-xs font-mono text-cyan-500/60 font-bold tracking-widest">
                 {raw.GForce >= 0 ? '+' : ''}{raw.GForce.toFixed(2)}G
             </span>
-            <div className="flex gap-1 mt-1">
-               <div className={`px-2 py-1 rounded-sm text-[11px] font-bold font-mono ${
-                 raw.Reverser > 0 ? 'bg-cyan-500/20 text-cyan-500' : 
-                 raw.Reverser < 0 ? 'bg-red-500/20 text-red-500' : 
-                 'bg-white/5 text-white/40'
-               }`}>
-                 {raw.Reverser > 0 ? 'FOR' : raw.Reverser < 0 ? 'REV' : 'NEU'}
-               </div>
-               <div className={`px-3 py-1 rounded-sm text-[11px] font-bold font-mono transition-colors ${
-                 activeNotchLabel.startsWith('B') ? 'bg-orange-500/20 text-orange-500' :
-                 activeNotchLabel.startsWith('P') ? 'bg-cyan-500/20 text-cyan-500' :
-                 'bg-white/5 text-white/60'
-               }`}>
-                   {activeNotchLabel}
-               </div>
-            </div>
             <div className={`mt-1 px-3 py-1 rounded-full text-xs font-bold transition-all ${
               raw.SpeedDisplay > raw.SpeedLimit ? 'bg-red-500/30 text-red-400' : 'bg-white/10 text-white/50'
             }`}>
-                LIMIT: {Math.round(raw.SpeedLimit)} {raw.TailDistance > 0 && (
-                  <span className="opacity-40 font-normal"> [Actual: {Math.round(raw.FrontalSpeedLimit)}]</span>
-                )}
+                LIMIT: {Math.round(raw.SpeedLimit)} 
             </div>
-            {raw.TailDistance > 0 && (
-                <div className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-sm bg-cyan-500/10 border border-cyan-500/30 animate-pulse">
-                    <span className="text-[9px] font-black text-cyan-400 tracking-tighter">OBJETIVO: {Math.round(raw.FrontalSpeedLimit)}</span>
-                    <span className="text-xs font-mono font-bold text-white">
-                        -{Math.round(raw.TailDistance)}m
-                    </span>
-                </div>
-            )}
         </div>
       </div>
 

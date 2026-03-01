@@ -47,9 +47,9 @@ export interface TelemetryData {
   BrakingEffort: number;   // kN o Lbf
   BrakingPercent: number;  // 0-100% de aplicación real
   
-  // Física y Geometría del Tren
   TrainLength: number;
   TrainMass: number;
+  ActiveCab: number; // 1 = Front, 2 = Back
 
   // IA / Predictivo
   ProjectedBrakingDistance: number; 
@@ -116,6 +116,7 @@ const DefaultData: TelemetryData = {
   TripDistance: 0,
   TrainLength: 0,
   TrainMass: 0,
+  ActiveCab: 1,
   TailDistance: 0,
   ProjectedBrakingDistance: 0,
   LocoName: 'DETECTING...',
