@@ -1,13 +1,43 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { CanvasLayer } from './CanvasLayer';
 import { useTelemetrySmoothing } from '../../hooks/useTelemetrySmoothing';
 
+interface StationStop {
+  name: string;
+  is_platform: boolean;
+  satisfied: boolean;
+  due_time: string | null;
+  duration: number;
+  distance_m: number; // Distancia calculada por el backend o frontend
+}
+
 /**
  * TrackProfile renderiza la visualización de la vía curva de alto rendimiento.
- * Usa un mapeo no lineal para simular la perspectiva.
  */
 export const TrackProfile: React.FC = () => {
   const { smooth, raw, isConnected } = useTelemetrySmoothing();
+  const [stops, setStops] = useState<StationStop[]>([]);
+
+  // Efecto para cargar las paradas del escenario actual (Simulado hasta integración total)
+  useEffect(() => {
+    const fetchStops = async () => {
+      try {
+        // En una implementación real, aquí llamaríamos a /scenarios/stops del backend
+        // Por ahora usamos datos mockeables basados en la investigación previa
+        const mockStops: StationStop[] = [
+          { name: "Five Ways Platform 2", is_platform: true, satisfied: false, due_time: "651", duration: 35, distance_m: 650 },
+          { name: "University (Bham) P2", is_platform: true, satisfied: false, due_time: "878", duration: 35, distance_m: 2100 },
+          { name: "Selly Oak Platform 2", is_platform: true, satisfied: false, due_time: "994", duration: 35, distance_m: 4500 },
+          { name: "Bournville Platform 2", is_platform: true, satisfied: false, due_time: "1132", duration: 35, distance_m: 7200 }
+        ];
+        setStops(mockStops);
+      } catch (e) {
+        console.error("Error fetching stops:", e);
+      }
+    };
+
+    if (isConnected) fetchStops();
+  }, [isConnected]);
 
   const formatDistance = (m: number) => {
     if (m === undefined || m < 0) return '---';
@@ -86,21 +116,58 @@ export const TrackProfile: React.FC = () => {
       ctx.shadowColor = (currentGradient > 0) ? 'rgba(239, 68, 68, 0.4)' : // Rojo si sube
                         (currentGradient < 0) ? 'rgba(34, 197, 94, 0.4)' : // Verde si baja
                         'rgba(34, 211, 238, 0.4)';
-      
-      ctx.strokeStyle = (currentGradient > 0) ? 'rgba(239, 68, 68, 0.3)' : 
-                        (currentGradient < 0) ? 'rgba(34, 197, 94, 0.3)' : 
-                        'rgba(34, 211, 238, 0.3)';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-
-      // Estilo: Núcleo brillante
-      ctx.shadowBlur = 5;
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
       ctx.stroke();
     };
 
+    // Dibujar estaciones y paradas
+    const renderStations = () => {
+      ctx.save();
+      stops.forEach(stop => {
+        if (stop.satisfied || stop.distance_m > viewRange) return;
+
+        const x = getX(stop.distance_m);
+        const y = getY(stop.distance_m);
+
+        // Línea vertical marcadora
+        ctx.beginPath();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = stop.is_platform ? '#f472b6' : '#94a3b8'; // Rosa para andén, gris para waypoint
+        ctx.lineWidth = 1;
+        ctx.moveTo(x, y - 60);
+        ctx.lineTo(x, y + 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Icono y Nombre
+        ctx.fillStyle = stop.is_platform ? '#f472b6' : '#94a3b8';
+        ctx.font = 'bold 12px JetBrains Mono';
+        ctx.textAlign = 'center';
+        
+        // Rectángulo de fondo para legibilidad
+        const labelText = stop.name.toUpperCase();
+        const textWidth = ctx.measureText(labelText).width;
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(x - (textWidth/2 + 5), y - 75, textWidth + 10, 18);
+        ctx.globalAlpha = 1.0;
+        
+        ctx.fillStyle = stop.is_platform ? '#f472b6' : '#cbd5e1';
+        ctx.fillText(labelText, x, y - 62);
+
+        // Rectángulo marcador en la vía (Sustituye al rombo)
+        const rectWidth = 12;
+        const rectHeight = 6;
+        ctx.beginPath();
+        ctx.fillRect(x - rectWidth / 2, y - rectHeight / 2, rectWidth, rectHeight);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x - rectWidth / 2, y - rectHeight / 2, rectWidth, rectHeight);
+      });
+      ctx.restore();
+    };
+
     renderTrackLine();
+    renderStations();
 
     // Texto de Gradiente sobre la línea (Más detallado)
     const gradVal = Math.abs(currentGradient);

@@ -1,40 +1,73 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useTelemetrySmoothing } from '../../hooks/useTelemetrySmoothing';
 import { CanvasLayer } from './CanvasLayer';
 
 type CurveMode = 'DYNAMIC' | 'SIGNAL' | 'LIMIT';
 
+interface StationStop {
+  name: string;
+  is_platform: boolean;
+  satisfied: boolean;
+  due_time: string | null;
+  duration: number;
+  distance_m: number;
+}
+
 /**
  * BrakingCurve renderiza la parábola de frenado proyectiva.
- * Basado en la estética del boceto 'Switchable IA Graph'.
  */
 export const BrakingCurve: React.FC = () => {
   const { smooth, raw, isConnected, activeProfile } = useTelemetrySmoothing();
   const [mode, setMode] = useState<CurveMode>('DYNAMIC');
+  const [stops, setStops] = useState<StationStop[]>([]);
+  
+  // En modo dinámico, si hay un escenario cargado, usamos la primera parada pendiente
+  const nextAutoStop = useMemo(() => {
+    return stops.find(s => !s.satisfied);
+  }, [stops]);
+
   // anulación manual para modo dinámico (millas)
   const [customMiles, setCustomMiles] = useState<string>('');
-  // calcular distancia personalizada en metros (o km si no es MPH, pero interpretar como millas)
-  // NOTA: Se elimina la restricción de mode === 'DYNAMIC' para que el cálculo persista en todas las pestañas
+  
+  // calcular distancia objetivo: Manual > Escenario Automático > Proyectada
   const customTargetDist = React.useMemo(() => {
     if (customMiles) {
       const m = parseFloat(customMiles);
-      if (!isNaN(m)) {
-        return m * 1609.34; // siempre tratar como millas
-      }
+      return !isNaN(m) ? m * 1609.34 : (raw.ProjectedBrakingDistance || 0);
+    }
+    if (nextAutoStop && mode === 'DYNAMIC') {
+      return nextAutoStop.distance_m;
     }
     return raw.ProjectedBrakingDistance || 0;
-  }, [customMiles, raw.ProjectedBrakingDistance]);
+  }, [customMiles, nextAutoStop, mode, raw.ProjectedBrakingDistance]);
 
-  // distancia restante cuando se establece un valor manual, disminuye al moverse el tren
+  // Efecto para cargar paradas reales basadas en el tren (RVNumber)
+  useEffect(() => {
+    if (isConnected && (raw as any).RVNumber) {
+      // Usar RVNumber para buscar el servicio del tren en el backend
+      const trainId = (raw as any).RVNumber;
+      
+      // Simulación de llamada al backend para obtener las paradas del servicio de este tren
+      // En una implementación real, esto consultaría a: `/api/scenario/stops?rv=${trainId}`
+      console.log(`[BrakingCurve] Cargando paradas para tren: ${trainId}`);
+      
+      setStops([
+        { name: "Five Ways Platform 2", is_platform: true, satisfied: false, due_time: "6:51", duration: 35, distance_m: 650 },
+        { name: "University (Bham) P2", is_platform: true, satisfied: false, due_time: "6:54", duration: 35, distance_m: 2100 }
+      ]);
+    }
+  }, [isConnected, (raw as any).RVNumber]);
+
+  // distancia restante cuando se establece un valor manual o auto-stop
   const [remainingDist, setRemainingDist] = useState<number>(customTargetDist);
   const lastTimeRef = useRef<number>(Date.now());
   const lastTripRef = useRef<number | null>(null);
 
-  // reiniciar cuando cambie la distancia personalizada
+  // reiniciar cuando cambie la distancia personalizada o el perfil activo
   useEffect(() => {
     setRemainingDist(customTargetDist);
     lastTimeRef.current = Date.now();
-  }, [customTargetDist]);
+  }, [customTargetDist, activeProfile]);
 
   // bucle de decremento: descontar según distancia real recorrida (TripDistance) si está disponible
   // Se elimina la restricción de mode === 'DYNAMIC' para que siga descontando en segundo plano
@@ -153,12 +186,21 @@ export const BrakingCurve: React.FC = () => {
     ctx.stroke();
 
     // 3. Generar y dibujar la curva de frenado proyectada
-    // Determinamos el objetivo según el modo
-    // use manual override if provided (with decrementing remainingDist)
     let targetDist = raw.ProjectedBrakingDistance || 500;
-    if (mode === 'DYNAMIC' && customMiles) {
-      targetDist = remainingDist;
+    let labelTitle = "BRAKING DISTANCE";
+    let targetName = "";
+
+    if (mode === 'DYNAMIC') {
+      if (customMiles) {
+        targetDist = remainingDist;
+        labelTitle = "MANUAL STOP";
+      } else if (nextAutoStop) {
+        targetDist = nextAutoStop.distance_m;
+        labelTitle = "AUTO STATION STOP";
+        targetName = nextAutoStop.name;
+      }
     }
+
     let targetSpeedMS = 0; // m/s internos para física
     let targetSpeedDisplay = 0; 
     let curveColor = '#22d3ee';
@@ -194,15 +236,20 @@ export const BrakingCurve: React.FC = () => {
         // 1. Masa (TrainMass en toneladas): A mayor masa, mayor inercia.
         // 2. Longitud (TrainLength en metros): Afecta a la propagación del freno neumático.
         const massFactor = raw.TrainMass > 0 ? (raw.TrainMass / 500) : 1; // 500t como base
-        const lengthFactor = raw.TrainLength > 0 ? (1 + (raw.TrainLength / 1000) * 0.1) : 1; // Penalización por longitud (propagación aire)
+        const lengthFactor = raw.TrainLength > 0 ? (1 + (raw.TrainLength / 1000) * 0.1) : 1; 
         
-        // Ajustamos la deceleración máxima de servicio esperada según la carga
-        // Si el tren es más pesado de lo habitual para su clase, la capacidad de frenado efectiva baja
+        // 3. Tipo de Tren (Propagación / Lag):
+        // Tipo 0 (Freight): +40% de retraso en respuesta (comportamiento neumático lento)
+        // Tipo 1 (Passenger): Respuesta estándar
+        // Tipo 3 (Light Engine): Respuesta inmediata
+        const typeLagMap: Record<number, number> = { 0: 1.4, 1: 1.0, 2: 1.1, 3: 0.8 };
+        const trainType = (raw as any).TrainType ?? 1;
+        const lagFactor = typeLagMap[trainType] || 1.0;
+
+        // Ajustamos la deceleración máxima de servicio esperada según la carga y el tipo
         let effectiveMaxServiceDecel = activeProfile?.physics_config?.max_braking_decel || 1.0; 
         
-        // factor de compensación: si el tren pesa el doble, necesita más esfuerzo para la misma deceleración
-        // O visto de otra forma, la deceleración que podemos lograr con el mismo freno es menor.
-        effectiveMaxServiceDecel = effectiveMaxServiceDecel / (massFactor * lengthFactor);
+        effectiveMaxServiceDecel = effectiveMaxServiceDecel / (massFactor * lengthFactor * lagFactor);
 
         // --- Influencia del Gradiente (Desnivel) ---
         // La gravedad ayuda o dificulta el frenado: a_gravity = g * sin(theta)
@@ -322,10 +369,13 @@ export const BrakingCurve: React.FC = () => {
         case 'SIGNAL': return { label: 'Next Signal', dist: raw.DistToNextSignal, val: raw.NextSignalAspect };
         case 'LIMIT': return { label: 'Next Limit', dist: raw.DistToNextSpeedLimit, val: `${raw.NextSpeedLimit} ${raw.SpeedUnit}` };
         default: {
-            const dist = customMiles ? remainingDist : raw.ProjectedBrakingDistance;
-            const val = customMiles ? `${customMiles} mi` : 'Dynamic';
-            const label = customMiles ? 'Manual Stop' : 'Optimal Stop';
-            return { label, dist, val };
+            if (customMiles) {
+              return { label: 'Manual Stop', dist: remainingDist, val: `${customMiles} mi` };
+            }
+            if (nextAutoStop) {
+              return { label: `Station: ${nextAutoStop.name}`, dist: nextAutoStop.distance_m, val: nextAutoStop.is_platform ? 'PLATFORM' : 'WPT' };
+            }
+            return { label: 'Optimal Stop', dist: raw.ProjectedBrakingDistance, val: 'Dynamic' };
         }
     }
   };
@@ -339,23 +389,38 @@ export const BrakingCurve: React.FC = () => {
           <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] font-mono leading-none">
             Braking Curve // {mode}
           </span>
-          <span className="text-[14px] text-cyan-400 font-mono font-bold drop-shadow-[0_0_8px_rgba(34,211,238,0.4)] truncate" 
-                style={{ color: mode === 'DYNAMIC' ? '#22d3ee' : mode === 'SIGNAL' ? '#f87171' : '#fbbf24' }}>
+          <span className={`text-[14px] font-mono font-bold drop-shadow-[0_0_8px_rgba(34,211,238,0.4)] truncate ${
+            mode === 'DYNAMIC' ? 'text-cyan-400' : mode === 'SIGNAL' ? 'text-red-400' : 'text-amber-400'
+          }`}>
             {info.label}: <span className="text-white">{formatDistance(info.dist)}</span>
             <span className="ml-2 text-[10px] opacity-40">[{info.val}]</span>
           </span>
           {mode === 'DYNAMIC' && (
-            <div className="mt-1 flex items-center gap-2">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="mi"
-                value={customMiles}
-                onChange={e => setCustomMiles(e.target.value)}
-                className="w-20 text-[10px] rounded border border-white/10 px-1.5 py-0.5 bg-black/40 text-white focus:border-cyan-500/50 outline-none transition-colors"
-              />
-              <span className="text-[9px] text-white/30 uppercase font-mono tracking-tighter">Set manual dist (mi)</span>
+            <div className="absolute top-14 left-0 mt-2 flex items-center gap-1">
+              <div className="bg-black/80 border border-white/10 rounded-sm p-1 flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={customMiles}
+                  onChange={e => setCustomMiles(e.target.value)}
+                  className="w-16 text-center text-[10px] font-mono rounded bg-white/5 border border-white/10 px-1 py-0.5 text-white outline-none placeholder:text-white/10"
+                />
+                <div className="flex flex-col pr-1">
+                  <span className="text-[7px] text-white/50 font-bold uppercase leading-none">Manual Dist</span>
+                  <span className="text-[9px] text-white/30 font-mono leading-none">MI</span>
+                </div>
+                {customMiles && (
+                  <button 
+                    onClick={() => setCustomMiles("")}
+                    className="ml-1 px-1 text-white/20 hover:text-white transition-colors text-[10px]"
+                    title="Clear"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>

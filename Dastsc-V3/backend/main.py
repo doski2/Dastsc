@@ -89,37 +89,33 @@ async def telemetry_reader():
             active_path = GETDATA_PATH if os.path.exists(GETDATA_PATH) else ALT_PATH
             
             if os.path.exists(active_path):
-                mtime = os.path.getmtime(active_path)
-                if mtime != last_mtime:
-                    last_mtime = mtime
-                    with open(active_path, "r", encoding="utf-8") as f:
-                        line = f.readline()
-                        if line:
-                            data = parse_telemetry_line(line)
-                            
-                            # La autodetección está desactivada en favor del sistema manual de v3
-                            # Pero mantenemos la sincronización del perfil actual en cada tick
-                            
-                            payload = {
-                                "type": "TELEMETRY", 
-                                **data,
-                                "active_profile": manager.current_profile,
-                                "active_profile_id": manager.current_profile.get("id") if manager.current_profile else None,
-                                "timestamp": time.time()
-                            }
+                # En Windows, mtime no siempre cambia instantáneamente por el sistema de archivos
+                # Pero leeremos siempre si el archivo existe para máxima frecuencia (0.02s = 50Hz)
+                with open(active_path, "r", encoding="utf-8") as f:
+                    line = f.readline()
+                    if line:
+                        data = parse_telemetry_line(line)
+                        
+                        payload = {
+                            "type": "TELEMETRY", 
+                            **data,
+                            "active_profile": manager.current_profile,
+                            "active_profile_id": manager.current_profile.get("id") if manager.current_profile else None,
+                            "timestamp": time.time()
+                        }
 
-                            # Enviar lista de perfiles cada 5 segundos (10Hz * 50) para asegurar que la UI tenga los datos
-                            sync_counter += 1
-                            if sync_counter % 50 == 0:
-                                payload["available_profiles"] = manager.profile_manager.get_all_profiles()
+                        sync_counter += 1
+                        if sync_counter % 250 == 0: # Cada 5 segundos a 50Hz
+                            payload["available_profiles"] = manager.profile_manager.get_all_profiles()
 
-                            await manager.broadcast(payload)
+                        await manager.broadcast(payload)
             
-            # Sondeo a 10Hz (0.1s) es suficiente para el interpolador SmoothEngine
-            await asyncio.sleep(0.1)
+            # Sondeo a 50Hz (0.02s) para eliminar el lag del bridge
+            await asyncio.sleep(0.02)
         except Exception as e:
             print(f"Error en telemetry_reader: {e}")
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
+
 
 @app.on_event("startup")
 async def startup_event():

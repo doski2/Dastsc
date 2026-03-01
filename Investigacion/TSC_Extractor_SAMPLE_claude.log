@@ -1,0 +1,118 @@
+============================================================
+  TSC EXTRACTOR LOG - 2024-03-15 10:32:01
+============================================================
+
+[000000] === INICIALIZANDO TSC EXTRACTOR ===
+[000000] Intervalo de muestreo: 2.0s
+
+--- Scenario Properties -------------------------
+[000000]   ScenarioManager::GetScenarioName                   = Servicio Londres-Brighton
+[000000]   ScenarioManager::GetRouteName                      = East Coastway
+[000000]   ScenarioManager::GetCurrentTime                    = 28800.0        ← segundos desde medianoche (= 08:00:00)
+[000000]   ScenarioManager::GetElapsedTime                    = 142.5
+[000000]   ScenarioManager::GetScore                          = 850
+[000000]   ScenarioManager::GetMaxScore                       = 1000
+[000000]   ScenarioManager::GetWeather                        = nil            ← no disponible
+
+--- ScenarioManager Targets ---------------------
+[000000] GetTargetCount          = 4                          ← HAY 4 PARADAS PROGRAMADAS
+[000000] GetCurrentTarget        = 1                          ← estamos en la parada índice 1
+[000000] GetDistanceToNextStop   = nil | ERROR: ...           ← esta SysCall no existe en esta versión
+[000000]   [Target 0]
+[000000]     Name      = London Victoria                      ← ✅ NOMBRE EXTRAÍDO
+[000000]     Distance  = -1240.5                              ← negativo = ya pasada
+[000000]     State     = 2                                    ← 0=pendiente 1=activa 2=completada
+[000000]     Time      = 28680.0
+[000000]     Scheduled = 28620.0
+[000000]   [Target 1]
+[000000]     Name      = Clapham Junction                     ← ✅ parada actual
+[000000]     Distance  = 320.8                                ← metros restantes
+[000000]     State     = 1                                    ← activa
+[000000]     Time      = nil
+[000000]     Scheduled = 29100.0
+[000000]   [Target 2]
+[000000]     Name      = East Croydon
+[000000]     Distance  = 14850.0
+[000000]     State     = 0                                    ← pendiente
+[000000]     Time      = nil
+[000000]     Scheduled = 29700.0
+[000000]   [Target 3]
+[000000]     Name      = Brighton
+[000000]     Distance  = 78420.0
+[000000]     State     = 0
+[000000]     Time      = nil
+[000000]     Scheduled = 31200.0
+
+--- Stop Alternatives ---------------------------
+[000000]   ScenarioManager::GetNextStopName                   = Clapham Junction  ← alternativa válida
+[000000]   ScenarioManager::GetNextStopDistance               = 320.8
+[000000]   ScenarioManager::GetNextTarget                     = nil
+[000000]   ScenarioManager::GetStationName                    = nil | ERROR: ...
+[000000]   ScenarioManager::GetStationDistance                = nil | ERROR: ...
+[000000]   ScenarioManager::GetCurrentStopName                = nil | ERROR: ...
+[000000]   ScenarioManager::GetPassengerStopName              = nil | ERROR: ...
+[000000]   ScenarioManager::GetObjectiveName                  = Llegar a Clapham Junction
+[000000]   ScenarioManager::GetObjectiveDistance              = 320.8
+
+--- Train / Engine Info -------------------------
+[000000]   ScenarioManager::GetSpeed                          = nil | ERROR: ...
+[000000]   ScenarioManager::GetPlayerTrainSpeed               = nil | ERROR: ...
+[000000]   ScenarioManager::GetDistanceTravelled              = 1240.5
+[000000]   ScenarioManager::GetTotalDistance                  = nil | ERROR: ...
+[000000]   ScenarioManager::GetMilepost                       = nil | ERROR: ...
+[000000]   Train::GetSpeed                                    = nil | ERROR: ...
+[000000]   Train::GetDistanceTravelled                        = nil | ERROR: ...
+
+--- Alternative Namespaces (brute-force) --------
+[000000]   [HIT] PlayerTrain::GetSpeed    = 22.3              ← namespace correcto para velocidad
+[000000]   [HIT] Consist::GetName        = Class 377
+
+[000000] === INIT COMPLETO - Comenzando ciclo de update ===
+
+[000000] >>> UPDATE #1 | dt=2.001s
+--- Dynamic Values ------------------------------
+[000000]   DistToNextStop   = nil
+[000000]   DistTravelled    = 1580.2
+[000000]   CurrentTarget    = 1
+[000000]   TargetName       = Clapham Junction
+[000000]   TargetDistance   = -18.4                           ← NEGATIVO = tren en la estación ✅
+[000000]   TargetState      = 1
+
+[000002] >>> UPDATE #2 | dt=2.000s
+--- Dynamic Values ------------------------------
+[000002]   DistToNextStop   = nil
+[000002]   DistTravelled    = 1580.2                          ← igual = tren parado en estación
+[000002]   CurrentTarget    = 2                               ← ✅ avanzó al siguiente target
+[000002]   TargetName       = East Croydon
+[000002]   TargetDistance   = 13610.0
+[000002]   TargetState      = 0
+
+============================================================
+  GUÍA DE INTERPRETACIÓN
+============================================================
+
+ESTADOS (TargetState):
+  0 = Pendiente   (upcoming stop)
+  1 = Activo      (approaching / current stop)
+  2 = Completado  (stop passed)
+
+DISTANCIA (TargetDistance):
+  > 0   = metros restantes hasta la parada
+  < 0   = ya pasó esa parada (metros de sobrepaso)
+  ~0    = tren en la parada
+
+TIEMPO (TargetTime / TargetScheduled):
+  Valor en segundos desde medianoche del escenario
+  Convertir: horas = valor / 3600
+
+SysCalls que DEVUELVEN nil|ERROR:
+  → Esa función no existe en tu versión de TSC
+  → Ignorar y usar las que sí respondieron
+
+SysCalls más fiables confirmadas:
+  ✅ ScenarioManager::GetTargetName(index)
+  ✅ ScenarioManager::GetTargetDistance(index)
+  ✅ ScenarioManager::GetTargetState(index)
+  ✅ ScenarioManager::GetCurrentTarget
+  ✅ ScenarioManager::GetTargetCount
+  ✅ ScenarioManager::GetDistanceTravelled

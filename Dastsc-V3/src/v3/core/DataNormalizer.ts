@@ -77,11 +77,17 @@ export class DataNormalizer {
       speedUnit = speedoType === 2 ? 'KPH' : 'MPH';
     }
 
-    const toMS = speedUnit === 'KPH' ? 1/3.6 : 1/2.2369400000000003;
+    const toMS = speedUnit === 'KPH' ? 1/3.6 : 0.44704;
     const fromMS = speedUnit === 'KPH' ? 3.6 : 2.23694;
 
-    let dtSim = 0;
+    // Procesamiento de límites de velocidad (Formato Horizontal V3)
+    const currentLimitConverted = Number(raw.CurrentSpeedLimit || 0); // Ya viene convertido desde Lua
+    const nextLimit0Speed = Number(raw.NextLimit0Speed || 0);
+    const nextLimit0Dist = Number(raw.NextLimit0Dist || -1);
 
+    this.state.effectiveSpeedLimit = currentLimitConverted * toMS; // Almacenamos en m/s interno
+
+    let dtSim = 0;
     // Lógica de Delta Time robusta (Evita avanzar el odómetro en pausa)
     if (this.state.lastSimTime > 0) {
         if (rawSimTime > this.state.lastSimTime) {
@@ -92,11 +98,19 @@ export class DataNormalizer {
         }
     }
     
-    this.state.lastSimTime = rawSimTime;
-    this.state.lastRealTime = now;
+    // 0. Latencia y Performance (Del nuevo campo LuaMS)
+    const luaLatency = Number(raw.LuaMS || 0);
 
     // 1. Unificación de Velocidad (m/s)
     let speedMS = 0;
+    const currentSpeedRaw = Number(raw.CurrentSpeed || 0);
+
+    // Mapeo de Controles (Unificación V4.1) - Se extraen aquí para uso temprano
+    const rawThrottle = Number(raw.Throttle || 0);
+    const rawTrainBrake = Number(raw.TrainBrake || 0);
+    const rawCombined = Number(raw.Combined || 0);
+    const rawReversal = Number(raw.Reversal || 0);
+
     if (raw.CabSpeed !== undefined && raw.CabSpeed !== 0) {
       speedMS = raw.CabSpeed * toMS;
     } else if (raw.CurrentSpeed !== undefined) {
@@ -104,6 +118,7 @@ export class DataNormalizer {
     } else {
       speedMS = Math.abs(raw.Speed || 0) * toMS;
     }
+
 
     // 1.1 Límite de Velocidad (Normalizar a m/s inmediatamente)
     const rawLimitMS = Number(raw.CurrentSpeedLimit || 0) * toMS;
@@ -181,19 +196,25 @@ export class DataNormalizer {
     const tractionPercent = (this.state.emaAmperage / limitRef) * 100;
 
     // 4. Presiones (Suavizado lento para efecto analógico)
-    const rawBC = raw.TrainBrakeCylinderPressureBAR || raw.EngineBrakeCylinderPressureBAR || 0;
-    const rawBP = raw.TrainBrakePipePressureBAR || 0;
-    const rawMR = raw.MainResPressureBAR || 0;
-    const rawER = raw.EqResPressureBAR || 0;
+    const rawBC = raw.BC || raw.TrainBrakeCylinderPressureBAR || raw.EngineBrakeCylinderPressureBAR || 0;
+    const rawBP = raw.BP || raw.TrainBrakePipePressureBAR || 0;
+    const rawMR = raw.MR || raw.MainResPressureBAR || 0;
+    const rawER = raw.ER || raw.EqResPressureBAR || 0;
 
     this.state.emaBrakeCyl = (rawBC * EMA_SLOW) + (this.state.emaBrakeCyl * (1 - EMA_SLOW));
     this.state.emaBrakePipe = (rawBP * EMA_SLOW) + (this.state.emaBrakePipe * (1 - EMA_SLOW));
     this.state.emaMainRes = (rawMR * EMA_SLOW) + (this.state.emaMainRes * (1 - EMA_SLOW));
     this.state.emaEqRes = (rawER * EMA_SLOW) + (this.state.emaEqRes * (1 - EMA_SLOW));
     
+    // Detección inteligente de Unidad de Presión
+    // Si la presión del cilindro o tubería supera 15, asumimos PSI (el máximo en BAR suele ser 10-12)
+    const interpretedAsPSI = rawBC > 15 || rawBP > 15 || rawMR > 20;
+    const trainUnit = interpretedAsPSI ? 'PSI' : 'BAR';
+    const pressureUnit = profile?.visuals?.pressure_unit || trainUnit;
+
     // 4.1 Cálculo de Potencia de Frenado Virtual (Braking Effort)
     // El freno neumático depende de la presión en el cilindro (BC)
-    const maxBC = profile?.specs?.max_bc_pressure || 5.0; // suele ser 5 BAR o 72 PSI
+    const maxBC = pressureUnit === 'PSI' ? 72.5 : 5.0; 
     const bcPercent = Math.min(1.1, this.state.emaBrakeCyl / maxBC);
     const pneumaticBrakingForce = bcPercent * (profile?.physics_config?.max_braking_kn || 200);
     
@@ -206,7 +227,6 @@ export class DataNormalizer {
     const rawGrad = (raw.Gradient || 0);
     this.state.emaGradient = (rawGrad * EMA_SLOW) + (this.state.emaGradient * (1 - EMA_SLOW));
 
-    const pressureUnit = profile?.visuals?.pressure_unit || (speedUnit === 'MPH' ? 'PSI' : 'BAR');
     const pFactor = pressureUnit === 'PSI' ? 14.5038 : 1;
 
     // 5. Lógica de "Cola de Tren" (Tail Protection)
@@ -332,13 +352,18 @@ export class DataNormalizer {
     this.state.lastNextLimitDist = rawNextLimitDist;
     this.state.lastNextLimitSpeed = rawNextLimitSpeedMS;
 
-    // 5. Unificación de Señales y Distancias
+    // 5. Unificación de Señales y Distancias (V4.1 Pro)
+    const rawSigRes = Number(raw.SigRes ?? -1);
+    const rawSigState = Number(raw.SigState ?? -1);
+    const rawSigDist = Number(raw.SigDist ?? -1);
+
+    // Fallbacks para versiones antiguas
     const sigStateRaw = raw.NextSignalState ?? -1;
     const sigInternal = raw.InternalAspect ?? -1;
     const restrState = raw.RestrictiveState ?? -1;
-    
-    // Intentar obtener la distancia de varias fuentes comunes en Railworks
-    let sigDist = parseFloat(raw.NextSignalDistance || raw.DistanceToNextSignal || -1);
+
+    // Prioridad absoluta a GetNextRestrictiveSignal del nuevo motor Lua
+    let sigDist = (rawSigRes > 0) ? rawSigDist : parseFloat(raw.NextSignalDistance || raw.DistanceToNextSignal || -1);
     const restrDist = parseFloat(raw.RestrictiveDistance || -1);
 
     // Fallback: Si la distancia principal es -1 o 0, y tenemos una restrictiva válida, usar esa
@@ -347,12 +372,14 @@ export class DataNormalizer {
     }
     
     let aspect = 'CLEAR';
-    let sigVal = sigStateRaw;
+    let sigVal = (rawSigRes > 0) ? rawSigState : (sigStateRaw !== -1 ? sigStateRaw : sigInternal);
 
-    if ((sigStateRaw === 3 || sigStateRaw === -1) && restrState >= 0) {
-      sigVal = restrState;
-    } else if (sigInternal >= 0) {
-      sigVal = sigInternal;
+    if (rawSigRes <= 0) {
+        if ((sigVal === 3 || sigVal === -1) && restrState >= 0) {
+            sigVal = restrState;
+        } else if (sigInternal >= 0) {
+            sigVal = sigInternal;
+        }
     }
 
     switch(sigVal) {
@@ -367,13 +394,13 @@ export class DataNormalizer {
     }
 
     // 6. Sistemas de Seguridad y Tiempo
-    const aws = raw.AWS || raw.AWSWarnCount || raw.AWSWarnAudio || 0;
-    const dsd = raw.DVDAlarm || raw.VigilAlarm || 0;
-    const dra = raw.DRA === 1;
-    const sander = raw.Sander === 1;
+    const aws = Number(raw.AWS || raw.AWSWarnCount || raw.AWSWarnAudio || 0);
+    const dsd = Number(raw.DSD || raw.DVDAlarm || raw.VigilAlarm || 0);
+    const dra = Number(raw.DRA || 0) === 1;
+    const sander = Number(raw.Sander || 0) === 1;
     const doors = {
-      left: (raw.DoorsOpenCloseLeft || 0) > 0.5,
-      right: (raw.DoorsOpenCloseRight || 0) > 0.5
+      left: Number(raw.DoorL || raw.DoorsOpenCloseLeft || 0) > 0.5,
+      right: Number(raw.DoorR || raw.DoorsOpenCloseRight || 0) > 0.5
     };
 
     // Conversión de TimeOfDay (segundos desde medianoche)
@@ -383,10 +410,11 @@ export class DataNormalizer {
     const s = Math.floor(timeSecs % 60);
     const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 
-    // 7. Proyecciones y Retorno
-    const currentThrottle = raw.Throttle ?? raw.Regulator ?? 0;
-    const currentBrake = raw.TrainBrake ?? raw.TrainBrakeControl ?? 0;
-    const combinedControl = raw.CombinedControl ?? (currentThrottle - currentBrake);
+    // 7. Proyecciones y Retorno (Unificación Final V4.1)
+    const currentThrottle = Number(raw.Throttle || raw.Regulator || rawThrottle || 0);
+    const currentBrake = Number(raw.TrainBrake || raw.TrainBrakeControl || rawTrainBrake || 0);
+    const combinedControl = Number(raw.Combined || raw.CombinedControl || rawCombined || (currentThrottle - currentBrake));
+    const reverser = Number(raw.Reversal || raw.Reverser || rawReversal || 0);
     const projectedSpeedMS = Math.max(0, speedMS + (this.state.emaAcceleration * 10));
     
     // 8. Cálculo de Física Predictiva (Braking Curve)
@@ -401,7 +429,7 @@ export class DataNormalizer {
       Throttle: currentThrottle,
       TrainBrake: currentBrake,
       CombinedControl: combinedControl,
-      Reverser: raw.Reverser || 0,
+      Reverser: reverser,
       SpeedDisplay: speedMS * fromMS,
       SpeedUnit: speedUnit,
       Acceleration: this.state.emaAcceleration,
@@ -431,7 +459,8 @@ export class DataNormalizer {
       NextSignalAspect: aspect,
       DistToNextSignal: sigDist,
       TrainLength: trainLength,
-      TrainMass: raw.TrainMass || 0,
+      // Mapeamos 'Mass' del script Lua (en Toneladas según GetData.txt) a 'TrainMass' en V3
+      TrainMass: Number(raw.Mass || raw.TrainMass || 0),
       ProjectedBrakingDistance: projectedBrakingDistance,
       TripDistance: this.state.totalDistance,
       IsEmergency: raw.EmergencyBrake === 1 || raw.EmergencyBrake === true,

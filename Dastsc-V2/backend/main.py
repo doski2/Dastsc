@@ -4,9 +4,10 @@ import asyncio
 import os
 import time
 import glob
-from typing import List
+from typing import List, Dict
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
+from core.scenarios import ScenarioManager
 from physics.engine import PhysicsEngine
 
 app = FastAPI(title="Dastsc V2 Backend")
@@ -48,6 +49,7 @@ class TelemetryManager:
                 
         print(f"DEBUG: NEXUS CORE seleccionó ruta: {self.profiles_path}")
         self.profile_manager = ProfileManager(self.profiles_path)
+        self.scenario_manager = ScenarioManager()
         self.current_profile = None
         self.last_payload = {}
 
@@ -147,6 +149,10 @@ async def startup_event():
     # Iniciar el lector de telemetría en segundo plano
     asyncio.create_task(telemetry_reader())
 
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
 @app.get("/debug")
 async def get_debug():
     perfil = manager.current_profile
@@ -156,6 +162,16 @@ async def get_debug():
         "current_profile": perfil.get("name") if perfil else "None",
         "active_connections": len(manager.active_connections)
     }
+
+@app.get("/scenarios")
+async def get_scenarios():
+    """Obtiene la lista de los escenarios disponibles en RailWorks."""
+    return manager.scenario_manager.get_available_scenarios()
+
+@app.get("/scenarios/stops")
+async def get_scenario_stops(path: str):
+    """Obtiene las paradas de un escenario específico."""
+    return manager.scenario_manager.get_scenario_stops(path)
 
 @app.websocket("/ws/telemetry")
 async def websocket_endpoint(websocket: WebSocket):

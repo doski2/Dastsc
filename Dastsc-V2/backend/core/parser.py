@@ -11,12 +11,15 @@ def parse_telemetry_line(line: str) -> dict:
     for token in tokens:
         if ":" in token:
             try:
-                key, val = token.split(":", 1)
-                # Intentar convertir a float si parece un número
-                if val.replace('.', '', 1).replace('-', '', 1).isdigit():
-                    data[key] = float(val)
-                else:
-                    data[key] = val
-            except ValueError:
+                # Partir solo por el primer dos puntos
+                parts = token.split(":", 1)
+                if len(parts) == 2:
+                    key, val = parts
+                    # Verificación más robusta de números (soporta notación científica, .5, etc)
+                    try:
+                        data[key] = float(val)
+                    except ValueError:
+                        data[key] = val
+            except Exception:
                 continue
     return data

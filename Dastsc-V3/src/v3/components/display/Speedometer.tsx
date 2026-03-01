@@ -63,6 +63,34 @@ export const Speedometer: React.FC = () => {
     ctx.arc(centerX, centerY, radius + 5, 0.75 * Math.PI, endAngle);
     ctx.stroke();
 
+    // 2.1 Arco de Potencia / Freno (Interno)
+    const combinedVal = raw.CombinedControl !== 0 ? raw.CombinedControl : (raw.Throttle - raw.TrainBrake);
+    const ctrlPercent = Math.max(-1, Math.min(1, combinedVal));
+    const ctrlAngle = 1.5 * Math.PI; // El centro es 1.5 * PI (arriba)
+    const ctrlWidth = 0.4 * Math.PI;
+    
+    ctx.setLineDash([]);
+    ctx.lineWidth = 4;
+    ctx.shadowBlur = 0;
+    
+    // Fondo del arco de control
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius - 10, 1.5 * Math.PI - ctrlWidth/2, 1.5 * Math.PI + ctrlWidth/2);
+    ctx.stroke();
+
+    if (ctrlPercent !== 0) {
+      ctx.strokeStyle = ctrlPercent > 0 ? '#22d3ee' : '#f97316';
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = ctx.strokeStyle;
+      ctx.beginPath();
+      // Dibujamos desde el centro (arriba) hacia los lados
+      const startA = 1.5 * Math.PI;
+      const endA = 1.5 * Math.PI + (ctrlPercent * (ctrlWidth/2));
+      ctx.arc(centerX, centerY, radius - 10, Math.min(startA, endA), Math.max(startA, endA));
+      ctx.stroke();
+    }
+
     // 3. Esfera de G-Force (Abajo a la izquierda)
     const gSize = 40;
     const gX = centerX - radius + 10;
@@ -130,15 +158,16 @@ export const Speedometer: React.FC = () => {
   const currentNotches = notches ? notches.map((n: any) => ({
     value: n.value,
     label: n.label,
-    // Inferimos tipo si no viene
+    // Inferimos tipo basado en el valor relativo al punto neutro (0.0)
     type: n.value > 0 ? 'power' : n.value < 0 ? 'brake' : 'neutral'
-  })).reverse() : defaultNotches;
+  })).sort((a: any, b: any) => b.value - a.value) : defaultNotches;
 
   // Encontrar el notch activo
   const findActiveNotch = () => {
-    if (notches) {
-      // Si el perfil tiene muescas combinadas (-1 a 1)
-      const combinedVal = raw.CombinedControl !== undefined ? raw.CombinedControl : (raw.Throttle - raw.TrainBrake);
+    // Valor unificado para comparación
+    const combinedVal = raw.CombinedControl !== 0 ? raw.CombinedControl : (raw.Throttle - raw.TrainBrake);
+    
+    if (notches && notches.length > 0) {
       let closest = notches[0];
       let minDiff = Math.abs(combinedVal - notches[0].value);
       
@@ -151,15 +180,16 @@ export const Speedometer: React.FC = () => {
       }
       return closest.label;
     } else {
-      // Lógica por defecto
-      if (raw.Throttle > 0) {
-        if (raw.Throttle > 0.9) return 'P7';
-        if (raw.Throttle > 0.6) return 'P5';
+      // Lógica por defecto adaptada a controles separados o combinados
+      if (combinedVal > 0.05) {
+        if (combinedVal > 0.9) return 'P7';
+        if (combinedVal > 0.6) return 'P5';
         return 'P1';
       }
-      if (raw.TrainBrake > 0.05) {
-        if (raw.TrainBrake > 0.8) return 'B9';
-        if (raw.TrainBrake > 0.4) return 'B5';
+      if (combinedVal < -0.05) {
+        const brakeMag = Math.abs(combinedVal);
+        if (brakeMag > 0.8) return 'B9';
+        if (brakeMag > 0.4) return 'B5';
         return 'B1';
       }
       return 'N';

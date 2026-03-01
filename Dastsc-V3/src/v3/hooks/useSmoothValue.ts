@@ -26,22 +26,29 @@ export function useSmoothValue(targetValue: number, factor: number = 0.1): numbe
     targetRef.current = targetValue;
   }, [targetValue]);
 
-  const animate = () => {
-    // LERP básico: actual = actual + (objetivo - actual) * factor
-    const diff = targetRef.current - currentRef.current;
-    
-    // Umbral para detener la animación cuando está muy cerca
-    if (Math.abs(diff) < 0.001) {
-      currentRef.current = targetRef.current;
-    } else {
-      currentRef.current += diff * factor;
-      setSmoothedValue(currentRef.current);
-    }
-    
-    requestRef.current = requestAnimationFrame(animate);
-  };
-
   useEffect(() => {
+    let lastTime = performance.now();
+    
+    const animate = (time: number) => {
+      // Calculamos cuánto tiempo ha pasado realmente (Delta Time)
+      const dt = (time - lastTime) / (1000 / 60); // Normalizado a 60 FPS
+      lastTime = time;
+
+      const diff = targetRef.current - currentRef.current;
+      
+      if (Math.abs(diff) < 0.0001) {
+        currentRef.current = targetRef.current;
+      } else {
+        // LERP compensado por Delta Time
+        // Esto elimina los saltos si el script Lua tarda un poco más en escribir
+        const adjustedFactor = 1 - Math.pow(1 - Math.min(factor, 0.99), dt);
+        currentRef.current += diff * adjustedFactor;
+      }
+      
+      setSmoothedValue(currentRef.current);
+      requestRef.current = requestAnimationFrame(animate);
+    };
+
     requestRef.current = requestAnimationFrame(animate);
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
