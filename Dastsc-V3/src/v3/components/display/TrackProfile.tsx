@@ -76,9 +76,10 @@ export const TrackProfile: React.FC = () => {
     
     // Gradiente: Desplazamiento máximo de 50px para 5% de gradiente
     // Gradiente y Curvatura
-    // CORRECCIÓN Nexus/Railworks: Invertimos el signo para que (-) sea subida y (+) sea bajada visualmente
+    // CORRECCIÓN Nexus/Railworks: En Railworks (+) es Subida y (-) es Bajada.
+    // Para que la vía suba visualmente en la pantalla, el offset en Y debe ser negativo (Y disminuye hacia arriba).
     const rawGradient = smooth.gradient || 0;
-    const currentGradient = -rawGradient;
+    const currentGradient = rawGradient; // (+) Subida -> Offset negativo -> Vía sube
     const currentLateralG = smooth.lateralG || 0;
     
     const gradientOffset = currentGradient * 15; 
@@ -111,11 +112,21 @@ export const TrackProfile: React.FC = () => {
         else ctx.lineTo(x, y + wiggle);
       }
 
-      // Estilo: Brillo exterior (Glow)
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = (currentGradient > 0) ? 'rgba(239, 68, 68, 0.4)' : // Rojo si sube
-                        (currentGradient < 0) ? 'rgba(34, 197, 94, 0.4)' : // Verde si baja
-                        'rgba(34, 211, 238, 0.4)';
+      // Estilo de la línea principal (Más grueso y brillante)
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = (currentGradient > 0) ? '#f87171' : // Rojo sólido (Subida)
+                        (currentGradient < 0) ? '#4ade80' : // Verde sólido (Bajada)
+                        '#22d3ee';           // Cian sólido (Llano)
+
+      // Estilo: Brillo exterior (Glow mejorado)
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = ctx.strokeStyle;
+      ctx.stroke();
+
+      // Añadir una segunda pasada blanca central para efecto "Neón"
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.shadowBlur = 0;
       ctx.stroke();
     };
 
@@ -170,12 +181,16 @@ export const TrackProfile: React.FC = () => {
     renderStations();
 
     // Texto de Gradiente sobre la línea (Más detallado)
-    const gradVal = Math.abs(currentGradient);
-    // Usamos rawGradient para la lógica de colores/iconos de modo que (-) sea SUBIDA y (+) sea BAJADA
-    const gradColor = rawGradient < 0 ? '#f87171' : rawGradient > 0 ? '#4ade80' : '#94a3b8';
-    const gradIcon = rawGradient < 0 ? '▲' : rawGradient > 0 ? '▼' : '─';
+    const gradVal = Math.abs(rawGradient);
+    // Railworks: (+) Subida Rojo ▲, (-) Bajada Verde ▼
+    const isUp = rawGradient > 0;
+    const isDown = rawGradient < 0;
+    
+    const gradColor = isUp ? '#f87171' : isDown ? '#4ade80' : '#94a3b8';
+    const gradIcon = isUp ? '▲' : isDown ? '▼' : '─';
     const ratio = gradVal > 0 ? Math.round(100 / gradVal) : 0;
     
+    ctx.shadowBlur = 0;
     ctx.fillStyle = gradColor;
     ctx.font = 'bold 13px JetBrains Mono';
     const gradText = `${gradIcon} ${gradVal.toFixed(2)}% ${ratio > 0 ? `(1:${ratio})` : ''}`;

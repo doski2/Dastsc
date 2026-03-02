@@ -122,14 +122,18 @@ export const Speedometer: React.FC = () => {
     ctx.stroke();
 
     // El punto de inercia (G-Point)
+    // Escala: Si el máximo esperado es 1.0G o 2.0G, ajustamos el multiplicador.
+    // Con multiplier = 10, 1.0G se desplaza 10px (el borde del globo suele ser gSize/2 = 20px)
+    // gSize = 40, así que 20px es el límite visual del globo.
+    const gMultiplier = 15; 
     const accelerationG = raw.GForce;
     const lateralG = raw.LateralG || 0;
     
     // Inversión de Inercia: 
     // Si aceleras (+), tu cuerpo se mueve hacia Atras (Y+)
     // Si giras Derecha (+ Curvature), tu cuerpo se mueve hacia la Izquierda (X-)
-    const pointX = gX - (lateralG * 25); 
-    const pointY = gY + (accelerationG * 25); 
+    const pointX = gX - (lateralG * gMultiplier); 
+    const pointY = gY + (accelerationG * gMultiplier); 
 
     ctx.shadowBlur = 10;
     ctx.shadowColor = '#22d3ee';
@@ -138,11 +142,11 @@ export const Speedometer: React.FC = () => {
     ctx.arc(pointX, pointY, 3, 0, Math.PI * 2);
     ctx.fill();
 
-    // Texto de valores G debajo del globo
+    // Texto de valores G debajo del globo (Con 2 decimales para máxima precisión)
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.font = '9px JetBrains Mono';
     ctx.textAlign = 'center';
-    ctx.fillText(`L:${lateralG.toFixed(2)} Lon:${accelerationG.toFixed(2)}`, gX, gY + gSize/2 + 10);
+    ctx.fillText(`L:${(lateralG * 10).toFixed(2)} Lon:${(accelerationG * 10).toFixed(2)}`, gX, gY + gSize/2 + 10);
     
     ctx.restore();
   };
@@ -224,7 +228,7 @@ export const Speedometer: React.FC = () => {
         </div>
         <div className="mt-2 flex flex-col items-center">
             <span className="text-xs font-mono text-cyan-500/60 font-bold tracking-widest">
-                {raw.GForce >= 0 ? '+' : ''}{raw.GForce.toFixed(2)}G
+                {raw.GForce >= 0 ? '+' : ''}{(raw.GForce * 10).toFixed(2)}G
             </span>
             <div className={`mt-1 px-3 py-1 rounded-full text-xs font-bold transition-all ${
               raw.SpeedDisplay > raw.SpeedLimit ? 'bg-red-500/30 text-red-400' : 'bg-white/10 text-white/50'
