@@ -26,6 +26,8 @@ export function useTelemetrySmoothing() {
   const smoothStationDist = useSmoothValue(data.StationDistance, distFactor);
   const smoothLateralG = useSmoothValue(data.LateralG, 0.1);
   const smoothGForce = useSmoothValue(data.GForce, 0.1);
+  const smoothTailSeconds = useSmoothValue(data.TailSecondsRemaining, 0.7); 
+  const smoothTailDistance = useSmoothValue(data.TailDistanceRemaining, 0.7); 
   
   return {
     raw: data,
@@ -42,7 +44,9 @@ export function useTelemetrySmoothing() {
       gradient: smoothGradient,
       stationDistance: smoothStationDist,
       lateralG: smoothLateralG,
-      gForce: smoothGForce
+      gForce: smoothGForce,
+      tailSeconds: smoothTailSeconds,
+      tailDistance: smoothTailDistance
     },
     isConnected,
     activeProfile

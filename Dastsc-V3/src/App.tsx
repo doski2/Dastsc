@@ -168,33 +168,6 @@ function App() {
                           <DataPoint label="Train Mass" value={`${data.TrainMass.toFixed(0)} T`} />
                         </div>
                         <DataPoint label="Projected Dist" value={formatDistance(data.ProjectedBrakingDistance)} />
-                        
-                        {data.TailDistance > 1 && (
-                          <div className="mt-4 p-3 bg-blue-500/10 border-l-4 border-l-blue-500 border-r border-t border-b border-white/5 rounded-r-md">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="text-[10px] font-black text-blue-400 uppercase tracking-tighter">COLA LIMPIANDO</span>
-                              <span className="text-[10px] font-bold text-white/40">
-                                OBJ: {Math.round(data.FrontalSpeedLimit)} {data.SpeedUnit}
-                              </span>
-                            </div>
-                            <div className="flex items-baseline gap-1">
-                              <span className="text-2xl font-black text-white leading-none">
-                                {data.TailDistance.toFixed(0)}
-                              </span>
-                              <span className="text-xs font-bold text-blue-400 uppercase">m</span>
-                            </div>
-                            <div className="mt-2 h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5">
-                              <motion.div 
-                                className="h-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"
-                                initial={false}
-                                animate={{ 
-                                  width: `${Math.max(0, Math.min(100, (1 - (data.TailDistance / data.TrainLength)) * 100))}%` 
-                                }}
-                                transition={{ type: "tween", ease: "linear", duration: 0.3 }}
-                              />
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>

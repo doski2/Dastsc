@@ -14,9 +14,8 @@ export interface TelemetryData {
   Acceleration: number;    
   GForce: number;          
   LateralG: number;        // Fuerza lateral estimada (G)
-  SpeedLimit: number;      // Límite efectivo (con protección de cola)
+  SpeedLimit: number;      // Límite efectivo (m/s)
   FrontalSpeedLimit: number; // Límite en la cabina
-  TailDistance: number;    // Distancia restante para limpiar hito (m)
   
   // Geografía de la Vía
   Gradient: number;        
@@ -54,6 +53,11 @@ export interface TelemetryData {
   // IA / Predictivo
   ProjectedBrakingDistance: number; 
   TripDistance: number;    // Metros totales recorridos en la sesión
+  
+  // Protección de Cola (Tail Protection)
+  TailDistanceRemaining: number;  // Metros de cola pendiente (0 = seguro acelerar)
+  TailSecondsRemaining: number;  // Segundos estimados de cola
+  TailIsActive: boolean;          // ¿Está activa la protección de cola?
   
   // Estado del sistema
   LocoName: string;
@@ -117,8 +121,10 @@ const DefaultData: TelemetryData = {
   TrainLength: 0,
   TrainMass: 0,
   ActiveCab: 1,
-  TailDistance: 0,
   ProjectedBrakingDistance: 0,
+  TailDistanceRemaining: 0,
+  TailSecondsRemaining: 0,
+  TailIsActive: false,
   LocoName: 'DETECTING...',
   location: 'UNKNOWN',
   IsEmergency: false,

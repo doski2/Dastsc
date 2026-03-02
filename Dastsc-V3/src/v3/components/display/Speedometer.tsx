@@ -1,9 +1,19 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useTelemetrySmoothing } from '../../hooks/useTelemetrySmoothing';
 import { CanvasLayer } from './CanvasLayer';
+import './Speedometer.css';
 
 export const Speedometer: React.FC = () => {
   const { smooth, raw, isConnected, activeProfile } = useTelemetrySmoothing();
+  const progressBarRef = useRef<HTMLDivElement>(null);
+
+  // Update tail progress bar width dynamically using ref to avoid inline styles
+  useEffect(() => {
+    if (progressBarRef.current && raw.TailIsActive) {
+      const progress = Math.max(0, Math.min(100, raw.TrainLength > 0 ? 100 - (smooth.tailDistance / raw.TrainLength) * 100 : 0));
+      progressBarRef.current.style.width = `${progress}%`;
+    }
+  }, [smooth.tailDistance, raw.TrainLength, raw.TailIsActive]);
   
   // Lógica de dibujo del velocímetro circular y G-Force
   const drawGauge = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -134,32 +144,6 @@ export const Speedometer: React.FC = () => {
     ctx.textAlign = 'center';
     ctx.fillText(`L:${lateralG.toFixed(2)} Lon:${accelerationG.toFixed(2)}`, gX, gY + gSize/2 + 10);
     
-    // 4. Indicador de Limpieza de Cola (Tail Distance)
-    const tailDist = raw.TailDistance || 0;
-    const isActiveCabBack = raw.ActiveCab === 2; // Soporte para OnCameraEnter
-
-    if (tailDist > 0.5) {
-      ctx.textAlign = 'center';
-      
-      // Color dinámico: Azul si es cabina invertida, Amarillo si es normal
-      ctx.fillStyle = isActiveCabBack ? '#60a5fa' : '#fde047'; 
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = ctx.fillStyle;
-      
-      ctx.font = 'bold 22px JetBrains Mono';
-      ctx.fillText(`${Math.ceil(tailDist)}m`, centerX, centerY + radius * 0.4);
-      
-      ctx.font = '9px JetBrains Mono';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-      const text = isActiveCabBack ? 'REVERSE CLEANING' : 'CLEANING TAIL';
-      ctx.fillText(text, centerX, centerY + radius * 0.4 + 14);
-
-      // Pequeño indicador de dirección de cabina
-      ctx.font = '7px Monospace';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.fillText(`CAB: ${isActiveCabBack ? 'BACK (REV)' : 'FRONT'}`, centerX, centerY + radius * 0.4 + 24);
-    }
-
     ctx.restore();
   };
 
@@ -224,7 +208,7 @@ export const Speedometer: React.FC = () => {
   const activeNotchLabel = findActiveNotch();
 
   return (
-    <div className="relative flex flex-col items-center justify-center h-[280px] bg-[#0a0a0a] border border-white/5 rounded-sm overflow-hidden">
+    <div className="relative flex flex-col items-center justify-center h-[280px] bg-[#0b0b0b] border border-white/5 rounded-sm overflow-hidden">
       {/* Capa de dibujo de Canvas */}
       <CanvasLayer render={drawGauge} />
 
@@ -249,6 +233,30 @@ export const Speedometer: React.FC = () => {
             </div>
         </div>
       </div>
+
+      {/* Indicador de Cola de Tren (Tail Protection) */}
+      {raw.TailIsActive && (
+        <div className="absolute right-4 bottom-4 bg-gradient-to-br from-amber-500/20 to-orange-500/10 border border-amber-500/50 rounded-lg px-3 py-2 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-amber-300">Tail Clearing</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-lg font-mono font-bold text-amber-200">
+                {smooth.tailSeconds.toFixed(1)}s
+              </span>
+              <span className="text-[8px] text-amber-400/70">
+                ({smooth.tailDistance.toFixed(0)}m)
+              </span>
+            </div>
+            {/* Barra de progreso de cola */}
+            <div className="mt-1 w-20 h-1.5 bg-amber-900/40 rounded-full overflow-hidden border border-amber-600/30">
+              <div 
+                ref={progressBarRef}
+                className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-300"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pasos de Potencia/Freno (Estilo Lateral) */}
       <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-1">

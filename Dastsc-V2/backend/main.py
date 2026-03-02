@@ -4,7 +4,7 @@ import asyncio
 import os
 import time
 import glob
-from typing import List, Dict
+from typing import List
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
 from core.scenarios import ScenarioManager

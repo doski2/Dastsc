@@ -1,0 +1,5 @@
+/* Speedometer.css - Estilos para el velocímetro */
+
+.tail-progress-bar {
+  width: var(--tail-progress, 0%);
+}

@@ -5,6 +5,8 @@
  */
 
 import { TelemetryData } from './TelemetryContext';
+import { TailProtectionService } from '../services/TailProtectionService';
+
 
 export interface NormalizerState {
   totalDistance: number;
@@ -37,11 +39,13 @@ const EMA_SLOW = 0.05; // Para presiones, más inercia
 const G_CONSTANT = 9.80665;
 
 export class DataNormalizer {
+  private tailService = new TailProtectionService();
+
   private state: NormalizerState = {
     totalDistance: 0,
     lastSimTime: 0,
     effectiveSpeedLimit: 0,
-    lastNextLimitDist: 0,
+    lastNextLimitDist: 9999,  // Inicializar ALTO para detectar primer flanco
     lastNextLimitSpeed: 0,
     emaAcceleration: 0,
     emaAmperage: 0,
@@ -54,12 +58,16 @@ export class DataNormalizer {
     lastSpeedMS: 0,
     posX: 0,
     posZ: 0,
-    lastHeading: 999, // Centinela para indicar que no hay heading previo
+    lastHeading: 999,
     emaLateralG: 0,
     lastFrontalLimit: 0,
     lastRealTime: 0,
-    activeCab: 1 // Default Front
+    activeCab: 1
   };
+
+  private loggedRawFields = false;
+
+
 
   /**
    * Procesa los datos brutos y devuelve un estado normalizado.
@@ -67,7 +75,16 @@ export class DataNormalizer {
   normalize(raw: any, prevData: TelemetryData, profile: any): Partial<TelemetryData> {
     const rawSimTime = Number(raw.SimulationTime || 0);
     const now = Date.now() / 1000;
-    const trainLength = profile?.physics_config?.train_length || raw.TrainLength || 100;
+    
+    // LOG DE CAMPOS DISPONIBLES (Una sola vez al inicio)
+    if (!this.loggedRawFields && rawSimTime > 0) {
+      this.loggedRawFields = true;
+      console.warn('[FIELDS] Campos disponibles en raw:', Object.keys(raw).sort());
+    }
+    
+    // Validar longitud del tren (en metros desde GetConsistLength() en Lua)
+    let trainLength = raw.TrainLength || 100;
+    if (trainLength <= 0) trainLength = 100;
     
     // SOPORTE OnCameraEnter / ActiveCab (1=Front, 2=Back)
     const rawActiveCab = Number(raw.ActiveCab || 1);
@@ -86,27 +103,33 @@ export class DataNormalizer {
     const toMS = speedUnit === 'KPH' ? 1/3.6 : 0.44704;
     const fromMS = speedUnit === 'KPH' ? 3.6 : 2.23694;
 
+    // === SINCRONIZACIÓN DE TIEMPOS (Primero para asegurar dtSim correcto) ===
+    let dtSim = 0;
+    if (this.state.lastSimTime > 0) {
+        if (rawSimTime > this.state.lastSimTime) {
+            dtSim = rawSimTime - this.state.lastSimTime;
+        } else if (raw.SimulationTime === undefined && this.state.lastRealTime > 0) {
+            dtSim = Math.min(0.2, now - this.state.lastRealTime);
+        }
+    }
+    
+    // Protección: evitar saltos gigantes de tiempo (carga de mapa, pausas)
+    if (dtSim > 1.0) {
+      dtSim = 0.033; // Máximo ~30ms (30fps)
+    }
+    
+    // ACTUALIZAR TIEMPOS INMEDIATAMENTE 
+    this.state.lastSimTime = rawSimTime;
+    this.state.lastRealTime = now;
+    // =======================
+
     // Procesamiento de límites de velocidad (Formato Horizontal V4.1)
     const currentLimitConverted = Number(raw.CurrentSpeedLimit || 0); // Ya viene convertido desde Lua
     const rawNextLimitSpeed = Number(raw.NextLimitSpeed || 0);
     const rawNextLimitDistFromLua = Number(raw.NextLimitDist || -1);
 
-    // V3 Fix: Eliminamos la sobreescritura inmediata del estado para permitir que el TailProtection mande.
-    // this.state.effectiveSpeedLimit = currentLimitConverted * toMS; // <--- ELIMINADO
-
-    let dtSim = 0;
-    // Lógica de Delta Time robusta (Evita avanzar el odómetro en pausa)
-    if (this.state.lastSimTime > 0) {
-        if (rawSimTime > this.state.lastSimTime) {
-            dtSim = rawSimTime - this.state.lastSimTime;
-        } else if (raw.SimulationTime === undefined && this.state.lastRealTime > 0) {
-            // Solo usamos fallback de tiempo real si el simulador no reporta simTime (para locos incompatibles)
-            dtSim = Math.min(0.2, now - this.state.lastRealTime);
-        }
-    }
-    
-    // 0. Latencia y Performance (Del nuevo campo LuaMS)
-    const luaLatency = Number(raw.LuaMS || 0);
+    // Límite de Velocidad nominal (m/s)
+    const rawLimitMS = currentLimitConverted * toMS;
 
     // 1. Unificación de Velocidad (m/s)
     let speedMS = 0;
@@ -126,9 +149,31 @@ export class DataNormalizer {
       speedMS = Math.abs(raw.Speed || 0) * toMS;
     }
 
+    // === TAIL PROTECTION (V2 LOGIC con campos LUA) ===
+    const tailInfo = this.tailService.update(
+      currentLimitConverted,      // CurrentSpeedLimit (en MPH/KPH del simulador)
+      rawNextLimitSpeed,          // NextLimitSpeed (en MPH/KPH del simulador)
+      rawNextLimitDistFromLua,    // NextLimitDist (en metros de Lua)
+      speedMS, 
+      dtSim, 
+      trainLength
+    );
 
-    // 1.1 Límite de Velocidad (Normalizar a m/s inmediatamente)
-    const rawLimitMS = Number(raw.CurrentSpeedLimit || 0) * toMS;
+    // Actualizar límite efectivo basado en la cola
+    this.state.effectiveSpeedLimit = tailInfo.effectiveLimit * toMS;
+
+    // Inicialización del primer límite si es 0 (Solo si hay conexión válida)
+    if (this.state.effectiveSpeedLimit === 0 && currentLimitConverted > 0) {
+      this.state.effectiveSpeedLimit = rawLimitMS;
+    }
+
+    // 0. Latencia y Performance (Del nuevo campo LuaMS)
+    const luaLatency = Number(raw.LuaMS || 0);
+
+    // Actualizar odómetro
+    if (dtSim > 0 && dtSim < 2) { // Evitar saltos por carga de mapa
+      this.state.totalDistance += speedMS * dtSim;
+    }
 
     // 1.2 Filtrado de picos absurdos (Denoising avanzado)
     const speedDelta = Math.abs(speedMS - this.state.lastSpeedMS);
@@ -136,11 +181,6 @@ export class DataNormalizer {
       speedMS = this.state.lastSpeedMS;
     }
     this.state.lastSpeedMS = speedMS;
-
-    // 1.2 Odómetro y Trip
-    if (dtSim > 0 && dtSim < 2) { // Evitar saltos por carga de mapa
-      this.state.totalDistance += speedMS * dtSim;
-    }
 
     // 2. Filtrado de Ruido (EMA)
     const rawAcc = raw.Acceleration || 0;
@@ -236,8 +276,12 @@ export class DataNormalizer {
 
     const pFactor = pressureUnit === 'PSI' ? 14.5038 : 1;
 
-    // 5. Lógica de "Cola de Tren" (Tail Protection) - V4.1
-    // TSC ahora entrega NextLimitSpeed y NextLimitDist de forma directa
+    // Nota: Los tiempos ya se sincronizaron al inicio del método
+    
+    // EMPAQUETAR DATOS DE COLA PARA TELEMETRÍA
+    const tailSeconds = speedMS > 0.5 ? tailInfo.distanceRemaining / speedMS : 0;
+
+    // 5. Lógica de "Próximos Límites" para UI
     const rawUpcoming: { speed: number, distance: number }[] = [];
     if (rawNextLimitDistFromLua > 0) {
         rawUpcoming.push({ speed: rawNextLimitSpeed, distance: rawNextLimitDistFromLua });
@@ -252,13 +296,13 @@ export class DataNormalizer {
     const rawNextLimitDist = nextDiffLimit.distance;
     const rawNextLimitSpeedMS = nextDiffLimit.speed * toMS;
 
-    // Sincronización inmediata de límites (Se ha eliminado la protección de cola)
-    this.state.effectiveSpeedLimit = rawLimitMS;
+    /**
+     * NOTA: effectiveSpeedLimit ahora se gestiona arriba en la LÓGICA DE COLA (V5.0),
+     * no debemos sobrescribirla aquí o anulará la protección.
+     */
     this.state.lastFrontalLimit = rawLimitMS;
-    this.state.lastNextLimitDist = rawNextLimitDist;
+    // NO sobrescribir lastNextLimitDist aquí - se actualiza en el trigger de Tail Protection ^ arriba
     this.state.lastNextLimitSpeed = rawNextLimitSpeedMS;
-    this.state.lastSimTime = rawSimTime;
-    this.state.lastRealTime = now;
 
     const upcomingLimits: { speed: number, distance: number }[] = [];
     let lastRefSpeedMS = rawLimitMS; 
@@ -361,7 +405,6 @@ export class DataNormalizer {
       ProjectedSpeed: projectedSpeedMS * fromMS,
       SpeedLimit: this.state.effectiveSpeedLimit * fromMS,
       FrontalSpeedLimit: rawLimitMS * fromMS,
-      TailDistance: 0,
       DistToNextSpeedLimit: nextLimitDist,
       NextSpeedLimit: nextLimitSpeedMS * fromMS,
       UpcomingLimits: upcomingLimits,
@@ -380,13 +423,16 @@ export class DataNormalizer {
       Amperage: this.state.emaAmperage,
       AmperageUnit: ampUnit,
       TractionPercent: tractionPercent,
-      ActiveCab: this.state.activeCab, 
+      ActiveCab: this.state.activeCab,
       NextSignalAspect: aspect,
       DistToNextSignal: sigDist,
       TrainLength: trainLength,
       // Mapeamos 'Mass' del script Lua (en Toneladas según GetData.txt) a 'TrainMass' en V3
       TrainMass: Number(raw.Mass || raw.TrainMass || 0),
       ProjectedBrakingDistance: projectedBrakingDistance,
+      TailDistanceRemaining: tailInfo.distanceRemaining,
+      TailSecondsRemaining: tailSeconds,
+      TailIsActive: tailInfo.isActive,
       TripDistance: this.state.totalDistance,
       IsEmergency: raw.EmergencyBrake === 1 || raw.EmergencyBrake === true,
       AWS: aws,
