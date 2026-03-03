@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Activity, ShieldCheck, Cpu, Settings } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTelemetry } from './v3/core/TelemetryContext'
@@ -6,6 +6,8 @@ import { TrackProfile } from './v3/components/display/TrackProfile'
 import { Speedometer } from './v3/components/display/Speedometer'
 import { BrakingCurve } from './v3/components/display/BrakingCurve'
 import { ProfileSelector } from './v3/components/display/ProfileSelector'
+import { ScenarioHud } from './v3/components/display/ScenarioHud'
+import { scenarioService, ScenarioStop } from './v3/services/ScenarioService'
 
 function PhysicsRow({ label, value, unit, color = "text-white/70" }: { label: string, value: number, unit: string, color?: string }) {
   return (
@@ -31,6 +33,45 @@ function DataPoint({ label, value }: { label: string, value: string | number }) 
 function App() {
   const [activeTab, setActiveTab] = useState('PILOT')
   const { data, isConnected, activeProfile } = useTelemetry()
+  const [stops, setStops] = useState<ScenarioStop[]>([])
+  const [activeRouteId, setActiveRouteId] = useState<string | null>(null)
+  const [activeScenarioPath, setActiveScenarioPath] = useState<string | null>(null)
+
+  // 1. Detección automática del escenario basándose en el RVNumber de la telemetría
+  useEffect(() => {
+    if (!isConnected || !data.RVNumber) return;
+
+    const detect = async () => {
+      console.log("Nexus: Intentando detectar escenario para RV:", data.RVNumber);
+      const scenario = await scenarioService.detectActiveScenario(data.RVNumber);
+      if (scenario) {
+        console.log("Nexus: Escenario detectado:", scenario.id);
+        setActiveRouteId(scenario.route_id);
+        setActiveScenarioPath(scenario.path);
+      }
+    };
+    detect();
+  }, [isConnected, data.RVNumber]);
+
+  // 2. Efecto para actualizar el horario en vivo usando la detección previa
+  useEffect(() => {
+    const routeId = activeRouteId || data.RouteID;
+    const scenarioPath = activeScenarioPath || data.ScenarioPath;
+
+    if (!isConnected || !routeId || !scenarioPath) return;
+
+    const interval = setInterval(async () => {
+      const liveStops = await scenarioService.getLiveTimetable(
+        routeId, 
+        scenarioPath, 
+        data.X || 0, 
+        data.Z || 0
+      );
+      if (liveStops.length > 0) setStops(liveStops);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isConnected, activeRouteId, activeScenarioPath, data.RouteID, data.ScenarioPath, data.X, data.Z]);
 
   const formatDistance = (m: number) => {
     if (data.SpeedUnit === 'MPH') {
@@ -149,9 +190,11 @@ function App() {
                   <BrakingCurve />
 
                   {/* Columna 3: Métricas secundarias */}
-                  <div className="flex flex-col gap-4">
-                    <div className="p-4 bg-white/5 border border-white/5 rounded-sm flex-1">
-                      <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Adaptive Telemetry</h3>
+                  <div className="flex flex-col gap-4 overflow-hidden">
+                    <ScenarioHud stops={stops} />
+                    
+                    <div className="p-4 bg-white/5 border border-white/5 rounded-sm shrink-0">
+                      <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Adaptive Telemetry Hub</h3>
                       <div className="space-y-4">
                         <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-2">
                           <span className="text-[11px] text-white/30 uppercase font-mono">Next Speed</span>
@@ -162,14 +205,15 @@ function App() {
                             </span>
                           </div>
                         </div>
-                        <DataPoint label="Reverser" value={data.Reverser > 0 ? 'FOR' : data.Reverser < 0 ? 'REV' : 'NEU'} />
-                        <DataPoint label="Throttle" value={`${Math.round(data.Throttle * 100)}%`} />
+                        <div className="grid grid-cols-2 gap-4">
+                          <DataPoint label="Reverser" value={data.Reverser > 0 ? 'FOR' : data.Reverser < 0 ? 'REV' : 'NEU'} />
+                          <DataPoint label="Throttle" value={`${Math.round(data.Throttle * 100)}%`} />
+                        </div>
                         <DataPoint label="Train Brake" value={`${Math.round(data.TrainBrake * 100)}%`} />
                         <div className="grid grid-cols-2 gap-4">
                           <DataPoint label="Train Length" value={`${data.TrainLength.toFixed(1)}m`} />
-                          <DataPoint label="Train Mass" value={`${data.TrainMass.toFixed(0)} T`} />
+                          <DataPoint label="Projected Dist" value={formatDistance(data.ProjectedBrakingDistance)} />
                         </div>
-                        <DataPoint label="Projected Dist" value={formatDistance(data.ProjectedBrakingDistance)} />
                       </div>
                     </div>
                   </div>

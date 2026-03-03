@@ -125,6 +125,11 @@ async def telemetry_reader():
                                 "type": "TELEMETRY",
                                 **data, 
                                 **physics, 
+                                "RVNumber": data.get("RVNumber") or data.get("RV"),
+                                "RouteID": data.get("RouteID"),
+                                "ScenarioPath": data.get("ScenarioPath"),
+                                "X": data.get("X"),
+                                "Z": data.get("Z"),
                                 "timestamp": current_time, 
                                 "source": "simulator",
                                 "active_profile": manager.current_profile,
@@ -172,6 +177,20 @@ async def get_scenarios():
 async def get_scenario_stops(path: str):
     """Obtiene las paradas de un escenario específico."""
     return manager.scenario_manager.get_scenario_stops(path)
+
+@app.get("/scenarios/detect")
+async def detect_scenario(rv: str):
+    """Detecta el escenario activo basándose en el número del tren (RV)."""
+    return manager.scenario_manager.find_active_scenario_by_rv(rv)
+
+@app.get("/scenarios/live")
+async def get_live_timetable(route_id: str, scenario_path: str, x: float, z: float):
+    """Obtiene el horario enriquecido con distancias calculadas."""
+    return manager.scenario_manager.get_full_live_timetable(
+        route_id, 
+        scenario_path, 
+        {"x": x, "z": z}
+    )
 
 @app.websocket("/ws/telemetry")
 async def websocket_endpoint(websocket: WebSocket):

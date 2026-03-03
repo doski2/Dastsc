@@ -37,6 +37,16 @@ A diferencia de versiones anteriores, los datos se empaquetan en una sola cadena
 11. `Length`: Longitud total del consist en metros.
 12. `Curvature`: Radio de curvatura actual (6 decimales para precisión de G-lateral).
 13. `BC / BP / MR / ER`: Presiones de frenado (Cilindro, Tubería, Depósito Principal, Ecualizador).
+14. `Ammeter / TractiveEffort / Current`: Datos de potencia real extraídos de `FullEngineData`.
+15. `TailDistance / TailSeconds / TailActive`: Estado del sistema de Protección de Cola V6.
+
+## Integración de Perfiles Dinámicos (Master Template V4/V3)
+
+El **Ultra Core V4** ahora utiliza los datos de los perfiles JSON (`profiles/`) para normalizar las señales de RailWorks:
+
+- **Escalado Amperaje**: Usa `max_ammeter` (de `FullEngineData`) para representar el 100% de potencia en el HUD.
+- **Física de Frenado**: El `max_brake_cyl` define el rango de operación (ej. 7.0 BAR vs 5.0 BAR).
+- **Protección de Cola V6**: La lógica odómetro-basada utiliza el `Length` del tren y el `totalDistance` para calcular el punto exacto de liberación de velocidad.
 
 ## Roadmap de Implementación
 

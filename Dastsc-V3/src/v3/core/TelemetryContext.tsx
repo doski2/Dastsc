@@ -66,6 +66,11 @@ export interface TelemetryData {
   
   // Estado del sistema
   LocoName: string;
+  RVNumber: string;
+  RouteID: string;
+  ScenarioPath: string;
+  X: number;
+  Z: number;
   location: string;
   IsEmergency: boolean;
   Timestamp: number;
@@ -136,6 +141,11 @@ const DefaultData: TelemetryData = {
   TailSecondsRemaining: 0,
   TailIsActive: false,
   LocoName: 'DETECTING...',
+  RVNumber: '',
+  RouteID: '',
+  ScenarioPath: '',
+  X: 0,
+  Z: 0,
   location: 'UNKNOWN',
   IsEmergency: false,
   Timestamp: 0,

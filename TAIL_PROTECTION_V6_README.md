@@ -7,8 +7,19 @@ Se ha implementado un nuevo sistema de protección de cola de tren que:
 1. **Detecta cambios a límites superiores**: Cuando el tren pasa una señal con un límite de velocidad superior al actual
 2. **Muestra countdown de cola**: Indica cuántos segundos (y metros) quedan para que la cola termine
 3. **Permite aceleración segura**: Cuando la cola pasa completamente (llega a 0), el maquinista puede acelerar sin riesgo
+4. **Validación de Perfil**: Utiliza los datos de `max_ammeter` y `max_current` del perfil JSON para asegurar que la física de aceleración sea coherente con la longitud del tren.
 
 ## Arquitectura
+
+### 0. **Perfiles Dinámicos (JSON)**
+
+Ubicación: `profiles/[tren].json`
+
+Ahora el sistema de protección e indicadores físicos dependen de:
+
+- `max_ammeter`: Límite de corriente para el gauge circular.
+- `max_current`: Límite del bus de corriente principal (extraído de `FullEngineData`).
+- `max_brake_cyl`: Presión de diseño (ej. 7.0 BAR para Class 323).
 
 ### 1. **TailProtectionService.ts** (Nuevo)
 

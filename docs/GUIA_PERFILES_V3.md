@@ -61,11 +61,12 @@ Busca el control `TrainBrakeCylinderPressureBAR` o similar.
 - **max_brake_cyl**: Usa el valor `Max` que aparezca en el log (ej. 7 o 5).
 - **max_main_res**: Usa el valor `Max` del `MainReservoirPressureBAR` (ej. 10).
 
-### B. Límites Eléctricos (`max_ammeter`)
+### B. Límites Eléctricos (`max_ammeter` y `max_current`)
 
-Busca el control `Ammeter`.
+Busca el control `Ammeter` y `Current` en el archivo de `FullEngineData`.
 
-- **max_ammeter**: Usa el valor `Max` (ej. 1400, 1500). Esto escala el gauge de potencia del HUD.
+- **max_ammeter**: Usa el valor `Max` (ej. 1400). Escala el gauge principal.
+- **max_current**: Usa el valor `Max` (ej. 1500). Define la capacidad térmica o de bus si está presente.
 
 ### C. Configuración Física (`physics_config`)
 
