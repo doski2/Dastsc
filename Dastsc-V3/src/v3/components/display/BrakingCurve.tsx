@@ -44,17 +44,8 @@ export const BrakingCurve: React.FC = () => {
   // Efecto para cargar paradas reales basadas en el tren (RVNumber)
   useEffect(() => {
     if (isConnected && (raw as any).RVNumber) {
-      // Usar RVNumber para buscar el servicio del tren en el backend
-      const trainId = (raw as any).RVNumber;
-      
-      // Simulación de llamada al backend para obtener las paradas del servicio de este tren
-      // En una implementación real, esto consultaría a: `/api/scenario/stops?rv=${trainId}`
-      console.log(`[BrakingCurve] Cargando paradas para tren: ${trainId}`);
-      
-      setStops([
-        { name: "Five Ways Platform 2", is_platform: true, satisfied: false, due_time: "6:51", duration: 35, distance_m: 650 },
-        { name: "University (Bham) P2", is_platform: true, satisfied: false, due_time: "6:54", duration: 35, distance_m: 2100 }
-      ]);
+      // En una implementación real, esto consultaría a el API de escenarios
+      setStops([]);
     }
   }, [isConnected, (raw as any).RVNumber]);
 
@@ -225,6 +216,19 @@ export const BrakingCurve: React.FC = () => {
 
     const currentSpeedMS = raw.Speed;
     
+    // --- Cálculo de Esfuerzo de Frenado Real vs Teórico ---
+    // 1. Esfuerzo Dinámico (Priorizar Ammeter real si es negativo)
+    const currentAmps = (raw as any).Ammeter !== undefined ? (raw as any).Ammeter : raw.Amperage;
+    const dynamicEffort = (currentAmps < 0) ? Math.abs(currentAmps) : 0;
+    
+    // 2. Esfuerzo Neumático (kN)
+    const pneumaticEffort = raw.BrakingEffort || 0;
+    
+    // 3. Esfuerzo Total Aplicado (kN) 
+    // Usamos el TractiveEffort si es negativo (frenado) o la suma calculada
+    const rawTE = (raw as any).TractiveEffort || 0;
+    const totalAppliedEffort = rawTE < 0 ? Math.abs(rawTE) : (pneumaticEffort + (dynamicEffort * 0.5));
+
     // Cálculo de Deceleración Requerida (v² = u² + 2as) => a = (v² - u²) / 2s
     let recommendedBrake = 0; // 0 a 100%
     if (currentSpeedMS > targetSpeedMS && targetDist > 5) {
@@ -348,6 +352,11 @@ export const BrakingCurve: React.FC = () => {
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 10px JetBrains Mono';
             ctx.fillText(`${Math.round(recommendedBrake)}%`, 75, 22);
+
+            // Métrica de Esfuerzo Actual (kN / A)
+            ctx.fillStyle = (raw.Amperage < 0) ? '#4ade80' : 'rgba(255,255,255,0.3)';
+            ctx.font = '7px JetBrains Mono';
+            ctx.fillText(`${Math.round(totalAppliedEffort)}kN | ${Math.round(raw.Amperage)}${raw.AmperageUnit}`, 75, 32);
             
             ctx.restore();
         }

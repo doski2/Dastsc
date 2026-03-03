@@ -31,6 +31,35 @@ export class BrakeNormalizer {
     const limitRef = isElectric ? (profile?.specs?.max_ammeter || 1000) : (profile?.specs?.max_effort || 400);
     const tractionPercent = (this.state.emaAmperage / limitRef) * 100;
 
+    // 3. Ajuste de eficiencia basado en ConsistType (0-11)
+    const consistType = Number(raw.ConsistType || 0);
+    let brakeEfficiency = 1.0;
+
+    switch(consistType) {
+      case 1: // Light Engine
+        brakeEfficiency = 1.25; // Muy potente para su masa
+        break;
+      case 2: // Express Passenger
+      case 10: // International
+        brakeEfficiency = 1.1; // Frenos de disco/alta performance
+        break;
+      case 3: // Stopping Passenger
+      case 9: // Empty Stock
+        brakeEfficiency = 1.0; // Estándar
+        break;
+      case 4: // High Speed Freight
+      case 5: // Express Freight
+        brakeEfficiency = 0.85; // Carga rápida
+        break;
+      case 6: // Standard Freight
+      case 7: // Low Speed Freight
+      case 8: // Other Freight
+        brakeEfficiency = 0.75; // Carga pesada, frenado lento y largo
+        break;
+      default:
+        brakeEfficiency = 1.0;
+    }
+
     return {
       bc: this.state.emaBrakeCyl,
       bp: this.state.emaBrakePipe,
@@ -38,7 +67,8 @@ export class BrakeNormalizer {
       er: this.state.emaEqRes,
       amperage: this.state.emaAmperage,
       ampUnit,
-      tractionPercent
+      tractionPercent,
+      brakeEfficiency
     };
   }
 }

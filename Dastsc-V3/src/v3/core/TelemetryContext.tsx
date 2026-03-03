@@ -15,6 +15,8 @@ export interface TelemetryData {
   GForce: number;          
   LateralG: number;        // Fuerza lateral estimada (G)
   SpeedLimit: number;      // Límite efectivo (m/s)
+  TrackLimit: number;      // Límite físico de la vía
+  SignalLimit: number;     // Límite impuesto por señales
   FrontalSpeedLimit: number; // Límite en la cabina
   
   // Geografía de la Vía
@@ -42,12 +44,15 @@ export interface TelemetryData {
   PressureUnit: 'BAR' | 'PSI';
   Amperage: number;        
   AmperageUnit: string;
+  Ammeter: number;         // Valor bruto del Amperímetro (A)
+  TractiveEffort: number;  // Valor bruto de esfuerzo (kN/Lbf)
   TractionPercent: number; // -100 to 100
   BrakingEffort: number;   // kN o Lbf
   BrakingPercent: number;  // 0-100% de aplicación real
   
   TrainLength: number;
   TrainMass: number;
+  ConsistType: number;
   ActiveCab: number; // 1 = Front, 2 = Back
 
   // IA / Predictivo
@@ -93,6 +98,8 @@ const DefaultData: TelemetryData = {
   GForce: 0,
   LateralG: 0,
   SpeedLimit: 0,
+  TrackLimit: 0,
+  SignalLimit: 0,
   FrontalSpeedLimit: 0,
   Gradient: 0,
   DistToNextSignal: 0,
@@ -114,12 +121,15 @@ const DefaultData: TelemetryData = {
   PressureUnit: 'BAR',
   Amperage: 0,
   AmperageUnit: 'A',
+  Ammeter: 0,
+  TractiveEffort: 0,
   TractionPercent: 0,
   BrakingEffort: 0,
   BrakingPercent: 0,
   TripDistance: 0,
   TrainLength: 0,
   TrainMass: 0,
+  ConsistType: 0,
   ActiveCab: 1,
   ProjectedBrakingDistance: 0,
   TailDistanceRemaining: 0,

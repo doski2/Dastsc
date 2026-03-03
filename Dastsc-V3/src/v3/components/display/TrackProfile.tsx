@@ -3,8 +3,8 @@ import { CanvasLayer } from "./CanvasLayer";
 import { useTelemetrySmoothing } from "../../hooks/useTelemetrySmoothing";
 
 /**
- * TrackProfile renderiza la visualización de la vía curva de alto rendimiento.
- * Optimizada: Estilo sólido sin efectos de neón para mayor claridad.
+ * TrackProfile renderiza la visualizaciï¿½n de la vï¿½a curva de alto rendimiento.
+ * Optimizada: Estilo sï¿½lido sin efectos de neï¿½n para mayor claridad.
  */
 export const TrackProfile: React.FC = () => {
     const { smooth, raw, isConnected } = useTelemetrySmoothing();
@@ -56,10 +56,10 @@ export const TrackProfile: React.FC = () => {
             return currentY + curveOffset;
         };
 
-        // 1. Línea de la vía (Estilo Sólido)
+        // 1. Lï¿½nea de la vï¿½a (Estilo Sï¿½lido)
         const coreColor = rawGradient > 0 ? "#f87171" : rawGradient < 0 ? "#4ade80" : "#22d3ee";
         ctx.beginPath();
-        const segments = 60; // Más segmentos para suavidad
+        const segments = 60; // Mï¿½s segmentos para suavidad
         for (let i = 0; i <= segments; i++) {
             const progress = i / segments;
             const m = progress * viewRange;
@@ -115,7 +115,7 @@ export const TrackProfile: React.FC = () => {
         }
         ctx.restore();
 
-        // 4. Parada de Estación (Si existe)
+        // 4. Parada de Estaciï¿½n (Si existe)
         const stationDist = smooth.stationDistance;
         if (stationDist !== undefined && stationDist >= 0 && stationDist < viewRange) {
             const xStop = getX(stationDist);
@@ -137,7 +137,7 @@ export const TrackProfile: React.FC = () => {
             ctx.fillText(formatDistance(stationDist), xStop, yStop + 35);
         }
 
-        // 5. Señales y Aspectos
+        // 5. Seï¿½ales y Aspectos
         const sigDist = smooth.signalDistance;
         if (sigDist > 0 && sigDist < viewRange) {
             const xSig = getX(sigDist);
@@ -177,7 +177,8 @@ export const TrackProfile: React.FC = () => {
             ctx.fillText(formatDistance(sigDist), xSig, ySig - 105);
         }
 
-        // 6. Límites de Velocidad Próximos
+        // 6. Lï¿½mites de Velocidad Prï¿½ximos
+        // 6. LÃ­mites de Velocidad PrÃ³ximos
         const limits = raw.UpcomingLimits || [];
         limits.filter((l: any) => l.distance > 0 && l.distance < viewRange)
               .slice(0, 3)
@@ -185,25 +186,32 @@ export const TrackProfile: React.FC = () => {
             const xL = getX(limit.distance);
             const yL = getY(limit.distance);
             
+            ctx.save();
+            ctx.translate(xL, yL);
+            
+            // CÃ­rculo de lÃ­mite estilo trÃ¡fico
             ctx.beginPath();
-            ctx.arc(xL, yL - 40, 14, 0, Math.PI * 2);
-            ctx.fillStyle = "#000";
+            ctx.arc(0, -45, 14, 0, Math.PI * 2);
+            ctx.fillStyle = "#fff";
             ctx.fill();
-            ctx.strokeStyle = "#ef4444";
+            ctx.strokeStyle = "#ef4444"; 
             ctx.lineWidth = 3;
             ctx.stroke();
             
-            ctx.fillStyle = "#fff";
-            ctx.font = "bold 12px JetBrains Mono";
+            ctx.fillStyle = "#000";
+            ctx.font = "bold 13px JetBrains Mono";
             ctx.textAlign = "center";
-            ctx.fillText(Math.round(limit.speed).toString(), xL, yL - 36);
+            ctx.fillText(Math.round(limit.speed).toString(), 0, -40);
             
-            ctx.fillStyle = "rgba(255,255,255,0.6)";
-            ctx.font = "9px JetBrains Mono";
-            ctx.fillText(formatDistance(limit.distance), xL, yL - 58);
+            // Etiqueta de distancia
+            ctx.fillStyle = "rgba(255,255,255,0.7)";
+            ctx.font = "9px Monospace";
+            ctx.fillText(formatDistance(limit.distance), 0, -65);
+            
+            ctx.restore();
         });
 
-        // 7. Triángulo Locomotora
+        // 7. Triï¿½ngulo Locomotora
         ctx.fillStyle = "#f97316";
         ctx.beginPath();
         ctx.moveTo(10, centerY + 10);

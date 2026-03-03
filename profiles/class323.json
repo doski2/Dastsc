@@ -18,6 +18,8 @@
         "current": "Current",
         "ammeter": "Ammeter",
         "effort": "TractiveEffort",
+        "vcb_light": "VCB Light",
+        "regen_switch": "RegBrakeSwitch",
         "dra": "DRA",
         "aws": "AWS",
         "aws_warning": "AWSWarnCount",
@@ -33,7 +35,9 @@
     },
     "specs": {
         "max_ammeter": 1400,
-        "max_brake_cyl": 7,
+        "max_current": 1500,
+        "max_brake_cyl": 7.0,
+        "max_main_res": 10.0,
         "max_speed": 100,
         "notches_throttle_brake": [
             {"value": -1.0, "label": "EMG"},
@@ -58,5 +62,10 @@
     "visuals": {
         "unit": "MPH",
         "color": "#a855f7"
+    },
+    "physics_config": {
+        "max_braking_kn": 250,
+        "max_braking_decel": 1.1,
+        "dynamic_brake_ratio": 0.8
     }
 }

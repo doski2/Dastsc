@@ -94,7 +94,10 @@ export class DataNormalizer {
 
     const maxBC = pressureUnit === 'PSI' ? 72.5 : 5.0; 
     const bcPercent = Math.min(1.1, brk.bc / maxBC);
-    const totalBrakingEffort = (bcPercent * (profile?.physics_config?.max_braking_kn || 200)) + 
+    
+    // El esfuerzo de frenado base se multiplica por la eficiencia del ConsistType
+    const baseBrakingEffort = (bcPercent * (profile?.physics_config?.max_braking_kn || 200));
+    const totalBrakingEffort = (baseBrakingEffort * (brk.brakeEfficiency || 1)) + 
                               ((brk.amperage < 0) ? Math.abs(brk.amperage) * 0.5 : 0);
 
     // Próximos Límites para UI
@@ -152,6 +155,8 @@ export class DataNormalizer {
       ProjectedSpeed: (phys.speedMS + (phys.acceleration * 10)) * fromMS,
       SpeedLimit: sig.effectiveSpeedLimit * fromMS,
       FrontalSpeedLimit: rawLimitMS * fromMS,
+      TrackLimit: (Number(raw.TrackLimit) || rawLimitMS) * fromMS,
+      SignalLimit: (Number(raw.SignalLimit) || rawLimitMS) * fromMS,
       DistToNextSpeedLimit: nextLimitDist,
       NextSpeedLimit: nextLimitSpeedMPH,
       UpcomingLimits: upcomingLimits,
@@ -168,12 +173,15 @@ export class DataNormalizer {
       PressureUnit: pressureUnit,
       Amperage: brk.amperage,
       AmperageUnit: brk.ampUnit,
+      Ammeter: Number(raw.Ammeter || 0),
+      TractiveEffort: Number(raw.TractiveEffort || 0),
       TractionPercent: brk.tractionPercent,
       ActiveCab: this.state.activeCab,
       NextSignalAspect: aspect,
       DistToNextSignal: (Number(raw.SigRes || 0) > 0) ? Number(raw.SigDist || -1) : Number(raw.NextSignalDistance || -1),
       TrainLength: trainLength,
       TrainMass: Number(raw.Mass || 0),
+      ConsistType: Number(raw.ConsistType || 0),
       TailDistanceRemaining: sig.tailDistanceRemaining,
       TailSecondsRemaining: phys.speedMS > 0.5 ? sig.tailDistanceRemaining / phys.speedMS : 0,
       TailIsActive: sig.tailIsActive,
