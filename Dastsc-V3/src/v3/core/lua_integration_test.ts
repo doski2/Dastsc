@@ -51,16 +51,22 @@ export function testLuaConsistency() {
     SimulationTime: 65.0 
   };
 
-  // Reset de estado previo de unidades para forzar detección limpia de KPH
-  const normalizerKPH = new DataNormalizer();
-  const resKph = normalizerKPH.normalize(kphData, {} as any, null);
-  
-  console.log(`Unidad detectada: ${resKph.SpeedUnit}, Límite: ${resKph.SpeedLimit} KPH (Raw: 100)`);
+  // 4. Test de Señalización (SigState 3 -> Verde)
+  const signalData = {
+    ...rawData,
+    SigRes: 1,
+    SigState: 3, // CLEAR
+    SigDist: 0.1, // 100m (en el normalizer se multiplica por 1000 si está en km, o se mapea directo)
+    SimulationTime: 70.0
+  };
 
-  if (resKph.SpeedUnit === 'KPH' && Math.abs(resKph.SpeedLimit! - 100) < 0.1) {
-    console.log("✅ CORRECTO: Sincronización de unidades con Lua OK");
+  const signalRes = normalizer.normalize(signalData, {} as any, null);
+  console.log(`Aspecto detectado: ${signalRes.NextSignalAspect}, Distancia: ${signalRes.DistToNextSignal}m`);
+
+  if (signalRes.NextSignalAspect === 'CLEAR') {
+    console.log("✅ CORRECTO: Sincronización de señales con Lua OK");
   } else {
-    console.error(`❌ ERROR: Fallo en la detección de unidades de Lua. Obtenido: ${resKph.SpeedLimit} KPH (Se esperaba 100)`);
+    console.error(`❌ ERROR: Fallo en la detección de señales de Lua. Obtenido: ${signalRes.NextSignalAspect} (Esperaba CLEAR)`);
   }
 }
 

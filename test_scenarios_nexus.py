@@ -1,5 +1,4 @@
 import httpx
-import os
 import asyncio
 
 async def test_scenarios():

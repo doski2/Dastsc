@@ -56,6 +56,7 @@ body {
 }
 .no-scrollbar {
   -ms-overflow-style: none;
+  /* scrollbar-width is supported in Chrome 121+, Firefox */
   scrollbar-width: none;
 }
 
