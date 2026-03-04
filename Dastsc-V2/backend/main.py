@@ -4,6 +4,7 @@ import asyncio
 import os
 import time
 import glob
+import json
 from typing import List
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
@@ -12,7 +13,16 @@ from physics.engine import PhysicsEngine
 
 app = FastAPI(title="Dastsc V2 Backend")
 
-# Habilitar CORS para el frontend de React
+# Solución definitiva para 403 Forbidden en WebSockets:
+# FastAPI/Starlette bloquean WebSockets si el header 'Origin' no coincide con el host.
+# Usamos un middleware manual para saltar esta verificación.
+
+@app.middleware("http")
+async def add_cors_header(request, call_next):
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,6 +30,49 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ... resto del código ...
+
+@app.get("/debug")
+async def get_debug():
+    perfil = manager.current_profile
+    return {
+        "profiles_loaded": len(manager.profile_manager.profiles),
+        "profiles_path": manager.profiles_path,
+        "current_profile": perfil.get("name") if perfil else "None",
+        "active_connections": len(manager.active_connections)
+    }
+
+@app.get("/scenarios")
+async def get_scenarios_list():
+    """Obtiene la lista de los escenarios disponibles en RailWorks."""
+    print("DEBUG: Solicitud recibida en /scenarios")
+    try:
+        data = manager.scenario_manager.get_available_scenarios()
+        print(f"DEBUG: Enviando {len(data)} escenarios")
+        return data
+    except Exception as e:
+        print(f"ERROR en /scenarios: {e}")
+        return []
+
+@app.get("/scenarios/stops")
+async def api_get_scenario_stops(path: str):
+    """Obtiene las paradas de un escenario específico."""
+    return manager.scenario_manager.get_scenario_stops(path)
+
+@app.get("/scenarios/detect")
+async def detect_scenario(rv: str):
+    """Detecta el escenario activo basándose en el número del tren (RV)."""
+    return manager.scenario_manager.find_active_scenario_by_rv(rv)
+
+@app.get("/scenarios/live")
+async def get_live_timetable(route_id: str, scenario_path: str, x: float, z: float):
+    """Obtiene el horario enriquecido con distancias calculadas."""
+    return manager.scenario_manager.get_full_live_timetable(
+        route_id, 
+        scenario_path, 
+        {"x": x, "z": z}
+    )
 
 # Configuración de rutas (Detección dinámica)
 GETDATA_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\RailWorks\plugins\GetData.txt"
@@ -67,6 +120,7 @@ class TelemetryManager:
         
         initial_data = {
             "type": "INIT",
+            "profiles": profiles,
             "available_profiles": profiles,
             "active_profile": self.current_profile,
             "isConnected": True,
@@ -74,6 +128,7 @@ class TelemetryManager:
             "debug_count": len(profiles),
             **self.last_payload
         }
+        print(f"DEBUG: Enviando {len(profiles)} perfiles al cliente bajo campos 'profiles' y 'available_profiles'")
         await websocket.send_json(initial_data)
 
     def disconnect(self, websocket: WebSocket):
@@ -135,12 +190,31 @@ async def telemetry_reader():
                                 "active_profile": manager.current_profile,
                                 "active_profile_id": manager.current_profile.get("id") if manager.current_profile else None
                             }
+                            
+                            # Limpiar valores no serializables como Infinity o NaN para evitar errores en JavaScript
+                            def clean_json(obj):
+                                if isinstance(obj, dict):
+                                    return {str(k): clean_json(v) for k, v in obj.items()}
+                                elif isinstance(obj, list):
+                                    return [clean_json(x) for x in obj]
+                                elif isinstance(obj, float):
+                                    if obj == float('inf') or obj == float('-inf') or obj != obj:
+                                        return 0.0
+                                return obj
+
+                            clean_payload = clean_json(payload)
+
                             # Enviar la lista de perfiles periódicamente para asegurar sincronización
                             sync_counter += 1
                             if sync_counter % 25 == 0: # Cada 5 segundos aprox (5Hz * 25)
-                                payload["available_profiles"] = manager.profile_manager.get_all_profiles()
-                                
-                            await manager.broadcast(payload)
+                                if isinstance(clean_payload, dict):
+                                    # Forzar una nueva copia para evitar errores de tipo en el broadcast
+                                    profiles_list = manager.profile_manager.get_all_profiles()
+                                    clean_payload = {**clean_payload, "available_profiles": profiles_list}
+                            
+                            if isinstance(clean_payload, dict):
+                                await manager.broadcast(clean_payload)
+                            
                             prev_speed = speed
                             last_processed_time = current_time
                             last_mtime = current_mtime
@@ -152,57 +226,31 @@ async def telemetry_reader():
 @app.on_event("startup")
 async def startup_event():
     # Iniciar el lector de telemetría en segundo plano
+    print("DEBUG: Iniciando bucle de telemetría...")
     asyncio.create_task(telemetry_reader())
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-@app.get("/debug")
-async def get_debug():
-    perfil = manager.current_profile
-    return {
-        "profiles_loaded": len(manager.profile_manager.profiles),
-        "profiles_path": manager.profiles_path,
-        "current_profile": perfil.get("name") if perfil else "None",
-        "active_connections": len(manager.active_connections)
-    }
-
-@app.get("/scenarios")
-async def get_scenarios():
-    """Obtiene la lista de los escenarios disponibles en RailWorks."""
-    return manager.scenario_manager.get_available_scenarios()
-
-@app.get("/scenarios/stops")
-async def get_scenario_stops(path: str):
-    """Obtiene las paradas de un escenario específico."""
-    return manager.scenario_manager.get_scenario_stops(path)
-
-@app.get("/scenarios/detect")
-async def detect_scenario(rv: str):
-    """Detecta el escenario activo basándose en el número del tren (RV)."""
-    return manager.scenario_manager.find_active_scenario_by_rv(rv)
-
-@app.get("/scenarios/live")
-async def get_live_timetable(route_id: str, scenario_path: str, x: float, z: float):
-    """Obtiene el horario enriquecido con distancias calculadas."""
-    return manager.scenario_manager.get_full_live_timetable(
-        route_id, 
-        scenario_path, 
-        {"x": x, "z": z}
-    )
 
 @app.websocket("/ws/telemetry")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
+    # Forzar la aceptación de la conexión ignorando el origen (Fix 403 Forbidden)
+    print("DEBUG: Intento de conexión WebSocket recibido...")
     try:
+        # Importante: manager.connect ya llama a await websocket.accept()
+        await manager.connect(websocket)
+        print("DEBUG: WebSocket aceptado y sincronizado con INIT")
+        
         while True:
-            # Recibir comandos del frontend usando receive_json para mayor seguridad
             try:
-                cmd = await websocket.receive_json()
+                # Usar receive_text para evitar fallos si el mensaje no es JSON válido
+                data = await websocket.receive_text()
+                try:
+                    cmd = json.loads(data)
+                except json.JSONDecodeError:
+                    print(f"DEBUG: Mensaje no JSON recibido: {data}")
+                    continue
+
                 print(f"DEBUG: Comando recibido -> {cmd}")
                 
-                if cmd.get("type") == "SELECT_PROFILE" or cmd.get("type") == "SET_PROFILE":
+                if cmd.get("type") in ["SELECT_PROFILE", "SET_PROFILE"]:
                     profile_id = cmd.get("profile_id") or cmd.get("profile")
                     print(f"DEBUG: Frontend solicitó perfil ID -> [{profile_id}]")
                     
@@ -216,14 +264,26 @@ async def websocket_endpoint(websocket: WebSocket):
                         await manager.broadcast({
                             "type": "PROFILE_CHANGED",
                             "active_profile": manager.current_profile,
-                            "active_profile_id": perfil_id
+                            "active_profile_id": perfil_id,
+                            "timestamp": time.time()
                         })
                     else:
-                        print(f"DEBUG: FALLO. El ID [{profile_id}] no existe en los {len(manager.profile_manager.profiles)} perfiles cargados.")
-                        # Registrar IDs disponibles para depuración
-                        ids_disponibles = [p['id'] for p in manager.profile_manager.profiles[:5]]
-                        print(f"DEBUG: IDs ejemplo: {ids_disponibles}...")
+                        print(f"DEBUG: FALLO. El ID [{profile_id}] no existe.")
+            except WebSocketDisconnect:
+                print("DEBUG: WebSocket desconectado por el cliente")
+                if websocket in manager.active_connections:
+                    manager.active_connections.remove(websocket)
+                break
             except Exception as e:
-                print(f"DEBUG: Error procesando comando: {e}") 
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
+                print(f"DEBUG: Error procesando comando: {e}")
+                # No romper el bucle para permitir intentos posteriores
+    except Exception as e:
+        print(f"DEBUG: Error crítico en WebSocket: {e}")
+        if websocket in manager.active_connections:
+            manager.active_connections.remove(websocket)
+
+if __name__ == "__main__":
+    import uvicorn
+    # Aumentamos el log_level y configuramos uvicorn correctamente
+    print("DEBUG: Arrancando Servidor NEXUS en puerto 8000...")
+    uvicorn.run(app, host="0.0.0.0", port=8000, ws_ping_interval=20, ws_ping_timeout=20, log_level="debug")

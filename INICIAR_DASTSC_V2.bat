@@ -28,8 +28,11 @@ if not exist "%APP_DIR%\node_modules" (
 )
 
 :: 3. Lanzar Backend en una nueva ventana
+echo [+] Limpiando procesos antiguos en puerto 8000...
+powershell -Command "$p = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue; if($p) { Stop-Process -Id $p.OwningProcess -Force -ErrorAction SilentlyContinue }"
+
 echo [+] Iniciando Servidor de Telemetria (FastAPI)...
-start /min "DASTSC V2 Backend" cmd /k "cd /d %BACKEND_DIR% && %PYTHON_EXE% -m uvicorn main:app --reload --port 8000"
+start /min "DASTSC V2 Backend" cmd /k "cd /d %BACKEND_DIR% && %PYTHON_EXE% main.py"
 
 :: 4. Autoactualizar y Lanzar (Nexus DMI nativo o emergencia)
 echo [+] Sincronizando Interfaz (Por favor, espera unos segundos)...

@@ -124,15 +124,16 @@ export class DataNormalizer {
     // Señalización (Aspecto)
     let aspect = 'UNKNOWN';
     const sigVal = (Number(raw.SigRes || 0) > 0) ? Number(raw.SigState || 0) : Number(raw.NextSignalState || raw.InternalAspect || -1);
-    switch(sigVal) {
-      case 0: aspect = 'DANGER'; break;
-      case 1: aspect = 'CAUTION'; break;
-      case 2: aspect = 'ADV_CAUTION'; break;
-      case 3: aspect = 'CLEAR'; break;
-      case 4: aspect = 'PROCEED'; break;
-      case 10: aspect = 'FL_CAUTION'; break;
-      case 11: aspect = 'FL_ADV_CAUTION'; break;
-    }
+    
+    // Mapeo robusto: 0 suele ser Danger en casi todos los sistemas TSC
+    if (sigVal === 0) aspect = 'DANGER';
+    else if (sigVal === 1) aspect = 'CAUTION';
+    else if (sigVal === 2) aspect = 'ADV_CAUTION';
+    else if (sigVal === 3) aspect = 'CLEAR';
+    else if (sigVal === 4) aspect = 'PROCEED';
+    else if (sigVal === 10) aspect = 'FL_CAUTION';
+    else if (sigVal === 11) aspect = 'FL_ADV_CAUTION';
+    else if (sigVal === -1 && Number(raw.SigRes) === 1) aspect = 'DANGER'; // Fallback si hay señal pero no estado
 
     // Tiempo
     const timeSecs = raw.TimeOfDay || 0;

@@ -36,22 +36,36 @@ function App() {
   const [stops, setStops] = useState<ScenarioStop[]>([])
   const [activeRouteId, setActiveRouteId] = useState<string | null>(null)
   const [activeScenarioPath, setActiveScenarioPath] = useState<string | null>(null)
+  const [isManualSelection, setIsManualSelection] = useState(false)
 
   // 1. Detección automática del escenario basándose en el RVNumber de la telemetría
   useEffect(() => {
-    if (!isConnected || !data.RVNumber) return;
-
-    const detect = async () => {
-      console.log("Nexus: Intentando detectar escenario para RV:", data.RVNumber);
-      const scenario = await scenarioService.detectActiveScenario(data.RVNumber);
-      if (scenario) {
-        console.log("Nexus: Escenario detectado:", scenario.id);
-        setActiveRouteId(scenario.route_id);
-        setActiveScenarioPath(scenario.path);
-      }
+    // Escuchar el evento de selección manual ANTES de la detección automática
+    const handleManualSelect = (e: any) => {
+      const { scenario_path, route_id } = e.detail;
+      console.log("APP: Aplicando Selección Manual ->", scenario_path);
+      setIsManualSelection(true);
+      setActiveRouteId(route_id);
+      setActiveScenarioPath(scenario_path);
     };
-    detect();
-  }, [isConnected, data.RVNumber]);
+
+    window.addEventListener('SCENARIO_MANUAL_SELECT', handleManualSelect);
+
+    if (isConnected && data.RVNumber && !isManualSelection) {
+      const detect = async () => {
+        console.log("Nexus: Intentando detectar escenario para RV:", data.RVNumber);
+        const scenario = await scenarioService.detectActiveScenario(data.RVNumber);
+        if (scenario) {
+          console.log("Nexus: Escenario detectado automáticamente:", scenario.id);
+          setActiveRouteId(scenario.route_id);
+          setActiveScenarioPath(scenario.path);
+        }
+      };
+      detect();
+    }
+
+    return () => window.removeEventListener('SCENARIO_MANUAL_SELECT', handleManualSelect);
+  }, [isConnected, data.RVNumber, isManualSelection]);
 
   // 2. Efecto para actualizar el horario en vivo usando la detección previa
   useEffect(() => {

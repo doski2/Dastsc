@@ -2,7 +2,7 @@
 title Nexus v3 Runner
 set WORKSPACE_ROOT=%~dp0
 set VENV_PATH=%WORKSPACE_ROOT%.venv\Scripts\python.exe
-set BACKEND_DIR=%WORKSPACE_ROOT%Dastsc-V3\backend
+set BACKEND_DIR=%WORKSPACE_ROOT%Dastsc-V2\backend
 set FRONTEND_DIR=%WORKSPACE_ROOT%Dastsc-V3
 
 echo ====================================================
@@ -11,13 +11,15 @@ echo ====================================================
 echo.
 
 echo [0/2] Limpiando procesos antiguos en puerto 8000...
-powershell -Command "$p = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue; if($p) { Stop-Process -Id $p.OwningProcess -Force -ErrorAction SilentlyContinue }"
+taskkill /F /IM python.exe /T 2>nul
+taskkill /F /IM uvicorn.exe /T 2>nul
+powershell -Command "$p = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue; if($p) { Stop-Process -Id ($p.OwningProcess | Select-Object -First 1) -Force -ErrorAction SilentlyContinue }"
 echo [✓] Limpieza completada.
 
-echo [1/2] Iniciando Backend (FastAPI + Websockets)...
-start "NEXUS_V3_BACKEND" cmd /k "cd /d %BACKEND_DIR% && %VENV_PATH% -m uvicorn main:app --host 0.0.0.0 --port 8000"
+echo [1/2] Iniciando Backend de Telemetria (V2 Core)...
+start "V3_BACKEND" /min cmd /k "cd /d %BACKEND_DIR% && %VENV_PATH% main.py"
 
-echo [2/2] Iniciando Frontend (Vite + React 19)...
+echo [2/2] Iniciando Frontend de Usuario (V3 UI)...
 start "NEXUS_V3_FRONTEND" cmd /k "cd /d %FRONTEND_DIR% && npm run dev"
 
 echo.
