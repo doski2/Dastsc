@@ -41,13 +41,13 @@ const StopRow: React.FC<StopProps> = ({ name, type, dueTime, actualArrival, dist
         <CheckCircle2 className="w-3.5 h-3.5 text-green-500/80" />
         <div className="flex flex-col min-w-0">
           <span className="text-[11px] font-mono text-white/50 truncate w-32 uppercase tracking-tight">{name}</span>
-          {actualArrival && (
+          {actualArrival && actualArrival !== 'N/A' && (
             <span className="text-[9px] font-mono text-green-400/60 leading-none">ARR: {actualArrival}</span>
           )}
         </div>
         <div className="flex-1 border-b border-dashed border-white/5 mx-1" />
         <div className="flex flex-col items-end">
-          <span className="text-[10px] font-mono text-white/40 whitespace-nowrap">ARRIVED</span>
+          <span className="text-[10px] font-mono text-white/40 whitespace-nowrap uppercase">ARRIVED</span>
           {delay !== null && delay > 0 && (
             <span className="text-[9px] font-mono text-red-400/50">+{delay}m LATE</span>
           )}
@@ -107,26 +107,23 @@ export const ScenarioHud: React.FC<{ stops: any[] }> = ({ stops }) => {
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (showManualSelector) {
-      setLoading(true);
-      // Backend corre en el puerto 8000, no en el 5000
-      axios.get('http://localhost:8000/scenarios')
-        .then(res => setScenarios(res.data))
-        .catch(err => {
-          console.error('Error fetching scenarios:', err);
-          // Intentar fallback si el endpoint no responde
-          setScenarios([]);
-        })
-        .finally(() => setLoading(false));
-    }
-  }, [showManualSelector]);
-
   const filteredScenarios = scenarios.filter(s => 
-    s.name.toLowerCase().includes(filter.toLowerCase())
+    s.name.toLowerCase().includes(filter.toLowerCase()) || 
+    s.route_id.toLowerCase().includes(filter.toLowerCase())
   );
 
-  if (!stops || stops.length === 0) {
+  // Mapeo de estados del backend a props del componente
+  const processedStops = stops.map(stop => ({
+    name: stop.station_name,
+    type: stop.type === 'Stop' ? 'STOP' : 'WAYPOINT',
+    dueTime: stop.arrival_time !== 'N/A' ? stop.arrival_time : (stop.departure_time !== 'N/A' ? stop.departure_time : null),
+    actualArrival: stop.actual_arrival || null,
+    distance: stop.distance || -1,
+    satisfied: stop.status === 'SUCCEEDED',
+    isActive: stop.status === 'ACTIVE'
+  }));
+
+  if (!processedStops || processedStops.length === 0) {
     return (
       <div className="p-4 bg-white/5 border border-white/5 rounded-sm flex-1 flex flex-col items-center justify-center gap-3 relative">
         <Navigation className="w-6 h-6 text-white/10 animate-pulse" />
@@ -249,7 +246,7 @@ export const ScenarioHud: React.FC<{ stops: any[] }> = ({ stops }) => {
       </div>
       
       <div className="flex-1 flex flex-col overflow-y-auto scrollbar-hide py-1">
-        {(!stops || stops.length === 0) ? (
+        {(!processedStops || processedStops.length === 0) ? (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center opacity-30">
             <span className="text-[10px] font-mono text-white uppercase tracking-widest mb-2">No Active Service</span>
             <p className="text-[9px] font-mono text-white/60 leading-tight">USE THE SELECTOR ABOVE TO LOAD DATA MANUALLY</p>
@@ -260,20 +257,20 @@ export const ScenarioHud: React.FC<{ stops: any[] }> = ({ stops }) => {
               key={`${stop.name}-${i}`}
               name={stop.name}
               type={stop.type}
-              dueTime={stop.due_time}
-              actualArrival={stop.actual_arrival}
-              distance={stop.distance_m}
+              dueTime={stop.dueTime}
+              actualArrival={stop.actualArrival}
+              distance={stop.distance}
               satisfied={stop.satisfied}
-              isActive={!stop.satisfied && i === (firstUnsatisfiedIndex >= 0 && firstUnsatisfiedIndex < displayStops.length ? (firstUnsatisfiedIndex >= 1 ? 1 : 0) : 0)}
+              isActive={stop.isActive}
             />
           ))
         )}
       </div>
 
-      {stops && stops.length > displayStops.length && (
+      {processedStops && processedStops.length > displayStops.length && (
         <div className="h-6 flex items-center justify-center bg-black/20 border-t border-white/5 shrink-0 opacity-40">
            <span className="text-[9px] font-mono text-white/30 uppercase tracking-widest">
-             +{stops.length - displayStops.length} more instructions
+             +{processedStops.length - displayStops.length} more instructions
            </span>
         </div>
       )}

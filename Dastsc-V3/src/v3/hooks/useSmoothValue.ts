@@ -9,51 +9,48 @@ import { useState, useEffect, useRef } from 'react';
  * @returns El valor suavizado
  */
 export function useSmoothValue(targetValue: number, factor: number = 0.1): number {
-  const [smoothedValue, setSmoothedValue] = useState(targetValue);
   const currentRef = useRef(targetValue);
   const targetRef = useRef(targetValue);
-  const requestRef = useRef<number>(null);
+  const [value, setValue] = useState(targetValue);
 
-  // Actualiza el objetivo cuando cambia el valor bruto
+  // Actualizar el objetivo cuando cambia el valor real (desde el WebSocket/Context)
   useEffect(() => {
-    // Si hay un salto brusco (ej: cambio de señal o límite > 200m de golpe)
-    // teletransportamos el valor actual para evitar el efecto "zip" (vuelo rápido)
-    const delta = Math.abs(targetValue - currentRef.current);
-    if (delta > 200) {
-      currentRef.current = targetValue;
-      setSmoothedValue(targetValue);
-    }
     targetRef.current = targetValue;
   }, [targetValue]);
 
   useEffect(() => {
     let lastTime = performance.now();
+    let frameId: number;
     
     const animate = (time: number) => {
-      // Calculamos cuánto tiempo ha pasado realmente (Delta Time)
-      const dt = (time - lastTime) / (1000 / 60); // Normalizado a 60 FPS
+      const dt = Math.min(2.0, (time - lastTime) / (1000 / 60)); 
       lastTime = time;
 
       const diff = targetRef.current - currentRef.current;
       
       if (Math.abs(diff) < 0.0001) {
-        currentRef.current = targetRef.current;
+        if (currentRef.current !== targetRef.current) {
+          currentRef.current = targetRef.current;
+          setValue(currentRef.current);
+        }
       } else {
-        // LERP compensado por Delta Time
-        // Esto elimina los saltos si el script Lua tarda un poco más en escribir
         const adjustedFactor = 1 - Math.pow(1 - Math.min(factor, 0.99), dt);
         currentRef.current += diff * adjustedFactor;
+        
+        // OPTIMIZACIÓN: Solo disparamos el re-render de React si el cambio es perceptible
+        // Esto evita miles de actualizaciones inútiles cuando la diferencia es despreciable.
+        if (Math.abs(currentRef.current - value) > 0.0005) {
+          setValue(currentRef.current);
+        }
       }
       
-      setSmoothedValue(currentRef.current);
-      requestRef.current = requestAnimationFrame(animate);
+      frameId = requestAnimationFrame(animate);
     };
 
-    requestRef.current = requestAnimationFrame(animate);
-    return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
   }, [factor]);
 
-  return smoothedValue;
+  return currentRef.current;
 }
+

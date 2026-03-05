@@ -19,12 +19,12 @@ export const TrackProfile: React.FC = () => {
         return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
     };
 
-    const drawTrack = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    const drawTrack = React.useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
         if (!isConnected) return;
 
         const centerY = height / 2;
         const viewRange = 8000; // 8km de alcance (Pro-HUD)
-
+        
         // Escala NO LINEAL: 0-3km = 50% width, 3-8km = 50% width
         const getX = (m: number) => {
             const startX = 25;
@@ -46,7 +46,11 @@ export const TrackProfile: React.FC = () => {
         const rawGradient = smooth.gradient || 0;
         const currentLateralG = smooth.lateralG || 0;
 
-        const gradientOffset = rawGradient * 15;
+        // Visualización del gradiente según cabina
+        const visualGradient = (raw.ActiveCab === 2) ? -rawGradient : rawGradient;
+        const pitchEffect = (smooth.gForce || 0) * 12;
+
+        const gradientOffset = (visualGradient * 15) + pitchEffect;
         const curvatureIntensity = currentLateralG * 100;
 
         const getY = (m: number) => {
@@ -56,10 +60,10 @@ export const TrackProfile: React.FC = () => {
             return currentY + curveOffset;
         };
 
-        // 1. L�nea de la v�a (Estilo S�lido)
-        const coreColor = rawGradient > 0 ? "#f87171" : rawGradient < 0 ? "#4ade80" : "#22d3ee";
+        // 1. Línea de la vía
+        const coreColor = visualGradient > 0 ? "#f87171" : visualGradient < 0 ? "#4ade80" : "#22d3ee";
         ctx.beginPath();
-        const segments = 60; // M�s segmentos para suavidad
+        const segments = 60; 
         for (let i = 0; i <= segments; i++) {
             const progress = i / segments;
             const m = progress * viewRange;
@@ -75,8 +79,8 @@ export const TrackProfile: React.FC = () => {
         ctx.stroke();
 
         // 2. Info de Gradiente
-        const gradVal = Math.abs(rawGradient);
-        const gradIcon = rawGradient > 0 ? "" : rawGradient < 0 ? "" : "";
+        const gradVal = Math.abs(visualGradient);
+        const gradIcon = visualGradient > 0 ? "▲" : visualGradient < 0 ? "▼" : "";
         const ratio = gradVal > 0 ? Math.round(100 / gradVal) : 0;
 
         ctx.fillStyle = coreColor;
@@ -115,7 +119,7 @@ export const TrackProfile: React.FC = () => {
         }
         ctx.restore();
 
-        // 4. Parada de Estaci�n (Si existe)
+        // 4. Parada de Estación
         const stationDist = smooth.stationDistance;
         if (stationDist !== undefined && stationDist >= 0 && stationDist < viewRange) {
             const xStop = getX(stationDist);
@@ -137,7 +141,7 @@ export const TrackProfile: React.FC = () => {
             ctx.fillText(formatDistance(stationDist), xStop, yStop + 35);
         }
 
-        // 5. Se�ales y Aspectos
+        // 5. Señales y Aspectos
         const sigDist = smooth.signalDistance;
         if (sigDist > 0 && sigDist < viewRange) {
             const xSig = getX(sigDist);
@@ -211,7 +215,7 @@ export const TrackProfile: React.FC = () => {
             ctx.restore();
         });
 
-        // 7. Tri�ngulo Locomotora
+        // 7. Triángulo Locomotora
         ctx.fillStyle = "#f97316";
         ctx.beginPath();
         ctx.moveTo(10, centerY + 10);
@@ -220,8 +224,8 @@ export const TrackProfile: React.FC = () => {
         ctx.closePath();
         ctx.fill();
 
-        ctx.restore();
-    };
+        ctx.restore(); 
+    }, [isConnected, raw, smooth, formatDistance]);
 
     return (
         <div className="relative w-full h-[300px] bg-gradient-to-t from-black/40 to-transparent overflow-hidden">
@@ -232,3 +236,4 @@ export const TrackProfile: React.FC = () => {
         </div>
     );
 };
+

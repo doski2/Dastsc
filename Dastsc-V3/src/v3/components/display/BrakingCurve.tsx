@@ -1,17 +1,9 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useTelemetrySmoothing } from '../../hooks/useTelemetrySmoothing';
 import { CanvasLayer } from './CanvasLayer';
+import { scenarioService, ScenarioStop } from '../../services/ScenarioService';
 
 type CurveMode = 'DYNAMIC' | 'SIGNAL' | 'LIMIT';
-
-interface StationStop {
-  name: string;
-  is_platform: boolean;
-  satisfied: boolean;
-  due_time: string | null;
-  duration: number;
-  distance_m: number;
-}
 
 /**
  * BrakingCurve renderiza la parábola de frenado proyectiva.
@@ -19,7 +11,7 @@ interface StationStop {
 export const BrakingCurve: React.FC = () => {
   const { smooth, raw, isConnected, activeProfile } = useTelemetrySmoothing();
   const [mode, setMode] = useState<CurveMode>('DYNAMIC');
-  const [stops, setStops] = useState<StationStop[]>([]);
+  const [stops, setStops] = useState<ScenarioStop[]>([]);
   
   // En modo dinámico, si hay un escenario cargado, usamos la primera parada pendiente
   const nextAutoStop = useMemo(() => {
@@ -35,19 +27,8 @@ export const BrakingCurve: React.FC = () => {
       const m = parseFloat(customMiles);
       return !isNaN(m) ? m * 1609.34 : (raw.ProjectedBrakingDistance || 0);
     }
-    if (nextAutoStop && mode === 'DYNAMIC') {
-      return nextAutoStop.distance_m;
-    }
     return raw.ProjectedBrakingDistance || 0;
-  }, [customMiles, nextAutoStop, mode, raw.ProjectedBrakingDistance]);
-
-  // Efecto para cargar paradas reales basadas en el tren (RVNumber)
-  useEffect(() => {
-    if (isConnected && (raw as any).RVNumber) {
-      // En una implementación real, esto consultaría a el API de escenarios
-      setStops([]);
-    }
-  }, [isConnected, (raw as any).RVNumber]);
+  }, [customMiles, raw.ProjectedBrakingDistance]);
 
   // distancia restante cuando se establece un valor manual o auto-stop
   const [remainingDist, setRemainingDist] = useState<number>(customTargetDist);
@@ -61,29 +42,28 @@ export const BrakingCurve: React.FC = () => {
   }, [customTargetDist, activeProfile]);
 
   // bucle de decremento: descontar según distancia real recorrida (TripDistance) si está disponible
-  // Se elimina la restricción de mode === 'DYNAMIC' para que siga descontando en segundo plano
   useEffect(() => {
     let raf: number;
     const tick = () => {
-      // Preferimos usar TripDistance (odómetro) para descontar exactamente la distancia
-      const trip = (raw as any).TripDistance;
+      const trip = raw.TripDistance;
 
       if (typeof trip === 'number') {
-        if (lastTripRef.current == null) lastTripRef.current = trip;
-        const delta = trip - (lastTripRef.current || trip);
+        if (lastTripRef.current === null) {
+          lastTripRef.current = trip;
+        }
+        const delta = trip - lastTripRef.current;
         lastTripRef.current = trip;
-        if (customMiles && remainingDist > 0 && delta > 0) {
+        
+        if (delta > 0 && remainingDist > 0) {
           setRemainingDist(d => Math.max(0, d - delta));
         }
       } else {
-        // Fallback a velocidad * dt (si no hay TripDistance)
         const now = Date.now();
         const dt = (now - lastTimeRef.current) / 1000;
         lastTimeRef.current = now;
-        if (customMiles && remainingDist > 0 && dt > 0) {
+        if (remainingDist > 0 && dt > 0) {
           const rawSpeed = raw.Speed || 0;
-          const threshold = 0.01;
-          if (rawSpeed > threshold) {
+          if (rawSpeed > 0.01) {
             setRemainingDist(d => Math.max(0, d - rawSpeed * dt));
           }
         }
@@ -93,7 +73,7 @@ export const BrakingCurve: React.FC = () => {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [customMiles, raw.Speed, raw.TripDistance]);
+  }, [raw.Speed, raw.TripDistance]);
 
   const formatDistance = (m: number) => {
     if (raw.SpeedUnit === 'MPH') {
@@ -104,7 +84,7 @@ export const BrakingCurve: React.FC = () => {
     return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
   };
 
-  const drawGraph = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+  const drawGraph = React.useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
     if (!isConnected) return;
 
     const padding = 45; // padding aumentado para etiquetas de eje
@@ -145,8 +125,16 @@ export const BrakingCurve: React.FC = () => {
         ctx.stroke();
 
         // Etiqueta Distancia (en la base)
-        const targetDist = raw.ProjectedBrakingDistance || 500;
-        const distAtX = targetDist * ratio;
+        let targetDistForLabels = raw.ProjectedBrakingDistance || 500;
+        if (mode === 'DYNAMIC') {
+          targetDistForLabels = customMiles ? remainingDist : (nextAutoStop?.distance_m || targetDistForLabels);
+        } else if (mode === 'SIGNAL') {
+          targetDistForLabels = raw.DistToNextSignal;
+        } else if (mode === 'LIMIT') {
+          targetDistForLabels = raw.DistToNextSpeedLimit;
+        }
+
+        const distAtX = targetDistForLabels * ratio;
         ctx.save();
         ctx.textAlign = 'center';
         let label = '';
@@ -178,18 +166,9 @@ export const BrakingCurve: React.FC = () => {
 
     // 3. Generar y dibujar la curva de frenado proyectada
     let targetDist = raw.ProjectedBrakingDistance || 500;
-    let labelTitle = "BRAKING DISTANCE";
-    let targetName = "";
 
     if (mode === 'DYNAMIC') {
-      if (customMiles) {
-        targetDist = remainingDist;
-        labelTitle = "MANUAL STOP";
-      } else if (nextAutoStop) {
-        targetDist = nextAutoStop.distance_m;
-        labelTitle = "AUTO STATION STOP";
-        targetName = nextAutoStop.name;
-      }
+      targetDist = customMiles ? remainingDist : (nextAutoStop?.distance_m || targetDist);
     }
 
     let targetSpeedMS = 0; // m/s internos para física
@@ -206,7 +185,6 @@ export const BrakingCurve: React.FC = () => {
     } else if (mode === 'LIMIT') {
         targetDist = raw.DistToNextSpeedLimit;
         // La telemetría NextSpeedLimit suele venir en la unidad de visualización (MPH/KPH)
-        // Convertimos a m/s para el cálculo de física
         const factor = raw.SpeedUnit === 'MPH' ? 0.44704 : 0.27778;
         targetSpeedDisplay = raw.NextSpeedLimit;
         targetSpeedMS = targetSpeedDisplay * factor;
@@ -218,15 +196,14 @@ export const BrakingCurve: React.FC = () => {
     
     // --- Cálculo de Esfuerzo de Frenado Real vs Teórico ---
     // 1. Esfuerzo Dinámico (Priorizar Ammeter real si es negativo)
-    const currentAmps = (raw as any).Ammeter !== undefined ? (raw as any).Ammeter : raw.Amperage;
+    const currentAmps = raw.Ammeter !== undefined ? raw.Ammeter : raw.Amperage;
     const dynamicEffort = (currentAmps < 0) ? Math.abs(currentAmps) : 0;
     
     // 2. Esfuerzo Neumático (kN)
     const pneumaticEffort = raw.BrakingEffort || 0;
     
     // 3. Esfuerzo Total Aplicado (kN) 
-    // Usamos el TractiveEffort si es negativo (frenado) o la suma calculada
-    const rawTE = (raw as any).TractiveEffort || 0;
+    const rawTE = raw.TractiveEffort || 0;
     const totalAppliedEffort = rawTE < 0 ? Math.abs(rawTE) : (pneumaticEffort + (dynamicEffort * 0.5));
 
     // Cálculo de Deceleración Requerida (v² = u² + 2as) => a = (v² - u²) / 2s
@@ -237,34 +214,21 @@ export const BrakingCurve: React.FC = () => {
         const requiredDecel = Math.abs(requiredAcc);
         
         // --- Cálculo dinámico basado en Masa y Longitud ---
-        // 1. Masa (TrainMass en toneladas): A mayor masa, mayor inercia.
-        // 2. Longitud (TrainLength en metros): Afecta a la propagación del freno neumático.
         const massFactor = raw.TrainMass > 0 ? (raw.TrainMass / 500) : 1; // 500t como base
         const lengthFactor = raw.TrainLength > 0 ? (1 + (raw.TrainLength / 1000) * 0.1) : 1; 
         
-        // 3. Tipo de Tren (Propagación / Lag):
-        // Tipo 0 (Freight): +40% de retraso en respuesta (comportamiento neumático lento)
-        // Tipo 1 (Passenger): Respuesta estándar
-        // Tipo 3 (Light Engine): Respuesta inmediata
         const typeLagMap: Record<number, number> = { 0: 1.4, 1: 1.0, 2: 1.1, 3: 0.8 };
-        const trainType = (raw as any).TrainType ?? 1;
+        const trainType = raw.TrainType ?? 1;
         const lagFactor = typeLagMap[trainType] || 1.0;
 
-        // Ajustamos la deceleración máxima de servicio esperada según la carga y el tipo
         let effectiveMaxServiceDecel = activeProfile?.physics_config?.max_braking_decel || 1.0; 
         
         effectiveMaxServiceDecel = effectiveMaxServiceDecel / (massFactor * lengthFactor * lagFactor);
 
         // --- Influencia del Gradiente (Desnivel) ---
-        // La gravedad ayuda o dificulta el frenado: a_gravity = g * sin(theta)
-        // En ferrocarriles, el gradiente suele ser pequeño, por lo que sin(theta) ≈ tan(theta) = gradient / 100
-        // CORRECCIÓN: En Railworks/Nexus, un gradiente (-) suele ser SUBIDA y (+) BAJADA.
-        // Invertimos el signo para que la física sea correcta: Subida ayuda (+ freno), Bajada empuja (- freno).
         const gradient = -(raw.Gradient || 0);
         const gravityAcc = 9.80665 * (gradient / 100); 
         
-        // Si el gradiente (corregido) es positivo (subida), nos ayuda a frenar (necesitamos menos muesca)
-        // Si el gradiente (corregido) es negativo (bajada), nos empuja (necesitamos más muesca)
         const totalDecelNeeded = requiredDecel - gravityAcc;
 
         recommendedBrake = Math.min(100, Math.max(0, (totalDecelNeeded / effectiveMaxServiceDecel) * 100));
@@ -364,6 +328,47 @@ export const BrakingCurve: React.FC = () => {
 
     // 4. Marcador de distancia óptima (Punto final)
     ctx.fillStyle = curveColor;
+    
+    // --- NUEVO: Línea horizontal de velocidad objetivo ---
+    if (mode === 'LIMIT' || mode === 'SIGNAL') {
+        const targetY = smooth.speedDisplay > 0 ? graphHeight * (1 - (targetSpeedDisplay / smooth.speedDisplay)) : graphHeight;
+        
+        ctx.save();
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = curveColor + '66'; // 40% opacidad
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, targetY);
+        ctx.lineTo(graphWidth, targetY);
+        ctx.stroke();
+        
+        // Etiqueta de velocidad objetivo sobre la línea
+        ctx.fillStyle = curveColor;
+        ctx.font = 'bold 9px JetBrains Mono';
+        ctx.textAlign = 'left';
+        ctx.fillText(`${Math.round(targetSpeedDisplay)} ${raw.SpeedUnit}`, 5, targetY - 5);
+        ctx.restore();
+    }
+
+    // --- NUEVA LÍNEA: Nariz del Tren si estamos en Cabina 2 ---
+    if (raw.ActiveCab === 2 && raw.TrainLength > 0 && targetDist > 5) {
+        const noseX = (raw.TrainLength / targetDist) * graphWidth;
+        if (noseX > 0 && noseX < graphWidth) {
+            ctx.save();
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = 'rgba(255, 120, 120, 0.4)';
+            ctx.beginPath();
+            ctx.moveTo(noseX, 0);
+            ctx.lineTo(noseX, graphHeight);
+            ctx.stroke();
+            
+            ctx.fillStyle = 'rgba(255, 120, 120, 0.8)';
+            ctx.font = 'bold 9px JetBrains Mono';
+            ctx.fillText('TRAIN NOSE', noseX + 4, 15);
+            ctx.restore();
+        }
+    }
+
     ctx.beginPath();
     // Ajustar posición Y del punto según la velocidad objetivo
     const endY = smooth.speedDisplay > 0 ? graphHeight * (1 - (targetSpeedDisplay / smooth.speedDisplay)) : graphHeight;
@@ -371,7 +376,7 @@ export const BrakingCurve: React.FC = () => {
     ctx.fill();
 
     ctx.restore();
-  };
+  }, [isConnected, raw, smooth.speedDisplay, mode, customMiles, remainingDist, nextAutoStop, activeProfile, formatDistance]);
 
   const getTargetInfo = () => {
     switch(mode) {
@@ -390,8 +395,62 @@ export const BrakingCurve: React.FC = () => {
   };
 
   const info = getTargetInfo();
+    
+  // --- NUEVO: Cálculo de distancia de inicio de frenado ---
+  // Extraemos las variables necesarias fuera de drawGraph para que estén disponibles
+  const brakeParams = useMemo(() => {
+      const targetDist = info.dist;
+      let targetSpeedMS = 0;
+      
+      if (mode === 'SIGNAL') {
+          targetSpeedMS = 0;
+      } else if (mode === 'LIMIT') {
+          const factor = raw.SpeedUnit === 'MPH' ? 0.44704 : 0.27778;
+          targetSpeedMS = raw.NextSpeedLimit * factor;
+      } else {
+          // Dynamic mode targets 0
+          targetSpeedMS = 0;
+      }
 
-  return (
+      if (!raw.Speed || !targetDist || raw.Speed <= targetSpeedMS) return null;
+      
+      const baseDecel = activeProfile?.physics_config?.max_braking_decel || 0.8;
+      const massFactor = raw.TrainMass > 0 ? (raw.TrainMass / 500) : 1;
+      const typeLagMap: Record<number, number> = { 0: 1.4, 1: 1.0, 2: 1.1, 3: 0.8 };
+      const lagFactor = typeLagMap[raw.TrainType ?? 1] || 1.0;
+      const gradient = -(raw.Gradient || 0);
+      const gravityAcc = 9.80665 * (gradient / 100);
+      
+      // Deceleración de servicio (40% de la max)
+      const effectiveDecel = (baseDecel * 0.4) / (massFactor * lagFactor) + gravityAcc;
+      
+      if (effectiveDecel <= 0) return null;
+
+      const brakeDistNeeded = (Math.pow(raw.Speed, 2) - Math.pow(targetSpeedMS, 2)) / (2 * effectiveDecel);
+      const distanceToStart = targetDist - brakeDistNeeded;
+      
+      // Intentamos obtener la muesca recomendada (basada en el 40% de deceleración)
+      let recNotch = "SERVICE";
+      const notches = activeProfile?.specs?.notches_throttle_brake;
+      if (notches) {
+          const targetVal = -0.4; // 40% de freno
+          const brakeNotches = notches.filter((n: any) => n.value <= 0).sort((a: any, b: any) => b.value - a.value);
+          for (const notch of brakeNotches) {
+              if (targetVal >= notch.value) {
+                  recNotch = notch.label;
+                  break;
+              }
+          }
+      }
+
+      return {
+          dist: distanceToStart,
+          needed: brakeDistNeeded,
+          notch: recNotch
+      };
+  }, [raw.Speed, raw.NextSpeedLimit, raw.SpeedUnit, raw.TrainMass, raw.TrainType, raw.Gradient, activeProfile, info.dist, mode]);
+
+return (
     <div className="relative flex-1 bg-white/[0.02] border border-white/5 rounded-sm overflow-hidden flex flex-col min-h-[300px]">
       <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10 pointer-events-none">
         <div className="flex flex-col gap-1 pointer-events-auto max-w-[60%]">
@@ -404,6 +463,29 @@ export const BrakingCurve: React.FC = () => {
             {info.label}: <span className="text-white">{formatDistance(info.dist)}</span>
             <span className="ml-2 text-[10px] opacity-40">[{info.val}]</span>
           </span>
+          
+          {/* Dashboard de Frenado Exacto */}
+          {brakeParams && brakeParams.dist > 0 && (
+            <div className="mt-2 flex flex-col bg-black/60 p-2 border-l-2 border-amber-500 backdrop-blur-sm">
+                <span className="text-[9px] text-amber-500 font-black uppercase tracking-widest">Brake Start In:</span>
+                <span className="text-[18px] text-white font-mono font-bold">
+                    {formatDistance(brakeParams.dist)}
+                </span>
+                <div className="flex gap-2 items-center mt-1">
+                    <span className="text-[8px] text-white/40 font-bold uppercase">Rec Notch:</span>
+                    <span className="px-1.5 py-0.5 bg-amber-500 text-black text-[10px] font-black rounded-xs">
+                        {brakeParams.notch}
+                    </span>
+                </div>
+            </div>
+          )}
+          
+          {brakeParams && brakeParams.dist <= 0 && (
+            <div className="mt-2 flex flex-col bg-red-600/20 p-2 border-l-2 border-red-500 animate-pulse">
+                <span className="text-[9px] text-red-500 font-black uppercase">OVERSPEED RISK</span>
+                <span className="text-[12px] text-white font-mono font-bold">APPLY BRAKE NOW!</span>
+            </div>
+          )}
           {mode === 'DYNAMIC' && (
             <div className="absolute top-14 left-0 mt-2 flex items-center gap-1">
               <div className="bg-black/80 border border-white/10 rounded-sm p-1 flex items-center gap-2">

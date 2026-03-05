@@ -2,11 +2,11 @@
 title Nexus v3 Runner
 set WORKSPACE_ROOT=%~dp0
 set VENV_PATH=%WORKSPACE_ROOT%.venv\Scripts\python.exe
-set BACKEND_DIR=%WORKSPACE_ROOT%Dastsc-V2\backend
+set BACKEND_DIR=%WORKSPACE_ROOT%Dastsc-V3\backend
 set FRONTEND_DIR=%WORKSPACE_ROOT%Dastsc-V3
 
 echo ====================================================
-echo    NEXUS V3 - SISTEMA DE CONTROL DE TELEMETRIA
+echo    NEXUS V3 - SISTEMA DE CONTROL DE TELEMETRIA (V3 CORE)
 echo ====================================================
 echo.
 
@@ -16,7 +16,7 @@ taskkill /F /IM uvicorn.exe /T 2>nul
 powershell -Command "$p = Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue; if($p) { Stop-Process -Id ($p.OwningProcess | Select-Object -First 1) -Force -ErrorAction SilentlyContinue }"
 echo [✓] Limpieza completada.
 
-echo [1/2] Iniciando Backend de Telemetria (V2 Core)...
+echo [1/2] Iniciando Backend de Telemetria (V3 Engine)...
 start "V3_BACKEND" /min cmd /k "cd /d %BACKEND_DIR% && %VENV_PATH% main.py"
 
 echo [2/2] Iniciando Frontend de Usuario (V3 UI)...

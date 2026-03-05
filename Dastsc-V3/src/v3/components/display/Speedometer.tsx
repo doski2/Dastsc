@@ -11,24 +11,47 @@ export const Speedometer: React.FC = () => {
     const { smooth, raw, isConnected, activeProfile } = useTelemetrySmoothing();
     const progressBarRef = useRef<HTMLDivElement>(null);
 
+    // Lógica para determinar alertas visuales (AWS, DSD)
+    const getSafetyAlerts = () => {
+        // Mapeo robusto: AWS=1 (Normal), AWS=2 (Warning/Acknowledge needed)
+        // Algunos scripts LUA envían AWS=2 directamente, otros usan AWSWarning:1
+        const awsRaw = Number(raw.AWS || 0);
+        const awsWarning = Number(raw.AWSWarning || 0);
+        const awsWarnCount = Number(raw.AWSWarnCount || 0);
+        
+        // El aviso debe saltar si el valor de AWS es 2 O si hay señales explícitas de Warning
+        // IMPORTANTE: Un valor de 1 suele ser "Circle" (Clear), un valor de 2 o más es "Sunflower" (Warning)
+        const aws = (awsRaw >= 2 || awsWarning > 0 || awsWarnCount > 0) ? 2 : awsRaw;
+        
+        const dsd = Number(raw.DSD || 0) || Number(raw.VigilAlarm || 0) || Number(raw.Vigilance || 0) || Number(raw.DVDAlarm || 0);
+
+        return {
+            aws: aws,
+            dsd: dsd > 0.5,
+            isWarning: aws >= 2 || dsd > 0.5
+        };
+    };
+
+    const alerts = getSafetyAlerts();
+
     // Actualiza la barra de progreso de la cola del tren (Tail Protection)
     useEffect(() => {
         if (progressBarRef.current && raw.TailIsActive) {
-            const progress = Math.max(0, Math.min(100, raw.TrainLength > 0 ? 100 - (smooth.tailDistance / raw.TrainLength) * 100 : 0));
+            const progress = Math.max(0, Math.min(100, raw.TrainLength > 0 ? (1 - smooth.tailDistance / raw.TrainLength) * 100 : 0));
             progressBarRef.current.style.width = `${progress}%`;
         }
     }, [smooth.tailDistance, raw.TrainLength, raw.TailIsActive]);
 
-    const drawGauge = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    const drawGauge = React.useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
         if (!isConnected) return;
 
         const centerX = width / 2;
         const centerY = height / 2;
-        const radius = Math.min(width, height) * 0.4;
+        const radius = Math.max(30, Math.min(width, height) * 0.4);
 
         ctx.save();
 
-        // 1. Fondo del veloc�metro (Segmentado)
+        // 1. Fondo del velocímetro (Segmentado)
         ctx.setLineDash([2, 4]);
         ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
         ctx.lineWidth = 15;
@@ -67,7 +90,7 @@ export const Speedometer: React.FC = () => {
         const projAngle = 0.75 * Math.PI + projectedPercent * 1.5 * Math.PI;
         
         ctx.strokeStyle = raw.ProjectedSpeed > smooth.speedDisplay ? "rgba(34, 211, 238, 0.2)" : "rgba(249, 115, 22, 0.2)";
-        ctx.lineWidth = 8;
+        ctx.lineWidth = 10;
         ctx.beginPath();
         ctx.arc(centerX, centerY, radius + 5, Math.min(endAngle, projAngle), Math.max(endAngle, projAngle));
         ctx.stroke();
@@ -119,14 +142,14 @@ export const Speedometer: React.FC = () => {
         ctx.arc(pX, pY, 3, 0, Math.PI * 2);
         ctx.fill();
 
-        // Métricas detalladas de fuerza G debajo del globo
+        // Métricas de fuerza G
         ctx.fillStyle = "rgba(255,255,255,0.4)";
         ctx.font = "8px JetBrains Mono";
         ctx.textAlign = "center";
         ctx.fillText(`L:${(raw.LateralG * 10 || 0).toFixed(2)} Lon:${(raw.GForce * 10).toFixed(2)}`, gX, gY + gR + 10);
 
-        ctx.restore();
-    };
+        ctx.restore(); 
+    }, [isConnected, raw, smooth.speedDisplay, activeProfile]);
 
     // L�gica para determinar el Notch activo
     const getActiveNotch = () => {
@@ -146,6 +169,17 @@ export const Speedometer: React.FC = () => {
 
     const activeNotch = getActiveNotch();
 
+    // Lógica para determinar el color de fondo dinámico basado en las alertas
+    const getContainerClasses = () => {
+        let classes = "relative flex flex-col items-center justify-center h-[280px] bg-[#0b0b0b] border rounded-sm overflow-hidden transition-all duration-300";
+        if (alerts.dsd || (alerts.aws >= 2)) {
+            classes += " border-red-600/60 bg-red-950/30 shadow-[inset_0_0_30px_rgba(220,38,38,0.2)] scale-[1.01]";
+        } else {
+            classes += " border-white/5";
+        }
+        return classes;
+    };
+
     // Obtener las muescas del perfil o usar las genéricas si no hay perfil
     const displayNotches = activeProfile?.specs?.notches_throttle_brake 
         ? [...activeProfile.specs.notches_throttle_brake]
@@ -154,14 +188,32 @@ export const Speedometer: React.FC = () => {
         : ["P7", "P1", "N", "B1", "B9"];
 
     return (
-        <div className="relative flex flex-col items-center justify-center h-[280px] bg-[#0b0b0b] border border-white/5 rounded-sm overflow-hidden">
+        <div className={getContainerClasses()}>
             <CanvasLayer render={drawGauge} />
+
+            {/* Avisadores Visuales Superiores (AWS/DSD) */}
+            <div className="absolute top-4 flex flex-col gap-2 z-10 w-full items-center px-10">
+                {alerts.dsd && (
+                    <div className="animate-pulse bg-red-600 text-white text-[10px] font-black px-6 py-1.5 rounded-sm shadow-[0_0_20px_rgba(220,38,38,0.6)] border-2 border-red-400 w-fit">
+                        DSD (DEADMAN) ALARM
+                    </div>
+                )}
+                {alerts.aws >= 2 && (
+                    <div className="animate-pulse bg-red-600 text-white text-[10px] font-black px-6 py-1.5 rounded-sm shadow-[0_0_20px_rgba(220,38,38,0.6)] border-2 border-red-400 w-fit">
+                        AWS WARNING - ACKNOWLEDGE
+                    </div>
+                )}
+            </div>
 
             {/* Lectura Digital */}
             <div className="absolute flex flex-col items-center pointer-events-none">
-                <span className="text-xs font-mono text-white/20 uppercase tracking-[0.2em]">{raw.SpeedUnit}</span>
+                <span className={`text-xs font-mono uppercase tracking-[0.2em] transition-colors ${
+                    alerts.dsd || alerts.aws >= 2 ? "text-red-400" : "text-white/20"
+                }`}>{raw.SpeedUnit}</span>
                 <div className="flex items-baseline">
-                    <span className="text-6xl font-light text-white/90 leading-none">{smooth.speedDisplay.toFixed(1)}</span>
+                    <span className={`text-6xl font-light leading-none transition-colors ${
+                        alerts.dsd || alerts.aws >= 2 ? "text-red-500" : "text-white/90"
+                    }`}>{smooth.speedDisplay.toFixed(1)}</span>
                     <span className={`text-xl font-mono ml-1 ${
                         raw.ProjectedSpeed > smooth.speedDisplay ? "text-cyan-500/40" : "text-orange-500/40"
                     }`}>
@@ -169,7 +221,9 @@ export const Speedometer: React.FC = () => {
                     </span>
                 </div>
                 <div className="mt-2 flex flex-col items-center">
-                    <span className="text-xs font-mono text-cyan-500/60 font-bold">
+                    <span className={`text-xs font-mono font-bold transition-colors ${
+                        alerts.dsd || alerts.aws >= 2 ? "text-red-400" : "text-cyan-500/60"
+                    }`}>
                         {raw.GForce >= 0 ? "+" : ""}{(raw.GForce * 10).toFixed(2)}G
                     </span>
                     <div className={`mt-1 px-3 py-1 rounded-full text-xs font-bold ${
@@ -209,3 +263,4 @@ export const Speedometer: React.FC = () => {
         </div>
     );
 };
+

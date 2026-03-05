@@ -67,25 +67,20 @@ function App() {
     return () => window.removeEventListener('SCENARIO_MANUAL_SELECT', handleManualSelect);
   }, [isConnected, data.RVNumber, isManualSelection]);
 
-  // 2. Efecto para actualizar el horario en vivo usando la detección previa
+  // 2. Efecto para actualizar el horario en vivo usando la detección previa (Desactivado para reducir carga HTTP)
+  /*
   useEffect(() => {
-    const routeId = activeRouteId || data.RouteID;
-    const scenarioPath = activeScenarioPath || data.ScenarioPath;
-
-    if (!isConnected || !routeId || !scenarioPath) return;
+    if (!isConnected) return;
 
     const interval = setInterval(async () => {
-      const liveStops = await scenarioService.getLiveTimetable(
-        routeId, 
-        scenarioPath, 
-        data.X || 0, 
-        data.Z || 0
-      );
-      if (liveStops.length > 0) setStops(liveStops);
-    }, 1000);
+      // Ahora usamos el endpoint unificado que detecta el escenario activo
+      const liveStops = await scenarioService.getLiveTimetable();
+      if (liveStops && liveStops.length > 0) setStops(liveStops);
+    }, 2000);
 
     return () => clearInterval(interval);
-  }, [isConnected, activeRouteId, activeScenarioPath, data.RouteID, data.ScenarioPath, data.X, data.Z]);
+  }, [isConnected]);
+  */
 
   const formatDistance = (m: number) => {
     if (data.SpeedUnit === 'MPH') {

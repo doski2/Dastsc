@@ -62,13 +62,30 @@ class ScenarioService {
     }
   }
 
-  async getLiveTimetable(routeId: string, scenarioPath: string, x: number, z: number): Promise<ScenarioStop[]> {
+  async getLiveTimetable(routeId?: string, scenarioPath?: string, x?: number, z?: number): Promise<ScenarioStop[]> {
     try {
-      const response = await axios.get(`${API_BASE}/scenarios/live`, {
-        params: { route_id: routeId, scenario_path: scenarioPath, x, z }
-      });
-      this.stops = response.data;
-      return this.stops;
+      // Intentamos usar el nuevo endpoint simplificado del backend
+      const response = await axios.get(`${API_BASE}/scenarios/live`);
+      
+      if (response.data && response.data.stops) {
+        // Mapear el formato del backend al frontend
+        const mappedStops: ScenarioStop[] = response.data.stops.map((s: any) => ({
+          name: s.station_name,
+          entity_name: s.station_name,
+          type: s.type || 'STOP',
+          is_waypoint: s.type === 'WAYPOINT',
+          satisfied: s.satisfied || false,
+          is_platform: true,
+          due_time: s.arrival_time,
+          arrival_time: s.actual_arrival || null,
+          raw_due: 0,
+          stop_duration: 0,
+          distance_m: s.distance || 0
+        }));
+        this.stops = mappedStops;
+        return this.stops;
+      }
+      return [];
     } catch (error) {
       console.error('Error fetching live timetable:', error);
       return [];

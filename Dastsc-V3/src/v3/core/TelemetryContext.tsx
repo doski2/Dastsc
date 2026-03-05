@@ -53,6 +53,7 @@ export interface TelemetryData {
   TrainLength: number;
   TrainMass: number;
   ConsistType: number;
+  TrainType: number;      // 0: Freight, 1: Passenger, 2: Postal, 3: Light Engine
   ActiveCab: number; // 1 = Front, 2 = Back
 
   // IA / Predictivo
@@ -77,7 +78,12 @@ export interface TelemetryData {
   
   // Sistemas de Seguridad y Auxiliares (Nuevos)
   AWS: number; 
+  AWSWarning: number;
+  AWSWarnCount: number;
   DSD: number;
+  VigilAlarm: number;
+  Vigilance: number;
+  DVDAlarm: number;
   DRA: boolean;
   Sander: boolean;
   DoorsOpen: { left: boolean; right: boolean };
@@ -135,6 +141,7 @@ const DefaultData: TelemetryData = {
   TrainLength: 0,
   TrainMass: 0,
   ConsistType: 0,
+  TrainType: 1,
   ActiveCab: 1,
   ProjectedBrakingDistance: 0,
   TailDistanceRemaining: 0,
@@ -150,7 +157,12 @@ const DefaultData: TelemetryData = {
   IsEmergency: false,
   Timestamp: 0,
   AWS: 0,
+  AWSWarning: 0,
+  AWSWarnCount: 0,
   DSD: 0,
+  VigilAlarm: 0,
+  Vigilance: 0,
+  DVDAlarm: 0,
   DRA: false,
   Sander: false,
   DoorsOpen: { left: false, right: false },
