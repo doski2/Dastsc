@@ -13,22 +13,28 @@ export const Speedometer: React.FC = () => {
 
     // Lógica para determinar alertas visuales (AWS, DSD)
     const getSafetyAlerts = () => {
-        // Mapeo robusto: AWS=1 (Normal), AWS=2 (Warning/Acknowledge needed)
-        // Algunos scripts LUA envían AWS=2 directamente, otros usan AWSWarning:1
-        const awsRaw = Number(raw.AWS || 0);
-        const awsWarning = Number(raw.AWSWarning || 0);
-        const awsWarnCount = Number(raw.AWSWarnCount || 0);
+        const awsVal = Number(raw.AWS || 0);
+        const awsCount = Number(raw.AWSWarnCount || 0);
+        const awsReset = Number(raw.AWSReset || 0);
         
-        // El aviso debe saltar si el valor de AWS es 2 O si hay señales explícitas de Warning
-        // IMPORTANTE: Un valor de 1 suele ser "Circle" (Clear), un valor de 2 o más es "Sunflower" (Warning)
-        const aws = (awsRaw >= 2 || awsWarning > 0 || awsWarnCount > 0) ? 2 : awsRaw;
+        // ACTIVACIÓN: 
+        // Solo visual: Nos guiamos por el estado del AWS y el conteo de avisos.
+        let isAwsActive = (awsVal > 1 || awsCount > 0);
+
+        // RESET:
+        // El aviso se apaga si pulsas el botón (awsReset > 0).
+        if (awsReset > 0) {
+            isAwsActive = false;
+        }
         
-        const dsd = Number(raw.DSD || 0) || Number(raw.VigilAlarm || 0) || Number(raw.Vigilance || 0) || Number(raw.DVDAlarm || 0);
+        // DSD / Vigilancia
+        const dsdVal = Number(raw.DSD || 0) || Number(raw.VigilAlarm || 0) || Number(raw.Vigilance || 0) || Number(raw.DVDAlarm || 0);
+        const isDsdActive = dsdVal > 0.01;
 
         return {
-            aws: aws,
-            dsd: dsd > 0.5,
-            isWarning: aws >= 2 || dsd > 0.5
+            aws: isAwsActive ? 2 : 0,
+            dsd: isDsdActive,
+            isWarning: isAwsActive || isDsdActive
         };
     };
 
@@ -171,10 +177,16 @@ export const Speedometer: React.FC = () => {
 
     // Lógica para determinar el color de fondo dinámico basado en las alertas
     const getContainerClasses = () => {
-        let classes = "relative flex flex-col items-center justify-center h-[280px] bg-[#0b0b0b] border rounded-sm overflow-hidden transition-all duration-300";
-        if (alerts.dsd || (alerts.aws >= 2)) {
-            classes += " border-red-600/60 bg-red-950/30 shadow-[inset_0_0_30px_rgba(220,38,38,0.2)] scale-[1.01]";
-        } else {
+        let classes = "relative flex flex-col items-center justify-center h-[280px] bg-[#0b0b0b] min-w-[340px] border rounded-sm overflow-hidden transition-all duration-300";
+        // Si hay aviso de DSD (Rojo)
+        if (alerts.dsd) {
+            classes += " border-red-600/60 bg-red-950/60 shadow-[inset_0_0_80px_rgba(220,38,38,0.5)] scale-[1.01]";
+        } 
+        // Si hay aviso de AWS (Naranja)
+        else if (alerts.aws >= 2) {
+            classes += " border-orange-600/60 bg-orange-950/60 shadow-[inset_0_0_80px_rgba(234,88,12,0.5)] scale-[1.01]";
+        }
+        else {
             classes += " border-white/5";
         }
         return classes;
@@ -199,7 +211,7 @@ export const Speedometer: React.FC = () => {
                     </div>
                 )}
                 {alerts.aws >= 2 && (
-                    <div className="animate-pulse bg-red-600 text-white text-[10px] font-black px-6 py-1.5 rounded-sm shadow-[0_0_20px_rgba(220,38,38,0.6)] border-2 border-red-400 w-fit">
+                    <div className="animate-pulse bg-orange-600 text-white text-[10px] font-black px-6 py-1.5 rounded-sm shadow-[0_0_20px_rgba(234,88,12,0.6)] border-2 border-orange-400 w-fit">
                         AWS WARNING - ACKNOWLEDGE
                     </div>
                 )}
@@ -208,11 +220,11 @@ export const Speedometer: React.FC = () => {
             {/* Lectura Digital */}
             <div className="absolute flex flex-col items-center pointer-events-none">
                 <span className={`text-xs font-mono uppercase tracking-[0.2em] transition-colors ${
-                    alerts.dsd || alerts.aws >= 2 ? "text-red-400" : "text-white/20"
+                    alerts.isWarning ? (alerts.dsd ? "text-red-400" : "text-orange-400") : "text-white/20"
                 }`}>{raw.SpeedUnit}</span>
                 <div className="flex items-baseline">
                     <span className={`text-6xl font-light leading-none transition-colors ${
-                        alerts.dsd || alerts.aws >= 2 ? "text-red-500" : "text-white/90"
+                        alerts.isWarning ? (alerts.dsd ? "text-red-500" : "text-orange-500") : "text-white/90"
                     }`}>{smooth.speedDisplay.toFixed(1)}</span>
                     <span className={`text-xl font-mono ml-1 ${
                         raw.ProjectedSpeed > smooth.speedDisplay ? "text-cyan-500/40" : "text-orange-500/40"
@@ -222,7 +234,7 @@ export const Speedometer: React.FC = () => {
                 </div>
                 <div className="mt-2 flex flex-col items-center">
                     <span className={`text-xs font-mono font-bold transition-colors ${
-                        alerts.dsd || alerts.aws >= 2 ? "text-red-400" : "text-cyan-500/60"
+                        alerts.isWarning ? (alerts.dsd ? "text-red-400" : "text-orange-400") : "text-cyan-500/60"
                     }`}>
                         {raw.GForce >= 0 ? "+" : ""}{(raw.GForce * 10).toFixed(2)}G
                     </span>

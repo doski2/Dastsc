@@ -77,7 +77,9 @@ export interface TelemetryData {
   Timestamp: number;
   
   // Sistemas de Seguridad y Auxiliares (Nuevos)
-  AWS: number; 
+  AWS: number;
+  AWSState: number;
+  AWSReset: number;
   AWSWarning: number;
   AWSWarnCount: number;
   DSD: number;
@@ -157,6 +159,8 @@ const DefaultData: TelemetryData = {
   IsEmergency: false,
   Timestamp: 0,
   AWS: 0,
+  AWSState: 0,
+  AWSReset: 0,
   AWSWarning: 0,
   AWSWarnCount: 0,
   DSD: 0,

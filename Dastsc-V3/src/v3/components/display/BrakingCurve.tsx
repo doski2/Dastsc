@@ -466,7 +466,7 @@ return (
           
           {/* Dashboard de Frenado Exacto */}
           {brakeParams && brakeParams.dist > 0 && (
-            <div className="mt-2 flex flex-col bg-black/60 p-2 border-l-2 border-amber-500 backdrop-blur-sm">
+            <div className="mt-16 flex flex-col bg-black/60 p-2 border-l-2 border-amber-500 backdrop-blur-sm">
                 <span className="text-[9px] text-amber-500 font-black uppercase tracking-widest">Brake Start In:</span>
                 <span className="text-[18px] text-white font-mono font-bold">
                     {formatDistance(brakeParams.dist)}
@@ -481,13 +481,13 @@ return (
           )}
           
           {brakeParams && brakeParams.dist <= 0 && (
-            <div className="mt-2 flex flex-col bg-red-600/20 p-2 border-l-2 border-red-500 animate-pulse">
+            <div className="mt-20 flex flex-col bg-red-600/20 p-2 border-l-2 border-red-500 animate-pulse">
                 <span className="text-[9px] text-red-500 font-black uppercase">OVERSPEED RISK</span>
                 <span className="text-[12px] text-white font-mono font-bold">APPLY BRAKE NOW!</span>
             </div>
           )}
           {mode === 'DYNAMIC' && (
-            <div className="absolute top-14 left-0 mt-2 flex items-center gap-1">
+            <div className="absolute top-36 left-0 mt-8 flex items-center gap-1">
               <div className="bg-black/80 border border-white/10 rounded-sm p-1 flex items-center gap-2">
                 <input
                   type="number"

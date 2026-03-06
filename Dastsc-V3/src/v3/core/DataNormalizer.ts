@@ -187,8 +187,11 @@ export class DataNormalizer {
       TailIsActive: sig.tailIsActive,
       TripDistance: phys.totalDistance,
       IsEmergency: raw.EmergencyBrake === 1,
+      // Mapeo robusto de AWS basado en el debug.txt (AWSReset, AWSWarnCount, etc.)
       AWS: Number(raw.AWS || 0),
-      AWSWarning: Number(raw.AWSWarning || 0),
+      AWSState: Number(raw.AWSState || 0),
+      AWSReset: Number(raw.AWSReset || 0) || Number(raw.AWSResetButton || 0),
+      AWSWarning: Number(raw.AWSWarning || 0) || Number(raw.AWSWarnAudio || 0),
       AWSWarnCount: Number(raw.AWSWarnCount || 0),
       DSD: Number(raw.DSD || 0),
       VigilAlarm: Number(raw.VigilAlarm || 0),
