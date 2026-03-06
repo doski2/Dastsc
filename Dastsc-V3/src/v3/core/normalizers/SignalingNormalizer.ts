@@ -9,6 +9,9 @@ export class SignalingNormalizer {
     const rawNextLimitSpeed = Number(raw.NextLimitSpeed || 0);
     const rawNextLimitDistFromLua = Number(raw.NextLimitDist || -1);
 
+    const rawNextLimit2Speed = Number(raw.NextLimit2Speed || 0);
+    const rawNextLimit2DistFromLua = Number(raw.NextLimit2Dist || -1);
+
     // Mapeo de estados de seal segn RailWorks (SigState)
     // 0: Rojo (Danger)
     // 1: Amarillo (Caution)
@@ -38,6 +41,8 @@ export class SignalingNormalizer {
       currentLimitConverted,
       rawNextLimitSpeed,
       rawNextLimitDistFromLua,
+      rawNextLimit2Speed,
+      rawNextLimit2DistFromLua,
       effectiveSpeedLimit: tailInfo.effectiveLimit * toMS,
       tailIsActive: tailInfo.isActive,
       tailSecondsRemaining: tailSeconds,

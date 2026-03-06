@@ -105,6 +105,9 @@ export class DataNormalizer {
     if (sig.rawNextLimitDistFromLua > 0) {
         rawUpcoming.push({ speed: sig.rawNextLimitSpeed, distance: sig.rawNextLimitDistFromLua });
     }
+    if ((sig as any).rawNextLimit2DistFromLua > 0) {
+        rawUpcoming.push({ speed: (sig as any).rawNextLimit2Speed, distance: (sig as any).rawNextLimit2DistFromLua });
+    }
     
     const upcomingLimits: { speed: number, distance: number }[] = [];
     let lastRefSpeedMS = rawLimitMS; 
@@ -160,6 +163,8 @@ export class DataNormalizer {
       SignalLimit: (Number(raw.SignalLimit) || rawLimitMS) * fromMS,
       DistToNextSpeedLimit: nextLimitDist,
       NextSpeedLimit: nextLimitSpeedMPH,
+      NextLimit2Speed: (sig as any).rawNextLimit2Speed * fromMS,
+      DistToNextLimit2: (sig as any).rawNextLimit2DistFromLua,
       UpcomingLimits: upcomingLimits,
       Gradient: currentGrad,
       LateralG: phys.lateralG,

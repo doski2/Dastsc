@@ -25,6 +25,8 @@ export interface TelemetryData {
   NextSignalAspect: string;
   NextSpeedLimit: number;
   DistToNextSpeedLimit: number;
+  NextLimit2Speed: number; // Segundo límite próximo
+  DistToNextLimit2: number; // Distancia al segundo límite próximo
   UpcomingLimits: { speed: number, distance: number }[];
   
   // Estaciones (Fase 2.3)
@@ -119,6 +121,8 @@ const DefaultData: TelemetryData = {
   NextSignalAspect: 'CLEAR',
   NextSpeedLimit: 0,
   DistToNextSpeedLimit: 0,
+  NextLimit2Speed: 0,
+  DistToNextLimit2: 0,
   UpcomingLimits: [],
   StationDistance: -1,
   StationName: '',

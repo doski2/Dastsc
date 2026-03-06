@@ -246,6 +246,18 @@ export const Speedometer: React.FC = () => {
                 </div>
             </div>
 
+            {/* Upcoming Speed Limits Planning (Mini-Tape) */}
+            {raw.UpcomingLimits && raw.UpcomingLimits.length > 0 && (
+                <div className="absolute left-16 top-1/2 -translate-y-1/2 flex flex-col gap-2 scale-90 border-l border-white/10 pl-2">
+                    {raw.UpcomingLimits.map((l, i) => (
+                        <div key={i} className={`flex flex-col ${l.speed < raw.SpeedLimit ? "text-orange-400" : "text-cyan-400/60"}`}>
+                            <span className="text-sm font-black font-mono leading-none">{Math.round(l.speed)}</span>
+                            <span className="text-[8px] font-mono opacity-60">{(l.distance / 1000).toFixed(1)}km</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             {/* Tail Protection HUD */}
             {raw.TailIsActive && (
                 <div className="absolute right-4 bottom-4 bg-amber-500/10 border border-amber-500/50 rounded-lg px-3 py-2">
