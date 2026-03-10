@@ -36,7 +36,7 @@ export class DataNormalizer {
       console.warn('[FIELDS] Campos disponibles en raw:', Object.keys(raw).sort());
     }
     
-    let trainLength = Number(raw.TrainLength || 100);
+    let trainLength = Number(raw.TrainLength || raw.Length || 100);
     if (trainLength <= 0) trainLength = 100;
     
     this.state.activeCab = Number(raw.ActiveCab || 1);
@@ -49,7 +49,6 @@ export class DataNormalizer {
 
     const toMS = speedUnit === 'KPH' ? 1/3.6 : 0.44704;
     const fromMS = speedUnit === 'KPH' ? 3.6 : 2.23694;
-    const G_CONSTANT = 9.80665;
 
     let dtSim = 0;
     if (this.state.lastSimTime > 0) {
@@ -87,10 +86,7 @@ export class DataNormalizer {
     const pFactor = pressureUnit === 'PSI' ? 14.5038 : 1;
 
     // Gradiente y Frenado
-    const EMA_SLOW = 0.05;
     const currentGrad = Number(raw.Gradient || 0);
-    // Mantenemos una pequeña persistencia para el gradiente aquí por simplicidad o lo movemos a Physics
-    const effectiveGrad = currentGrad; 
 
     const maxBC = pressureUnit === 'PSI' ? 72.5 : 5.0; 
     const bcPercent = Math.min(1.1, brk.bc / maxBC);
@@ -124,20 +120,6 @@ export class DataNormalizer {
     const nextLimitSpeedMPH = upcomingLimits.length > 0 ? upcomingLimits[0].speed : 0;
     const nextLimitDist = upcomingLimits.length > 0 ? upcomingLimits[0].distance : 0;
 
-    // Señalización (Aspecto)
-    let aspect = 'UNKNOWN';
-    const sigVal = (Number(raw.SigRes || 0) > 0) ? Number(raw.SigState || 0) : Number(raw.NextSignalState || raw.InternalAspect || -1);
-    
-    // Mapeo robusto: 0 suele ser Danger en casi todos los sistemas TSC
-    if (sigVal === 0) aspect = 'DANGER';
-    else if (sigVal === 1) aspect = 'CAUTION';
-    else if (sigVal === 2) aspect = 'ADV_CAUTION';
-    else if (sigVal === 3) aspect = 'CLEAR';
-    else if (sigVal === 4) aspect = 'PROCEED';
-    else if (sigVal === 10) aspect = 'FL_CAUTION';
-    else if (sigVal === 11) aspect = 'FL_ADV_CAUTION';
-    else if (sigVal === -1 && Number(raw.SigRes) === 1) aspect = 'DANGER'; // Fallback si hay señal pero no estado
-
     // Tiempo
     const timeSecs = raw.TimeOfDay || 0;
     const timeStr = `${Math.floor(timeSecs/3600).toString().padStart(2,'0')}:${Math.floor((timeSecs%3600)/60).toString().padStart(2,'0')}:${Math.floor(timeSecs%60).toString().padStart(2,'0')}`;
@@ -170,6 +152,7 @@ export class DataNormalizer {
       LateralG: phys.lateralG,
       StationDistance: raw.StationDistance ?? -1,
       StationName: raw.StationName || '',
+      StationLength: Number(raw.PlatformLength || raw.StationLength || 200),
       BrakeCylinderPressure: brk.bc * pFactor,
       BrakePipePressure: brk.bp * pFactor,
       MainResPressure: brk.mr * pFactor,
@@ -179,18 +162,36 @@ export class DataNormalizer {
       PressureUnit: pressureUnit,
       Amperage: brk.amperage,
       AmperageUnit: brk.ampUnit,
+      Ammeter: Number(raw.Ammeter || 0),
+      TractiveEffort: Number(raw.TractiveEffort || 0),
       TractionPercent: brk.tractionPercent,
       ActiveCab: this.state.activeCab,
       TrainType: Number(raw.ConsistType || 1),
-      NextSignalAspect: aspect,
-      DistToNextSignal: (Number(raw.SigRes || 0) > 0) ? Number(raw.SigDist || -1) : Number(raw.NextSignalDistance || -1),
+      NextSignalAspect: sig.nextSignalAspect,
+      DistToNextSignal: sig.nextSignalDistance,
       TrainLength: trainLength,
       TrainMass: Number(raw.Mass || 0),
       ConsistType: Number(raw.ConsistType || 0),
-      TailDistanceRemaining: sig.tailDistanceRemaining,
-      TailSecondsRemaining: phys.speedMS > 0.5 ? sig.tailDistanceRemaining / phys.speedMS : 0,
-      TailIsActive: sig.tailIsActive,
+      // Preferir valores computados por Lua (TailProtection V6) cuando estén disponibles
+      TailDistanceRemaining: raw.TailDistance !== undefined ? Number(raw.TailDistance) : sig.tailDistanceRemaining,
+      TailSecondsRemaining: raw.TailSeconds !== undefined ? Number(raw.TailSeconds) : (phys.speedMS > 0.5 ? sig.tailDistanceRemaining / phys.speedMS : 0),
+      TailIsActive: raw.TailActive !== undefined ? Number(raw.TailActive) === 1 : sig.tailIsActive,
       TripDistance: phys.totalDistance,
+      ProjectedBrakingDistance: (() => {
+        const v = phys.speedMS;
+        if (v < 0.5) return 0;
+        const mass = Number(raw.Mass || 0);
+        // totalBrakingEffort is in kN, mass is in tonnes; both ×1000 cancel → decelMS2 = kN/t = m/s²
+        const decelMS2 = (totalBrakingEffort > 0 && mass > 0)
+          ? totalBrakingEffort / mass
+          : 0.7; // Desaceleración estándar de tren (m/s²)
+        return Math.round((v * v) / (2 * Math.max(0.1, decelMS2)));
+      })(),
+      RVNumber: raw.RVNumber || raw.RvNumber || '',
+      RouteID: raw.RouteID || raw.RouteId || '',
+      ScenarioPath: raw.ScenarioPath || '',
+      X: Number(raw.X || raw.PosX || 0),
+      Z: Number(raw.Z || raw.PosZ || 0),
       IsEmergency: raw.EmergencyBrake === 1,
       // Mapeo robusto de AWS basado en el debug.txt (AWSReset, AWSWarnCount, etc.)
       AWS: Number(raw.AWS || 0),
