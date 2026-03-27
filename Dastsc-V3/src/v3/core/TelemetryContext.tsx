@@ -329,9 +329,16 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     isMounted.current = true;
-    connect();
+    // Diferir la conexión un tick para evitar la doble invocación de React StrictMode.
+    // Sin este delay, StrictMode cierra el socket mientras aún está CONNECTING (readyState 0),
+    // causando el warning "WebSocket closed before connection established" y una race condition
+    // donde el segundo connect() ve readyState 0 y aborta sin crear un socket nuevo.
+    const initTimeout = setTimeout(() => {
+      if (isMounted.current) connect();
+    }, 0);
     return () => {
       isMounted.current = false;
+      clearTimeout(initTimeout);
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (socketRef.current) {
         socketRef.current.close();

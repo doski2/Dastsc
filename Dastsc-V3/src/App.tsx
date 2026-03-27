@@ -34,53 +34,20 @@ function App() {
   const [activeTab, setActiveTab] = useState('PILOT')
   const { data, isConnected, activeProfile } = useTelemetry()
   const [stops, setStops] = useState<ScenarioStop[]>([])
-  const [activeRouteId, setActiveRouteId] = useState<string | null>(null)
-  const [activeScenarioPath, setActiveScenarioPath] = useState<string | null>(null)
-  const [isManualSelection, setIsManualSelection] = useState(false)
 
-  // 1. Detección automática del escenario basándose en el RVNumber de la telemetría
-  useEffect(() => {
-    // Escuchar el evento de selección manual ANTES de la detección automática
-    const handleManualSelect = (e: any) => {
-      const { scenario_path, route_id } = e.detail;
-      console.log("APP: Aplicando Selección Manual ->", scenario_path);
-      setIsManualSelection(true);
-      setActiveRouteId(route_id);
-      setActiveScenarioPath(scenario_path);
-    };
-
-    window.addEventListener('SCENARIO_MANUAL_SELECT', handleManualSelect);
-
-    if (isConnected && data.RVNumber && !isManualSelection) {
-      const detect = async () => {
-        console.log("Nexus: Intentando detectar escenario para RV:", data.RVNumber);
-        const scenario = await scenarioService.detectActiveScenario(data.RVNumber);
-        if (scenario) {
-          console.log("Nexus: Escenario detectado automáticamente:", scenario.id);
-          setActiveRouteId(scenario.route_id);
-          setActiveScenarioPath(scenario.path);
-        }
-      };
-      detect();
-    }
-
-    return () => window.removeEventListener('SCENARIO_MANUAL_SELECT', handleManualSelect);
-  }, [isConnected, data.RVNumber, isManualSelection]);
-
-  // 2. Efecto para actualizar el horario en vivo usando la detección previa (Desactivado para reducir carga HTTP)
-  /*
+  // Actualizar el itinerario en vivo desde el backend cada 5 segundos
   useEffect(() => {
     if (!isConnected) return;
 
-    const interval = setInterval(async () => {
-      // Ahora usamos el endpoint unificado que detecta el escenario activo
+    const fetchStops = async () => {
       const liveStops = await scenarioService.getLiveTimetable();
       if (liveStops && liveStops.length > 0) setStops(liveStops);
-    }, 2000);
+    };
 
+    fetchStops();
+    const interval = setInterval(fetchStops, 5000);
     return () => clearInterval(interval);
   }, [isConnected]);
-  */
 
   const formatDistance = (m: number) => {
     if (data.SpeedUnit === 'MPH') {

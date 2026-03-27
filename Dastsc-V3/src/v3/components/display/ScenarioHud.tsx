@@ -115,7 +115,7 @@ export const ScenarioHud: React.FC<{ stops: any[] }> = ({ stops }) => {
   // Mapeo de estados del backend a props del componente
   const processedStops = stops.map(stop => ({
     name: stop.station_name,
-    type: stop.type === 'Stop' ? 'STOP' : 'WAYPOINT',
+    type: (stop.type === 'Stop' ? 'STOP' : 'WAYPOINT') as 'STOP' | 'WAYPOINT',
     dueTime: stop.arrival_time !== 'N/A' ? stop.arrival_time : (stop.departure_time !== 'N/A' ? stop.departure_time : null),
     actualArrival: stop.actual_arrival || null,
     distance: stop.distance || -1,
@@ -203,8 +203,8 @@ export const ScenarioHud: React.FC<{ stops: any[] }> = ({ stops }) => {
   }
 
   // Filtrar las próximas 5 paradas, priorizando la actual
-  const firstUnsatisfiedIndex = stops.findIndex(s => !s.satisfied);
-  const displayStops = stops.slice(
+  const firstUnsatisfiedIndex = processedStops.findIndex(s => !s.satisfied);
+  const displayStops = processedStops.slice(
     Math.max(0, firstUnsatisfiedIndex - 1), 
     Math.max(4, firstUnsatisfiedIndex + 5)
   );

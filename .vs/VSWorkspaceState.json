@@ -1,0 +1,15 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\Dastsc-V3",
+    "\\Dastsc-V3\\backend",
+    "\\Dastsc-V3\\backend\\physics",
+    "\\Dastsc-V3\\dist",
+    "\\Dastsc-V3\\src",
+    "\\Dastsc-V3\\src\\v3",
+    "\\Dastsc-V3\\src\\v3\\components",
+    "\\Dastsc-V3\\src\\v3\\components\\display"
+  ],
+  "SelectedNode": "\\Dastsc-V3\\src\\v3\\components\\display\\BrakingCurve.tsx",
+  "PreviewInSolutionExplorer": false
+}

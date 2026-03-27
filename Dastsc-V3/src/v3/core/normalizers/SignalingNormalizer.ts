@@ -12,7 +12,7 @@ export class SignalingNormalizer {
     const rawNextLimit2Speed = Number(raw.NextLimit2Speed || 0);
     const rawNextLimit2DistFromLua = Number(raw.NextLimit2Dist || -1);
 
-    // Mapeo de estados de seal segn RailWorks (SigState)
+    // Mapeo de estados de señal según RailWorks (SigState)
     // 0: Rojo (Danger)
     // 1: Amarillo (Caution)
     // 2: Amarillo doble (Adv Caution)

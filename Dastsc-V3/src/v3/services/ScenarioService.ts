@@ -28,7 +28,6 @@ const API_BASE = 'http://localhost:8000';
 class ScenarioService {
   private currentScenario: Scenario | null = null;
   private stops: ScenarioStop[] = [];
-  private lastUpdate = 0;
 
   async getAvailableScenarios(): Promise<Scenario[]> {
     try {
@@ -74,9 +73,9 @@ class ScenarioService {
           entity_name: s.station_name,
           type: s.type || 'STOP',
           is_waypoint: s.type === 'WAYPOINT',
-          satisfied: s.satisfied || false,
+          satisfied: s.status === 'SUCCEEDED',
           is_platform: true,
-          due_time: s.arrival_time,
+          due_time: s.arrival_time !== 'N/A' ? s.arrival_time : null,
           arrival_time: s.actual_arrival || null,
           raw_due: 0,
           stop_duration: 0,

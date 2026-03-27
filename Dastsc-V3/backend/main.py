@@ -1,25 +1,56 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
+import math
 import os
 import time
-from typing import List
+import traceback
+from typing import Any, List
 
-# Estos se copiarán a continuación
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
 from core.scenarios import ScenarioManager
-# from physics.engine import PhysicsEngine
 
-app = FastAPI(title="Nexus v3 Engine")
+def _sanitize(obj: Any) -> Any:
+    """Reemplaza float no-finitos (Infinity, -Infinity, NaN) por 0 recursivamente.
+    Evita que JSON.parse falle en el frontend cuando el plugin emite valores
+    indefinidos (señales sin leer, límites fuera de rango, etc.).
+    """
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else 0.0
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
+
+
+_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("--------------------------------------------------")
+    print("   NEXUS V3 ENGINE - CORE UPDATED (JSON FIX)      ")
+    print("--------------------------------------------------")
+    asyncio.create_task(telemetry_reader())
+    yield
+
+
+app = FastAPI(title="Nexus v3 Engine", lifespan=lifespan)
 print("DEBUG: V3 ENGINE STARTING")
 print(f"DEBUG: PATH: {os.path.abspath(__file__)}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=_CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -77,10 +108,11 @@ class TelemetryManager:
             self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        self.last_payload.update(message)
+        safe = _sanitize(message)
+        self.last_payload.update(safe)
         for connection in self.active_connections:
             try:
-                await connection.send_json(message)
+                await connection.send_json(safe)
             except Exception:
                 pass
 
@@ -152,12 +184,7 @@ async def telemetry_reader():
             await asyncio.sleep(0.5)
 
 
-@app.on_event("startup")
-async def startup_event():
-    print("--------------------------------------------------")
-    print("   NEXUS V3 ENGINE - CORE UPDATED (JSON FIX)      ")
-    print("--------------------------------------------------")
-    asyncio.create_task(telemetry_reader())
+# startup movido al asynccontextmanager lifespan (ver arriba)
 
 
 @app.get("/scenarios/live")
@@ -201,8 +228,6 @@ async def websocket_endpoint(websocket: WebSocket):
             except Exception as e:
                 # Si el mensaje no es JSON válido, receive_json lanzará error
                 print(f"Error procesando comando: {e}")
-                import traceback
-
                 traceback.print_exc()
     except WebSocketDisconnect:
         manager.disconnect(websocket)

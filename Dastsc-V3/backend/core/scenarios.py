@@ -147,7 +147,9 @@ class ScenarioManager:
 
         # 2. Leer Propiedades Estáticas (Fallback para horarios)
         if not data["stops"]:
-            prop_path = os.path.join(active["scenario_dir"], "ScenarioProperties.xml")
+            # Derivar el directorio del escenario a partir del path del save
+            scenario_dir = os.path.dirname(active["save_path"])
+            prop_path = os.path.join(scenario_dir, "ScenarioProperties.xml")
             if os.path.exists(prop_path):
                 # ... (lógica anterior de ScenarioProperties si fallara el save)
                 pass

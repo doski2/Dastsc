@@ -49,7 +49,6 @@ export class DataNormalizer {
 
     const toMS = speedUnit === 'KPH' ? 1/3.6 : 0.44704;
     const fromMS = speedUnit === 'KPH' ? 3.6 : 2.23694;
-    const G_CONSTANT = 9.80665;
 
     let dtSim = 0;
     if (this.state.lastSimTime > 0) {
