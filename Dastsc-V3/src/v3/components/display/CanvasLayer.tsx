@@ -21,9 +21,14 @@ export const CanvasLayer: React.FC<CanvasLayerProps> = ({ render, className = ""
     if (!ctx) return;
 
     let animationId: number;
+    // Dimensiones cacheadas — solo se actualizan en resize para evitar forced reflow en cada frame
+    let cachedW = 0;
+    let cachedH = 0;
 
     const resize = () => {
       const { width, height } = canvas.getBoundingClientRect();
+      cachedW = width;
+      cachedH = height;
       const dpr = window.devicePixelRatio || 1;
       
       canvas.width = width * dpr;
@@ -32,9 +37,8 @@ export const CanvasLayer: React.FC<CanvasLayerProps> = ({ render, className = ""
     };
 
     const loop = () => {
-      const { width, height } = canvas.getBoundingClientRect();
-      ctx.clearRect(0, 0, width, height);
-      render(ctx, width, height);
+      ctx.clearRect(0, 0, cachedW, cachedH);
+      render(ctx, cachedW, cachedH);
       animationId = requestAnimationFrame(loop);
     };
 

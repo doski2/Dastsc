@@ -33,7 +33,6 @@ export class DataNormalizer {
     
     if (!this.loggedRawFields && rawSimTime > 0) {
       this.loggedRawFields = true;
-      console.warn('[FIELDS] Campos disponibles en raw:', Object.keys(raw).sort());
     }
     
     let trainLength = Number(raw.TrainLength || 100);

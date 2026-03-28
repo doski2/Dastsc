@@ -7,10 +7,6 @@ export const ProfileSelector: React.FC = () => {
   const { availableProfiles, activeProfile, setProfile, isConnected } = useTelemetry();
   const [search, setSearch] = React.useState('');
 
-  React.useEffect(() => {
-    console.log('ProfileSelector: activeProfile changed ->', activeProfile?.id || 'NONE');
-  }, [activeProfile?.id]);
-
   const filtered = (availableProfiles || []).filter(p => 
     p?.name?.toLowerCase().includes(search.toLowerCase()) ||
     p?.id?.toLowerCase().includes(search.toLowerCase())
@@ -58,7 +54,6 @@ export const ProfileSelector: React.FC = () => {
             <button
               key={profileId}
               onClick={() => {
-                console.log('UI: Selecting Profile ->', profileId);
                 setProfile(profileId);
               }}
               className={`

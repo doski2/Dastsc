@@ -1,16 +1,18 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Any, List
 import asyncio
+import json
 import math
 import os
 import time
 import traceback
-from typing import Any, List
 
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
 from core.scenarios import ScenarioManager
+import core.scenario_index as scenario_index
 
 def _sanitize(obj: Any) -> Any:
     """Reemplaza float no-finitos (Infinity, -Infinity, NaN) por 0 recursivamente.
@@ -126,7 +128,8 @@ async def telemetry_reader():
     last_mtime = 0
     last_scenario_check = 0
     scenario_data = {}
-    
+    last_rv: str = ""  # RV del tren del jugador, actualizado con cada trama de telemetría
+
     # OPTIMIZACIÓN: Cache de mtime para evitar glob.glob constante
     last_save_mtime = 0
 
@@ -144,7 +147,9 @@ async def telemetry_reader():
                 active_info = manager.scenario_manager.find_active_scenario()
                 if active_info and active_info.get("mtime", 0) > last_save_mtime:
                     last_save_mtime = active_info["mtime"]
-                    scenario_data = manager.scenario_manager.get_detailed_scenario_data()
+                    scenario_data = manager.scenario_manager.get_detailed_scenario_data(
+                        player_rv=last_rv or None
+                    )
 
             if os.path.exists(active_path):
                 # OPTIMIZACIÓN V3: Comprobar el tiempo de modificación del archivo (mtime)
@@ -157,6 +162,9 @@ async def telemetry_reader():
                         line = f.readline()
                         if line:
                             data = parse_telemetry_line(line)
+                            if data.get("RV"):
+                                last_rv = str(data["RV"])
+                                manager.scenario_manager.update_player_rv(last_rv)
 
                             payload = {
                                 "type": "TELEMETRY",
@@ -185,6 +193,88 @@ async def telemetry_reader():
 
 
 # startup movido al asynccontextmanager lifespan (ver arriba)
+
+
+@app.get("/scenarios/list")
+async def list_scenarios():
+    """Devuelve todos los escenarios. Usa el índice SQLite si existe, si no hace fallback al método clásico."""
+    if not scenario_index.index_needs_rebuild():
+        forced = manager.scenario_manager._forced_save_path
+        forced_id = manager.scenario_manager._forced_scenario_id
+        active = manager.scenario_manager.find_active_scenario()
+        active_sp = active.get("save_path") if active else None
+        return scenario_index.list_scenarios(
+            active_save_path=active_sp,
+            forced_save_path=forced,
+            forced_scenario_id=forced_id,
+        )
+    return manager.scenario_manager.list_all_scenarios()
+
+
+@app.get("/scenarios/index/stats")
+async def get_index_stats():
+    """Devuelve estadísticas del índice SQLite de escenarios."""
+    return scenario_index.get_index_stats()
+
+
+@app.post("/scenarios/reindex")
+async def reindex_scenarios(request: Request):
+    """
+    Reconstruye el índice SQLite de escenarios usando serz.exe.
+    Body opcional: { "route_filter": "<GUID>" } para indexar solo una ruta.
+    Nota: la indexación de 350 escenarios puede tardar 2-3 minutos.
+    """
+    try:
+        raw = await request.body()
+        body: dict = json.loads(raw.decode("utf-8")) if raw else {}
+    except Exception:
+        body = {}
+    route_filter = body.get("route_filter") or None
+    loop = asyncio.get_running_loop()
+    stats = await loop.run_in_executor(
+        None,
+        lambda: scenario_index.build_index(route_filter=route_filter),
+    )
+    return stats
+
+
+@app.post("/scenarios/select")
+async def select_scenario(request: Request):
+    """
+    Fija manualmente el escenario activo.
+    - { "auto": true }              → vuelve a autodetección
+    - { "scenario_id": "<GUID>" }   → selecciona por ID (soporta jugados y no jugados)
+    - { "save_path": "..." }         → legacy: selecciona por ruta de CurrentSave.xml
+    """
+    try:
+        raw = await request.body()
+        body: dict = json.loads(raw.decode("utf-8")) if raw else {}
+    except Exception as _exc:
+        print(f"BODY PARSE ERROR: {_exc!r}")
+        body = {}
+
+    if body.get("auto"):
+        manager.scenario_manager.clear_manual_scenario()
+        return {"ok": True, "mode": "auto"}
+
+    scenario_id = (body.get("scenario_id") or "").strip()
+    if scenario_id:
+        scenario_dir = scenario_index.get_scenario_dir(scenario_id)
+        if not scenario_dir:
+            return {"ok": False, "error": "Scenario not in index. Try POST /scenarios/reindex first."}
+        manager.scenario_manager.select_by_id(scenario_id, scenario_dir)
+        return {"ok": True, "mode": "manual_id", "scenario_id": scenario_id}
+
+    # Legacy: save_path directo
+    save_path = (body.get("save_path") or "").strip()
+    if save_path:
+        ok = manager.scenario_manager.select_manual_scenario(save_path)
+        if not ok:
+            return {"ok": False, "error": f"Path not found: {save_path}"}
+        return {"ok": True, "mode": "manual", "save_path": save_path}
+
+    return {"ok": False, "error": "Provide scenario_id, save_path, or auto=true"}
+
 
 
 @app.get("/scenarios/live")

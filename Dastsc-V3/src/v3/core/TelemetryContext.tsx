@@ -181,6 +181,7 @@ const TelemetryContext = createContext<TelemetryContextType | undefined>(undefin
 
 export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   const [data, setData] = useState<TelemetryData>(DefaultData);
+  const prevDataRef = useRef<TelemetryData>(DefaultData);
   const [isConnected, setIsConnected] = useState(false);
   const [activeProfile, setActiveProfile] = useState<any>(null);
   const [availableProfiles, setAvailableProfiles] = useState<any[]>([]);
@@ -259,19 +260,17 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
           const raw = message.type === 'DATA' ? message.data : message;
           if (!raw) return;
 
-          setData(prev => {
-            if (!isMounted.current) return prev;
-            const currentProfile = activeProfileRef.current;
-            const normalized = normalizerRef.current.normalize(raw, prev, currentProfile);
-
-            return {
-              ...prev,
-              ...normalized,
-              LocoName: raw.LocoName || normalized.LocoName || prev.LocoName,
-              location: raw.location || raw.Location || normalized.location || prev.location, 
-              Timestamp: now
-            };
-          });
+          const currentProfile = activeProfileRef.current;
+          const normalized = normalizerRef.current.normalize(raw, prevDataRef.current, currentProfile);
+          const next: TelemetryData = {
+            ...prevDataRef.current,
+            ...normalized,
+            LocoName: raw.LocoName || normalized.LocoName || prevDataRef.current.LocoName,
+            location: raw.location || raw.Location || normalized.location || prevDataRef.current.location,
+            Timestamp: now,
+          };
+          prevDataRef.current = next;
+          setData(next);
           setLastMessageTime(now);
         } else if (message.type === 'INIT') {
           console.log('INIT received:', message);
