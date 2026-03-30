@@ -32,21 +32,23 @@ function DataPoint({ label, value }: { label: string, value: string | number }) 
 
 function App() {
   const [activeTab, setActiveTab] = useState('PILOT')
-  const { data, isConnected, activeProfile } = useTelemetry()
+  const { data, isConnected, activeProfile, scenarioStops } = useTelemetry()
   const [stops, setStops] = useState<ScenarioStop[]>([])
+
+  // stops en tiempo real: WebSocket tiene prioridad (actualiza cada frame),
+  // REST poll cada 30s sirve de semilla inicial y para cambios de escenario manual.
+  const displayStops = scenarioStops.length > 0 ? scenarioStops : stops;
 
   const fetchStops = async () => {
     const liveStops = await scenarioService.getLiveTimetable();
-    // Al cambiar de escenario manualmente el array puede quedar vacío temporalmente;
-    // actualizamos siempre para reflejar el nuevo escenario.
     setStops(liveStops);
   };
 
-  // Actualizar el itinerario en vivo desde el backend cada 5 segundos
+  // Semilla inicial + refresco lento de metadatos del escenario (solo si llega via REST)
   useEffect(() => {
     if (!isConnected) return;
     fetchStops();
-    const interval = setInterval(fetchStops, 5000);
+    const interval = setInterval(fetchStops, 30000);
     return () => clearInterval(interval);
   }, [isConnected]);  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -101,7 +103,7 @@ function App() {
               >
                 {/* Sección superior: Perfil de vía */}
                 <div className="h-[220px] relative">
-                  <TrackProfile stops={stops} />
+                  <TrackProfile stops={displayStops} />
                   
                   {/* Info Bar (Del nuevo boceto) */}
                   <div className="absolute bottom-0 left-0 right-0 h-10 bg-black/60 border-y border-white/5 backdrop-blur-md flex items-center px-6 justify-between">
@@ -168,7 +170,7 @@ function App() {
 
                   {/* Columna 3: Métricas secundarias */}
                   <div className="flex flex-col gap-4 overflow-hidden">
-                    <ScenarioHud stops={stops} onScenarioChanged={fetchStops} />
+                    <ScenarioHud stops={displayStops} onScenarioChanged={fetchStops} />
                     
                     <div className="p-4 bg-white/5 border border-white/5 rounded-sm shrink-0">
                       <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Adaptive Telemetry Hub</h3>

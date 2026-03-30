@@ -18,12 +18,14 @@ Estructura BD:
 
 import glob
 import json
+import math
 import os
 import sqlite3
 import subprocess
 import tempfile
 import time
 import xml.etree.ElementTree as ET
+import zipfile
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
@@ -317,12 +319,238 @@ def _init_db(conn: sqlite3.Connection):
         arrive_time   TEXT DEFAULT 'N/A',
         depart_time   TEXT DEFAULT 'N/A',
         duration_secs INTEGER DEFAULT 0,
+        entity_x      REAL DEFAULT NULL,
+        entity_z      REAL DEFAULT NULL,
         FOREIGN KEY (scenario_id) REFERENCES scenarios(id) ON DELETE CASCADE
     );
 
     CREATE INDEX IF NOT EXISTS idx_stops_scenario ON stops(scenario_id);
+
+    CREATE TABLE IF NOT EXISTS route_entities (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        route_id   TEXT NOT NULL,
+        name       TEXT NOT NULL,
+        world_x    REAL NOT NULL,
+        world_z    REAL NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_route_entities_route ON route_entities(route_id);
+    CREATE INDEX IF NOT EXISTS idx_route_entities_name  ON route_entities(route_id, name);
     """)
+    # Migración: agregar columnas entity_x/z si no existen (BD antigua)
+    try:
+        conn.execute("ALTER TABLE stops ADD COLUMN entity_x REAL DEFAULT NULL")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE stops ADD COLUMN entity_z REAL DEFAULT NULL")
+    except Exception:
+        pass
     conn.commit()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Extracción de posiciones de entidades desde Networks/Tracks.bin del AP file
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _extract_far_coord(fc_elem: ET.Element):
+    """
+    Extrae el valor numérico de un cFarCoordinate.
+    world = route_tile_index * 1024 + tile_local_offset
+    """
+    route_dist = None
+    tile_dist = None
+    rc = fc_elem.find(".//cRouteCoordinate/Distance")
+    if rc is not None and rc.text:
+        try:
+            route_dist = float(rc.text.strip())
+        except ValueError:
+            pass
+    tc = fc_elem.find(".//cTileCoordinate/Distance")
+    if tc is not None and tc.text:
+        try:
+            tile_dist = float(tc.text.strip())
+        except ValueError:
+            pass
+    if route_dist is not None and tile_dist is not None:
+        return route_dist * 1024.0 + tile_dist
+    if tile_dist is not None:
+        return tile_dist
+    return None
+
+
+def _build_route_entity_index(route_id: str, conn: sqlite3.Connection) -> int:
+    """
+    Parsea Networks/Tracks.bin del MainContent.ap de una ruta y almacena en
+    route_entities las posiciones mundiales de todos los cTrackMarkerComponent.
+    Retorna el número de entidades indexadas.
+    """
+    ap_path = os.path.join(ROUTES_PATH, route_id, "MainContent.ap")
+    if not os.path.exists(ap_path):
+        return 0
+    if not zipfile.is_zipfile(ap_path):
+        return 0
+
+    # Borrar entidades anteriores de esta ruta
+    conn.execute("DELETE FROM route_entities WHERE route_id = ?", (route_id,))
+
+    tracks_bin_data: bytes = b""
+    try:
+        with zipfile.ZipFile(ap_path, "r") as zf:
+            if "Networks/Tracks.bin" in zf.namelist():
+                tracks_bin_data = zf.read("Networks/Tracks.bin")
+    except Exception:
+        return 0
+
+    if not tracks_bin_data:
+        return 0
+
+    # Escribir a temporal y convertir con serz
+    fd, tmp_bin = tempfile.mkstemp(suffix=".bin", prefix="dastsc_tracks_")
+    os.close(fd)
+    fd2, tmp_xml = tempfile.mkstemp(suffix=".xml", prefix="dastsc_tracks_")
+    os.close(fd2)
+    try:
+        with open(tmp_bin, "wb") as f:
+            f.write(tracks_bin_data)
+        result = subprocess.run(
+            [SERZ_EXE, tmp_bin, f"/xml:{tmp_xml}"],
+            capture_output=True,
+            timeout=60,
+        )
+        if result.returncode != 0 or not os.path.exists(tmp_xml):
+            return 0
+
+        root = ET.parse(tmp_xml).getroot()
+        count = 0
+        for entity in root.findall(".//cOwnedEntity"):
+            # Buscar el DisplayName del marker
+            dn_elem = entity.find(".//Network-cTrackMarkerComponent/DisplayName")
+            if dn_elem is None:
+                continue
+            dn = (dn_elem.text or "").strip()
+            if not dn:
+                continue
+
+            # Extraer posición mundial desde cFarMatrix dentro de cPosOri
+            far_matrix = entity.find(".//cPosOri/RFarMatrix/cFarMatrix")
+            if far_matrix is None:
+                continue
+
+            x_fc = far_matrix.find("RFarPosition/cFarVector2/X/cFarCoordinate")
+            z_fc = far_matrix.find("RFarPosition/cFarVector2/Z/cFarCoordinate")
+            if x_fc is None or z_fc is None:
+                continue
+
+            world_x = _extract_far_coord(x_fc)
+            world_z = _extract_far_coord(z_fc)
+            if world_x is None or world_z is None:
+                continue
+
+            conn.execute(
+                "INSERT INTO route_entities (route_id, name, world_x, world_z) VALUES (?,?,?,?)",
+                (route_id, dn, world_x, world_z),
+            )
+            count += 1
+        return count
+    except Exception as exc:
+        print(f"[ScenarioIndex] Error extrayendo entidades de {route_id}: {exc}")
+        return 0
+    finally:
+        for p in (tmp_bin, tmp_xml):
+            try:
+                if os.path.exists(p):
+                    os.unlink(p)
+            except OSError:
+                pass
+
+
+def get_entity_position(route_id: str, entity_name: str, conn: sqlite3.Connection):
+    """
+    Devuelve (world_x, world_z) de la entidad más cercana al nombre dado,
+    o (None, None) si no existe en el índice.
+    """
+    row = conn.execute(
+        "SELECT world_x, world_z FROM route_entities "
+        "WHERE route_id = ? AND name = ? LIMIT 1",
+        (route_id, entity_name),
+    ).fetchone()
+    if row:
+        return row["world_x"], row["world_z"]
+    # Búsqueda parcial si no hay coincidencia exacta
+    row = conn.execute(
+        "SELECT world_x, world_z FROM route_entities "
+        "WHERE route_id = ? AND name LIKE ? LIMIT 1",
+        (route_id, f"%{entity_name}%"),
+    ).fetchone()
+    if row:
+        return row["world_x"], row["world_z"]
+    return None, None
+
+
+def lookup_entity_position(route_id: str, entity_name: str):
+    """
+    Versión standalone de get_entity_position: abre y cierra su propio conn.
+    Devuelve (world_x, world_z) o (None, None).
+    """
+    if not os.path.exists(DB_PATH):
+        return None, None
+    try:
+        conn = _get_conn()
+        result = get_entity_position(route_id, entity_name, conn)
+        conn.close()
+        return result
+    except Exception:
+        return None, None
+
+
+def infer_world_position(route_id: str, nx: float, nz: float):
+    """
+    Infiere la posición mundial del tren usando NX/NZ (coordenadas tile-local,
+    rango 0-1024) y snap al tile de la entidad más cercana de la ruta.
+
+    Para cada entidad (ex, ez) de la ruta:
+      tile_x = floor(ex / 1024), tile_z = floor(ez / 1024)
+      candidato = (tile_x * 1024 + nx, tile_z * 1024 + nz)
+      d = distancia(candidato, entidad)
+
+    El tile cuya entidad minimiza 'd' es el tile actual del tren.
+    Devuelve (world_x, world_z) o (None, None).
+    """
+    if not os.path.exists(DB_PATH):
+        return None, None
+    try:
+        conn = _get_conn()
+        rows = conn.execute(
+            "SELECT world_x, world_z FROM route_entities WHERE route_id = ?",
+            (route_id,)
+        ).fetchall()
+        conn.close()
+        if not rows:
+            return None, None
+
+        best_dist = None
+        best_tile_x = None
+        best_tile_z = None
+        for row in rows:
+            ex = row["world_x"]
+            ez = row["world_z"]
+            tile_x = math.floor(ex / 1024)
+            tile_z = math.floor(ez / 1024)
+            cand_x = tile_x * 1024.0 + nx
+            cand_z = tile_z * 1024.0 + nz
+            d = math.sqrt((cand_x - ex) ** 2 + (cand_z - ez) ** 2)
+            if best_dist is None or d < best_dist:
+                best_dist = d
+                best_tile_x = tile_x
+                best_tile_z = tile_z
+
+        if best_tile_x is None or best_tile_z is None:
+            return None, None
+
+        return best_tile_x * 1024.0 + nx, best_tile_z * 1024.0 + nz
+    except Exception:
+        return None, None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -390,18 +618,22 @@ def _index_one(scenario_dir: str, conn: sqlite3.Connection) -> bool:
         now,
     ))
 
-    # Reemplazar paradas
+    # Reemplazar paradas y añadir entity_x/z desde route_entities
     conn.execute("DELETE FROM stops WHERE scenario_id = ?", (scenario_guid,))
     for stop in dynamic.get("stops", []):
+        entity_name = stop.get("name", "")
+        ex, ez = get_entity_position(route_guid, entity_name, conn)
         conn.execute("""
             INSERT INTO stops (scenario_id, stop_order, name, type,
-                               due_time, arrive_time, depart_time, duration_secs)
-            VALUES (?,?,?,?,?,?,?,?)
+                               due_time, arrive_time, depart_time, duration_secs,
+                               entity_x, entity_z)
+            VALUES (?,?,?,?,?,?,?,?,?,?)
         """, (
             scenario_guid,
             stop["order"], stop["name"], stop["type"],
             stop["due_time"], stop["arrive_time"],
             stop["depart_time"], stop["duration_secs"],
+            ex, ez,
         ))
 
     return True
@@ -438,6 +670,23 @@ def build_index(
 
     conn = _get_conn()
     _init_db(conn)
+
+    # Indexar entidades de ruta (Tracks.bin) para las rutas implicadas
+    route_ids = set()
+    for sdir in scenario_dirs:
+        # Estructura: ROUTES_PATH / route_id / Scenarios / scenario_guid
+        parts = sdir.replace("\\", "/").split("/")
+        # Buscar 'Scenarios' en el path para encontrar el route_id
+        try:
+            sc_idx = parts.index("Scenarios")
+            route_ids.add(parts[sc_idx - 1])
+        except ValueError:
+            pass
+    for rid in route_ids:
+        count = _build_route_entity_index(rid, conn)
+        if count > 0:
+            print(f"[ScenarioIndex] Ruta {rid}: {count} entidades indexadas")
+    conn.commit()
 
     for i, sdir in enumerate(scenario_dirs):
         name = os.path.basename(sdir)
@@ -537,13 +786,14 @@ def list_scenarios(
 
 
 def get_stops(scenario_id: str) -> List[Dict]:
-    """Devuelve las paradas de un escenario desde la BD."""
+    """Devuelve las paradas de un escenario desde la BD (incluye entity_x/z)."""
     if not os.path.exists(DB_PATH):
         return []
     try:
         conn = _get_conn()
         rows = conn.execute("""
-            SELECT name, type, due_time, arrive_time, depart_time, duration_secs
+            SELECT name, type, due_time, arrive_time, depart_time, duration_secs,
+                   entity_x, entity_z
             FROM stops
             WHERE scenario_id = ?
             ORDER BY stop_order

@@ -2,17 +2,13 @@ import axios from 'axios';
 
 export interface ScenarioStop {
   name: string;
-  entity_name: string;
   type: 'STOP' | 'WAYPOINT';
-  is_waypoint: boolean;
   is_active: boolean;
   satisfied: boolean;
-  is_platform: boolean;
-  due_time: string | null;       // deadline/horario de llegada (HH:MM)
-  departure_time: string | null; // horario de salida programado (HH:MM)
-  arrival_time: string | null;   // hora de llegada real (si disponible)
-  raw_due: number;
-  stop_duration: number;         // tiempo de parada en segundos
+  due_time: string | null;           // hora programada (para mostrar en paradas pendientes)
+  departure_time: string | null;
+  arrival_time: string | null;       // hora real de llegada (solo cuando satisfied)
+  stop_duration: number;
   x?: number;
   z?: number;
   distance_m: number;
@@ -88,18 +84,14 @@ class ScenarioService {
       if (response.data && response.data.stops) {
         const mappedStops: ScenarioStop[] = response.data.stops.map((s: any) => ({
           name: s.station_name,
-          entity_name: s.station_name,
           type: (s.type === 'STOP' || s.type === 'WAYPOINT' ? s.type : 'STOP') as 'STOP' | 'WAYPOINT',
-          is_waypoint: s.type === 'WAYPOINT',
           is_active: s.status === 'ACTIVE',
           satisfied: s.status === 'SUCCEEDED',
-          is_platform: s.type !== 'WAYPOINT',
-          due_time: s.due_time !== 'N/A' ? s.due_time
-                  : s.arrival_time !== 'N/A' ? s.arrival_time
-                  : null,
+          due_time: s.scheduled_arrival && s.scheduled_arrival !== 'N/A' ? s.scheduled_arrival
+            : s.due_time !== 'N/A' ? s.due_time
+            : s.departure_time !== 'N/A' ? s.departure_time : null,
           departure_time: s.departure_time !== 'N/A' ? s.departure_time : null,
-          arrival_time: null,
-          raw_due: 0,
+          arrival_time: s.status === 'SUCCEEDED' && s.arrival_time !== 'N/A' ? s.arrival_time : null,
           stop_duration: s.dwell_secs || 0,
           distance_m: s.distance || 0,
         }));

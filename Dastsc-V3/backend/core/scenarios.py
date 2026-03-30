@@ -1,8 +1,9 @@
 import xml.etree.ElementTree as ET
+import math
 import os
 import glob
 import time
-from typing import Dict, Optional, Any
+from typing import Dict, List, Optional, Any
 from datetime import timedelta
 
 
@@ -39,6 +40,12 @@ def _parse_seconds(node) -> str:
     return f"{total_minutes // 60:02d}:{total_minutes % 60:02d}"
 
 
+def _secs_to_hhmm(total_secs: float) -> str:
+    """Convierte segundos absolutos desde medianoche a 'HH:MM'."""
+    s = int(total_secs)
+    return f"{(s // 3600) % 24:02d}:{(s % 3600) // 60:02d}"
+
+
 class ScenarioManager:
     """
     Gestiona la extracción de datos de escenarios de RailWorks (TS Classic).
@@ -71,18 +78,87 @@ class ScenarioManager:
         self.content_path = os.path.join(rw_path, "Content", "Routes")
         self._cached_save_path: Optional[str] = None
         self._last_search_time = 0
-        # Selección manual: cuando está activa, se ignora la autodetección por mtime
-        self._forced_save_path: Optional[str] = None
-        # Selección por ID (soporta escenarios sin CurrentSave.xml)
-        self._forced_scenario_id: Optional[str] = None
+        self._forced_save_path: Optional[str] = None   # manual override (ignores mtime autodetect)
+        self._forced_scenario_id: Optional[str] = None # by GUID (supports unplayed scenarios)
         self._forced_scenario_dir: Optional[str] = None
-        # Último RV del jugador recibido desde la telemetría (ej: "323241_65041;Dest=53")
-        self._last_player_rv: Optional[str] = None
+        self._last_player_rv: Optional[str] = None     # e.g. "323241_65041;Dest=53"
+        self._last_train_x: Optional[float] = None     # world coords (tile*1024 + offset)
+        self._last_train_z: Optional[float] = None
+        self._cached_route_id: Optional[str] = None    # avoids find_active_scenario() every frame
+        self._stop_entity_cache: List[tuple] = []      # entity positions for per-frame distance refresh
 
     def update_player_rv(self, rv: str) -> None:
         """Actualiza el RV del tren del jugador desde la telemetría en tiempo real."""
         if rv:
             self._last_player_rv = rv
+
+    def update_train_position(self, world_x: float, world_z: float) -> None:
+        """Actualiza la posición mundial del tren desde las coordenadas far de la telemetría."""
+        self._last_train_x = world_x
+        self._last_train_z = world_z
+
+    def refresh_distances(self, stops: List[dict]) -> None:
+        """
+        Actualiza en-lugar la clave 'distance' de cada parada usando la posición
+        actual del tren y las posiciones de entidad cacheadas.
+        Coste: solo matemáticas, sin I/O. Se puede llamar cada frame.
+        """
+        if self._last_train_x is None or not self._stop_entity_cache:
+            return
+        for i, stop in enumerate(stops):
+            if i < len(self._stop_entity_cache):
+                ex, ez = self._stop_entity_cache[i]
+                stop["distance"] = self._distance_to_entity(ex, ez)
+
+    def update_train_position_near(self, nx: float, nz: float) -> None:
+        """
+        Fallback cuando getFarPosition devuelve 0: infiere la posición mundial
+        haciendo tile-snapping sobre las entidades de la ruta activa.
+        NX/NZ son coordenadas tile-local (0-1024) de getNearPosition.
+        Incluye filtro anti-salto: rechaza actualizaciones que impliquen
+        un desplazamiento >400 m en un solo frame (tile-crossing noise).
+        """
+        try:
+            import core.scenario_index as _si
+            import math as _math
+            route_id = self._cached_route_id
+            if not route_id:
+                active = self.find_active_scenario()
+                if not active:
+                    return
+                sdir = (os.path.dirname(active["save_path"])
+                        if active.get("save_path") else active.get("scenario_dir", ""))
+                route_id = os.path.basename(os.path.dirname(os.path.dirname(sdir)))
+                self._cached_route_id = route_id
+            if not route_id:
+                return
+            wx, wz = _si.infer_world_position(route_id, nx, nz)
+            if wx is not None and wz is not None:
+                wx_f: float = float(wx)
+                wz_f: float = float(wz)
+                # Filtro anti-salto: rechaza si la nueva posición está >400m de la última.
+                # Esto ocurre al cruzar fronteras de tile con el snapping.
+                if self._last_train_x is not None:
+                    dx = wx_f - self._last_train_x
+                    dz = wz_f - (self._last_train_z or 0.0)
+                    if _math.sqrt(dx * dx + dz * dz) > 400:
+                        return  # salto imposible → ignorar
+                self._last_train_x = wx_f
+                self._last_train_z = wz_f
+        except Exception:
+            pass
+
+    def _distance_to_entity(self, entity_x: Optional[float], entity_z: Optional[float]) -> int:
+        """Distancia euclidiana en metros entre el tren y la entidad. Devuelve -1 si no disponible."""
+        if (
+            entity_x is None or entity_z is None
+            or self._last_train_x is None or self._last_train_z is None
+        ):
+            return -1
+        dx = entity_x - self._last_train_x
+        dz = entity_z - self._last_train_z
+        dist = math.sqrt(dx * dx + dz * dz)
+        return max(0, int(round(dist)))
 
     def select_manual_scenario(self, save_path: str) -> bool:
         """Fija manualmente el CurrentSave.xml a usar. Devuelve False si no existe."""
@@ -92,6 +168,7 @@ class ScenarioManager:
         self._cached_save_path = save_path
         self._forced_scenario_id = None
         self._forced_scenario_dir = None
+        self._cached_route_id = None
         return True
 
     def select_by_id(self, scenario_id: str, scenario_dir: str) -> bool:
@@ -101,6 +178,7 @@ class ScenarioManager:
         """
         self._forced_scenario_id = scenario_id
         self._forced_scenario_dir = scenario_dir
+        self._cached_route_id = None
         save_path = os.path.join(scenario_dir, "CurrentSave.xml")
         if os.path.exists(save_path):
             self._forced_save_path = save_path
@@ -116,6 +194,7 @@ class ScenarioManager:
         self._forced_scenario_dir = None
         self._cached_save_path = None
         self._last_search_time = 0
+        self._cached_route_id = None
 
     def list_all_scenarios(self):
         """
@@ -164,8 +243,13 @@ class ScenarioManager:
             except OSError:
                 self._forced_save_path = None  # roto → fallback
 
-        # Selección por ID sin CurrentSave.xml (escenario no jugado aún)
+        # Selección por ID: usar InitialSave.xml si existe (tiene instrucciones reales en orden)
         if self._forced_scenario_id and self._forced_scenario_dir and not self._forced_save_path:
+            initial_save = os.path.join(self._forced_scenario_dir, "InitialSave.xml")
+            current_save = os.path.join(self._forced_scenario_dir, "CurrentSave.xml")
+            for xml_path in (current_save, initial_save):
+                if os.path.exists(xml_path):
+                    return {"save_path": xml_path, "mtime": os.path.getmtime(xml_path)}
             return {
                 "save_path": None,
                 "scenario_id": self._forced_scenario_id,
@@ -196,21 +280,31 @@ class ScenarioManager:
                         mtime = os.path.getmtime(save_path)
                         self._cached_save_path = save_path
                         return {"save_path": save_path, "mtime": mtime}
-                    else:
-                        # Escenario recién empezado sin save — usar datos del índice
-                        return {
-                            "save_path": None,
-                            "scenario_id": matched["id"],
-                            "scenario_dir": scenario_dir,
-                            "has_save": False,
-                        }
+                    # Preferir InitialSave.xml al SQLite estático: tiene instrucciones reales
+                    initial_save = os.path.join(scenario_dir, "InitialSave.xml")
+                    if os.path.exists(initial_save):
+                        self._cached_save_path = initial_save
+                        return {"save_path": initial_save, "mtime": os.path.getmtime(initial_save)}
+                    return {
+                        "save_path": None,
+                        "scenario_id": matched["id"],
+                        "scenario_dir": scenario_dir,
+                        "has_save": False,
+                    }
             except Exception:
                 pass
 
-        search_pattern = os.path.join(
+        # Buscar CurrentSave.xml (existe tras el primer guardado/checkpoint)
+        save_files = glob.glob(os.path.join(
             self.content_path, "*", "Scenarios", "*", "CurrentSave.xml"
-        )
-        save_files = glob.glob(search_pattern)
+        ))
+
+        # Fallback: InitialSave.xml — TS Classic lo sobreescribe cada vez que
+        # se carga un escenario, incluso antes del primer guardado manual.
+        if not save_files:
+            save_files = glob.glob(os.path.join(
+                self.content_path, "*", "Scenarios", "*", "InitialSave.xml"
+            ))
 
         if not save_files:
             self._cached_save_path = None
@@ -312,13 +406,19 @@ class ScenarioManager:
             "current_progress": {},
         }
 
-        # Calcular scenario_dir y scenario_id
+        # Calcular scenario_dir
         if save_path:
             scenario_dir = os.path.dirname(save_path)
-            scenario_id = os.path.basename(scenario_dir)
         else:
             scenario_dir = active.get("scenario_dir", "")
             scenario_id = active.get("scenario_id") or os.path.basename(scenario_dir)
+
+        # route_id para búsqueda de posiciones de entidades
+        route_id = ""
+        try:
+            route_id = os.path.basename(os.path.dirname(os.path.dirname(scenario_dir)))
+        except Exception:
+            pass
 
         # Sin CurrentSave.xml → datos estáticos del índice SQLite + ScenarioProperties
         if not save_path:
@@ -329,7 +429,11 @@ class ScenarioManager:
             if scenario_id:
                 try:
                     import core.scenario_index as _si
+                    entity_cache: List[tuple] = []
                     for s in _si.get_stops(scenario_id):
+                        ex, ez = s.get("entity_x"), s.get("entity_z")
+                        entity_cache.append((ex, ez))
+                        dist = self._distance_to_entity(ex, ez)
                         data["stops"].append({
                             "station_name": s["name"],
                             "arrival_time": s["arrive_time"],
@@ -338,7 +442,9 @@ class ScenarioManager:
                             "dwell_secs": s["duration_secs"],
                             "status": "INACTIVE",
                             "type": s["type"],
+                            "distance": dist,
                         })
+                    self._stop_entity_cache = entity_cache
                 except Exception as exc:
                     data["error_index"] = str(exc)
             return data
@@ -360,6 +466,36 @@ class ScenarioManager:
                     data["current_progress"]["distance_meters"] = float(dist_node.text)
                 except ValueError:
                     pass
+
+            # Número de unidad traccionada (ej: "323211_65011")
+            unit_node = root.find(".//cOperationMonitor/EnginesExperienced/Number")
+            if unit_node is not None and unit_node.text:
+                data["current_progress"]["unit_number"] = unit_node.text.strip()
+
+            # Estadísticas del escenario: errores operacionales + excesos de velocidad
+            stats_node = root.find(".//cPlayerScenarioStatistics/Scenario-ScenarioStatistics")
+            if stats_node is not None:
+                err_node = stats_node.find("NumOperationalErrors")
+                if err_node is not None:
+                    try:
+                        data["current_progress"]["operational_errors"] = int(float(err_node.text or 0))
+                    except ValueError:
+                        pass
+                speeding: List[Dict[str, Any]] = []
+                for sp in stats_node.findall("SpeedingStats/Scenario-SpeedingStatistics"):
+                    try:
+                        speeding.append({
+                            "start_time": float(sp.findtext("StartTime") or 0),
+                            "hour": int(sp.findtext("StartHour") or 0),
+                            "minute": int(sp.findtext("StartMin") or 0),
+                            "max_velocity_ms": float(sp.findtext("MaxVelocity") or 0),
+                            "distance_m": float(sp.findtext("DistanceTravelled") or 0),
+                            "milepost": sp.findtext("Milepost") or "",
+                            "speed_limit": float(sp.findtext("SpeedLimit") or 0),
+                        })
+                    except (ValueError, TypeError):
+                        pass
+                data["current_progress"]["speeding_incidents"] = speeding
 
             # Localizar el cDriver del jugador
             # Prioridad: coincidencia por RV (más específico) → PlayerDriver=1 (fallback)
@@ -386,6 +522,7 @@ class ScenarioManager:
                         pd_match = driver
 
             player_driver = rv_match or pd_match
+            _entity_cache_save: List[tuple] = []
 
             if player_driver is not None:
                 # Nombre y hora de inicio del servicio
@@ -396,14 +533,25 @@ class ScenarioManager:
                     data["scenario_info"]["service_name"] = svc_node.text
 
                 start_node = player_driver.find("StartTime")
+                start_secs_raw = 0.0
                 if start_node is not None and start_node.text:
                     data["scenario_info"]["service_start_time"] = _parse_seconds(start_node)
+                    try:
+                        start_secs_raw = float(start_node.text)
+                    except ValueError:
+                        pass
 
-                # Iterar sobre TODAS las instrucciones cStopAtDestinations
-                for stop in player_driver.findall(".//cStopAtDestinations"):
+                # Iterar sobre TODOS los tipos de instrucción de parada
+                _STOP_INSTR_TAGS = {"cStopAtDestinations", "cPickUpPassengers"}
+                import core.scenario_index as _si
+                for stop in player_driver.iter():
+                    if stop.tag not in _STOP_INSTR_TAGS:
+                        continue
 
                     # Obtener el cDriverInstructionTarget dentro de DeltaTarget
                     target = stop.find("DeltaTarget/cDriverInstructionTarget")
+                    if target is None:
+                        target = stop.find("cDriverInstructionTarget")
                     if target is None:
                         continue
 
@@ -418,57 +566,83 @@ class ScenarioManager:
                     if disp_node is not None and disp_node.text:
                         station_name = disp_node.text
 
-                    # Tipo: waypoint de paso o parada real
-                    wp_node = target.find("Waypoint")
-                    stop_type = "WAYPOINT" if (wp_node is not None and wp_node.text == "1") else "STOP"
+                    # Tipo: cPickUpPassengers siempre es STOP; cStopAtDestinations respeta Waypoint
+                    if stop.tag == "cPickUpPassengers":
+                        stop_type = "STOP"
+                    else:
+                        wp_node = target.find("Waypoint")
+                        stop_type = "WAYPOINT" if (wp_node is not None and wp_node.text == "1") else "STOP"
 
-                    # Estado: usar Satisfied/Active del nivel superior + ProgressCode en target
+                    # Estado: ProgressCode es la fuente de verdad.
+                    # El campo Active=1 está en TODOS los stops (flag global del
+                    # cDriverInstructionContainer) — NO indica el stop actual.
+                    # ProgressCode muestra: INSTRUCTION_STATE_{ACTIVE|INACTIVE|SUCCEEDED}
                     satisfied = stop.find("Satisfied")
-                    active_flag = stop.find("Active")
                     prog_node = target.find("ProgressCode")
 
                     raw_prog = prog_node.text if prog_node is not None else ""
                     progress_code = raw_prog.replace("INSTRUCTION_STATE_", "") if raw_prog else "INACTIVE"
 
-                    # Normalizar estado: dar prioridad a flags booleanos del save
                     if satisfied is not None and satisfied.text == "1":
                         status = "SUCCEEDED"
-                    elif active_flag is not None and active_flag.text == "1":
+                    elif progress_code == "SUCCEEDED":
+                        status = "SUCCEEDED"
+                    elif progress_code == "ACTIVE":
                         status = "ACTIVE"
                     else:
-                        status = progress_code if progress_code else "INACTIVE"
+                        status = "INACTIVE"
 
-                    # Horarios programados (nivel superior del cStopAtDestinations)
+                    # Horarios programados
                     arr_tod = stop.find("ArriveTime/sTimeOfDay")
                     dep_tod = stop.find("DepartTime/sTimeOfDay")
-                    arrival_time = _parse_time_of_day(arr_tod)
+                    scheduled_arrival = _parse_time_of_day(arr_tod)
+
+                    # Tiempo real de llegada: ArrivalTime (seg desde inicio escenario), solo SUCCEEDED
+                    arr_real_node = target.find("ArrivalTime")
+                    if status == "SUCCEEDED" and arr_real_node is not None and arr_real_node.text:
+                        try:
+                            real_arr_secs = float(arr_real_node.text)
+                            arrival_time = _secs_to_hhmm(start_secs_raw + real_arr_secs) if real_arr_secs > 0 and start_secs_raw > 0 else scheduled_arrival
+                        except ValueError:
+                            arrival_time = scheduled_arrival
+                    else:
+                        arrival_time = scheduled_arrival
+
                     departure_time = _parse_time_of_day(dep_tod)
 
-                    # Fallback: DueTime en segundos (deadline de la instrucción)
+                    # Fallback: DueTime en segundos
                     due_node = target.find("DueTime")
                     due_time = _parse_seconds(due_node) if due_node is not None else "N/A"
 
-                    # Tiempo de parada programado (segundos)
+                    # Tiempo de parada
                     dur_node = target.find("Duration")
                     dwell_secs = 0
                     if dur_node is not None and dur_node.text:
                         try:
-                            dwell_secs = int(dur_node.text)
+                            dwell_secs = int(float(dur_node.text))
                         except ValueError:
                             pass
 
+                    # Distancia desde posición del tren hasta la entidad
+                    ex, ez = _si.lookup_entity_position(route_id, station_name)
+                    dist = self._distance_to_entity(ex, ez)
+                    _entity_cache_save.append((ex, ez))
+
                     data["stops"].append({
                         "station_name": station_name,
-                        "arrival_time": arrival_time,
+                        "scheduled_arrival": scheduled_arrival,  # siempre hora programada de ArriveTime
+                        "arrival_time": arrival_time,            # real (SUCCEEDED+ArrivalTime válido) o programada
                         "departure_time": departure_time,
                         "due_time": due_time,
                         "dwell_secs": dwell_secs,
                         "status": status,
                         "type": stop_type,
+                        "distance": dist,
                     })
 
         except Exception as e:
             data["error_save"] = str(e)
+        self._stop_entity_cache = _entity_cache_save
 
         # --- 2. ScenarioProperties.xml (metadatos estáticos como fallback) ---
         props = self._read_scenario_properties(scenario_dir)

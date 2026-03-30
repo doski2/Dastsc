@@ -23,9 +23,11 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
     const drawTrack = React.useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
         if (!isConnected) return;
 
-        // Primera parada activa o primer stop sin satisfacer del escenario
+        // Primera parada activa (no finalizda), o primera pendiente más cercana,
+        // o simplemente la primera pendiente si no hay distancias disponibles.
         const nextStop = stops.find(s => s.is_active && !s.satisfied)
-                      ?? stops.find(s => !s.satisfied && s.distance_m > 0)
+                      ?? stops.filter(s => !s.satisfied && s.distance_m > 0).sort((a, b) => a.distance_m - b.distance_m)[0]
+                      ?? stops.find(s => !s.satisfied)
                       ?? null;
         const nextStopDist = nextStop && nextStop.distance_m > 0 ? nextStop.distance_m : -1;
 

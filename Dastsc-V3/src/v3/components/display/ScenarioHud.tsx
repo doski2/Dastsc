@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Clock, Navigation, MapPin, CheckCircle2, Timer, Search, X, RefreshCw } from 'lucide-react';
+import { Clock, Navigation, MapPin, CheckCircle2, Timer, Search, X, RefreshCw, AlertTriangle } from 'lucide-react';
 import { scenarioService, ScenarioListItem } from '../../services/ScenarioService';
+import { useTelemetry } from '../../core/TelemetryContext';
 
 interface StopProps {
   name: string;
@@ -102,6 +103,7 @@ const StopRow: React.FC<StopProps> = ({ name, type, dueTime, actualArrival, dist
 };
 
 export const ScenarioHud: React.FC<{ stops: any[]; onScenarioChanged?: () => void }> = ({ stops, onScenarioChanged }) => {
+  const { scenarioProgress } = useTelemetry();
   const [showSelector, setShowSelector] = useState(false);
   const [scenarioList, setScenarioList] = useState<ScenarioListItem[]>([]);
   const [filter, setFilter] = useState('');
@@ -262,6 +264,39 @@ export const ScenarioHud: React.FC<{ stops: any[]; onScenarioChanged?: () => voi
     isActive: stop.is_active,
   }));
 
+  // ── Inferencia client-side ──────────────────────────────────────────────────
+  // Si el XML no asignó ningún ACTIVE (todos INACTIVE), inferimos la parada
+  // activa como la que tiene la distancia positiva más pequeña entre las no
+  // completadas. Las anteriores (por índice) se marcan como satisfechas.
+  // Fallback: si no hay datos de posición, resaltar la primera parada pendiente.
+  const hasServerActive = processedStops.some(s => s.isActive && !s.satisfied);
+  if (!hasServerActive) {
+    // Nivel 1: detección por distancia mínima — solo paradas reales (no WAYPOINTs)
+    let minDist = Infinity;
+    let minIdx = -1;
+    processedStops.forEach((s, i) => {
+      if (!s.satisfied && s.type === 'STOP' && s.distance >= 0 && s.distance < minDist) {
+        minDist = s.distance;
+        minIdx = i;
+      }
+    });
+    if (minIdx >= 0) {
+      // Todo lo anterior (STOPs y WAYPOINTs) se considera ya pasado
+      for (let i = 0; i < minIdx; i++) {
+        processedStops[i].satisfied = true;
+        processedStops[i].isActive = false;
+      }
+      processedStops[minIdx].isActive = true;
+    } else {
+      // Nivel 2: sin datos de posición → primera parada real (no WAYPOINT) pendiente
+      const firstPending = processedStops.findIndex(s => !s.satisfied && s.type === 'STOP');
+      if (firstPending >= 0) {
+        processedStops[firstPending].isActive = true;
+      }
+    }
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
   if (!processedStops || processedStops.length === 0) {
     return (
       <div className="p-4 bg-white/5 border border-white/5 rounded-sm flex-1 flex flex-col items-center justify-center gap-3 relative">
@@ -295,8 +330,15 @@ export const ScenarioHud: React.FC<{ stops: any[]; onScenarioChanged?: () => voi
     );
   }
 
-  // Filtrar las próximas paradas priorizando la actual
-  const firstUnsatisfiedIndex = processedStops.findIndex(s => !s.satisfied);
+  // Centrar la ventana en la parada activa (STOP real, no WAYPOINT)
+  // Prioridad: parada con isActive=true → primera STOP no satisfecha → primera no satisfecha
+  const activeIdx = processedStops.findIndex(s => s.isActive && !s.satisfied);
+  const pivotIdx = activeIdx >= 0
+    ? activeIdx
+    : processedStops.findIndex(s => !s.satisfied && s.type === 'STOP');
+  const firstUnsatisfiedIndex = pivotIdx >= 0
+    ? pivotIdx
+    : processedStops.findIndex(s => !s.satisfied);
   const displayStops = processedStops.slice(
     Math.max(0, firstUnsatisfiedIndex - 1),
     Math.max(4, firstUnsatisfiedIndex + 5)
@@ -308,6 +350,19 @@ export const ScenarioHud: React.FC<{ stops: any[]; onScenarioChanged?: () => voi
         <div className="flex items-center gap-2">
           <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
           <h3 className="text-[11px] font-bold text-white/60 uppercase tracking-widest font-mono">Service Sheet</h3>
+          {/* Errores operacionales: badge rojo si hay alguno */}
+          {(scenarioProgress.operational_errors ?? 0) > 0 && (
+            <div className="flex items-center gap-0.5 bg-red-500/15 border border-red-500/30 rounded-sm px-1 py-0.5">
+              <AlertTriangle className="w-2.5 h-2.5 text-red-400" />
+              <span className="text-[9px] font-mono text-red-400 leading-none">{scenarioProgress.operational_errors}</span>
+            </div>
+          )}
+          {/* Incidentes de velocidad: badge naranja */}
+          {(scenarioProgress.speeding_incidents?.length ?? 0) > 0 && (
+            <div className="flex items-center gap-0.5 bg-orange-500/10 border border-orange-500/25 rounded-sm px-1 py-0.5">
+              <span className="text-[9px] font-mono text-orange-400 leading-none">SPD×{scenarioProgress.speeding_incidents!.length}</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -316,7 +371,10 @@ export const ScenarioHud: React.FC<{ stops: any[]; onScenarioChanged?: () => voi
           >
             Switch
           </button>
-          <span className="text-[9px] font-mono text-white/20 uppercase">Live Ops</span>
+          {/* Número de unidad o fallback "Live Ops" */}
+          <span className="text-[9px] font-mono text-white/20 uppercase">
+            {scenarioProgress.unit_number ?? 'Live Ops'}
+          </span>
         </div>
       </div>
 

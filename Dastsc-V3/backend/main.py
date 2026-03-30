@@ -139,14 +139,13 @@ async def telemetry_reader():
             # Detectar ruta activa de telemetría
             active_path = GETDATA_PATH if os.path.exists(GETDATA_PATH) else ALT_PATH
 
-            # Chequeo de escenario cada 5 segundos (reducido de 2s para evitar picos de CPU)
-            # El chequeo detallado es costoso por la búsqueda de archivos XML pesados
-            if now - last_scenario_check > 5.0:
+            # Chequeo de escenario cada 1.5 segundos para detectar rápido cambios de parada
+            # (ACTIVE → SUCCEEDED cuando el tren parte de una estación)
+            if now - last_scenario_check > 1.5:
                 last_scenario_check = now
-                # Solo procesar si el archivo de guardado del TS ha cambiado realmente
+                # Refrescar datos del escenario cada 5 segundos (estados SUCCEEDED/ACTIVE + horarios)
                 active_info = manager.scenario_manager.find_active_scenario()
-                if active_info and active_info.get("mtime", 0) > last_save_mtime:
-                    last_save_mtime = active_info["mtime"]
+                if active_info:
                     scenario_data = manager.scenario_manager.get_detailed_scenario_data(
                         player_rv=last_rv or None
                     )
@@ -165,6 +164,34 @@ async def telemetry_reader():
                             if data.get("RV"):
                                 last_rv = str(data["RV"])
                                 manager.scenario_manager.update_player_rv(last_rv)
+
+                            # Actualizar posición mundial del tren desde getFarPosition
+                            try:
+                                far_xt = float(data.get("FarXT") or 0)
+                                far_xo = float(data.get("FarXO") or 0)
+                                far_zt = float(data.get("FarZT") or 0)
+                                far_zo = float(data.get("FarZO") or 0)
+                                # Solo actualizar si Lua emitió valores no-nulos
+                                if far_xt != 0 or far_xo != 0:
+                                    world_x = far_xt * 1024.0 + far_xo
+                                    world_z = far_zt * 1024.0 + far_zo
+                                    manager.scenario_manager.update_train_position(world_x, world_z)
+                                else:
+                                    # Fallback: getFarPosition no disponible en este plugin.
+                                    # Inferir tile usando NX/NZ (tile-local 0-1024) y snap
+                                    # a la entidad de mapa más cercana de la ruta activa.
+                                    nx = float(data.get("NX") or 0)
+                                    nz = float(data.get("NZ") or 0)
+                                    if nx != 0 or nz != 0:
+                                        manager.scenario_manager.update_train_position_near(nx, nz)
+                            except (TypeError, ValueError):
+                                pass
+
+                            # Refrescar distancias cada frame (sin I/O: solo matemáticas)
+                            if scenario_data:
+                                manager.scenario_manager.refresh_distances(
+                                    scenario_data.get("stops", [])
+                                )
 
                             payload = {
                                 "type": "TELEMETRY",
@@ -281,6 +308,25 @@ async def select_scenario(request: Request):
 async def get_live_scenario():
     """Endpoint para que el frontend obtenga los datos del escenario detectado."""
     return manager.scenario_manager.get_detailed_scenario_data()
+
+
+@app.get("/debug/pos")
+async def debug_position():
+    """Diagnóstico en vivo: posición actual del tren y distancias a cada parada."""
+    sm = manager.scenario_manager
+    stops_cache = sm._stop_entity_cache
+    cache_distances = []
+    for ex, ez in stops_cache:
+        d = sm._distance_to_entity(ex, ez)
+        cache_distances.append(round(d, 1) if d >= 0 else None)
+    return {
+        "train_x": round(sm._last_train_x, 2) if sm._last_train_x is not None else None,
+        "train_z": round(sm._last_train_z, 2) if sm._last_train_z is not None else None,
+        "cached_route_id": sm._cached_route_id,
+        "stop_entity_cache_len": len(stops_cache),
+        "distances_m": cache_distances,
+        "forced_scenario_id": sm._forced_scenario_id,
+    }
 
 
 @app.websocket("/ws/telemetry")
