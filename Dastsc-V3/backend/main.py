@@ -130,9 +130,6 @@ async def telemetry_reader():
     scenario_data = {}
     last_rv: str = ""  # RV del tren del jugador, actualizado con cada trama de telemetría
 
-    # OPTIMIZACIÓN: Cache de mtime para evitar glob.glob constante
-    last_save_mtime = 0
-
     while True:
         try:
             now = time.time()

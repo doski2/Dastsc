@@ -357,7 +357,6 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
           setData(next);
           setLastMessageTime(now);
         } else if (message.type === 'INIT') {
-          console.log('INIT received:', message);
           if (message.available_profiles && Array.isArray(message.available_profiles)) {
             setAvailableProfiles(message.available_profiles);
             availableProfilesRef.current = message.available_profiles;
