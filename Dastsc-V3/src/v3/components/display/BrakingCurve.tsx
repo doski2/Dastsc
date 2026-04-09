@@ -387,7 +387,7 @@ export const BrakingCurve: React.FC = () => {
               return { label: 'Manual Stop', dist: remainingDist, val: `${customMiles} mi` };
             }
             if (nextAutoStop) {
-              return { label: `Station: ${nextAutoStop.name}`, dist: nextAutoStop.distance_m, val: nextAutoStop.is_platform ? 'PLATFORM' : 'WPT' };
+              return { label: `Station: ${nextAutoStop.name}`, dist: nextAutoStop.distance_m, val: nextAutoStop.type !== 'WAYPOINT' ? 'PLATFORM' : 'WPT' };
             }
             return { label: 'Optimal Stop', dist: raw.ProjectedBrakingDistance, val: 'Dynamic' };
         }

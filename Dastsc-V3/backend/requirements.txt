@@ -2,6 +2,3 @@ fastapi
 uvicorn[standard]
 websockets
 python-multipart
-# Added for v3 (Inertial physics)
-numpy
-scipy

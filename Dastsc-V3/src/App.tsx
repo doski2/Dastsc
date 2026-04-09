@@ -32,55 +32,25 @@ function DataPoint({ label, value }: { label: string, value: string | number }) 
 
 function App() {
   const [activeTab, setActiveTab] = useState('PILOT')
-  const { data, isConnected, activeProfile } = useTelemetry()
+  const { data, isConnected, activeProfile, scenarioStops } = useTelemetry()
   const [stops, setStops] = useState<ScenarioStop[]>([])
-  const [activeRouteId, setActiveRouteId] = useState<string | null>(null)
-  const [activeScenarioPath, setActiveScenarioPath] = useState<string | null>(null)
-  const [isManualSelection, setIsManualSelection] = useState(false)
 
-  // 1. Detección automática del escenario basándose en el RVNumber de la telemetría
-  useEffect(() => {
-    // Escuchar el evento de selección manual ANTES de la detección automática
-    const handleManualSelect = (e: any) => {
-      const { scenario_path, route_id } = e.detail;
-      console.log("APP: Aplicando Selección Manual ->", scenario_path);
-      setIsManualSelection(true);
-      setActiveRouteId(route_id);
-      setActiveScenarioPath(scenario_path);
-    };
+  // stops en tiempo real: WebSocket tiene prioridad (actualiza cada frame),
+  // REST poll cada 30s sirve de semilla inicial y para cambios de escenario manual.
+  const displayStops = scenarioStops.length > 0 ? scenarioStops : stops;
 
-    window.addEventListener('SCENARIO_MANUAL_SELECT', handleManualSelect);
+  const fetchStops = async () => {
+    const liveStops = await scenarioService.getLiveTimetable();
+    setStops(liveStops);
+  };
 
-    if (isConnected && data.RVNumber && !isManualSelection) {
-      const detect = async () => {
-        console.log("Nexus: Intentando detectar escenario para RV:", data.RVNumber);
-        const scenario = await scenarioService.detectActiveScenario(data.RVNumber);
-        if (scenario) {
-          console.log("Nexus: Escenario detectado automáticamente:", scenario.id);
-          setActiveRouteId(scenario.route_id);
-          setActiveScenarioPath(scenario.path);
-        }
-      };
-      detect();
-    }
-
-    return () => window.removeEventListener('SCENARIO_MANUAL_SELECT', handleManualSelect);
-  }, [isConnected, data.RVNumber, isManualSelection]);
-
-  // 2. Efecto para actualizar el horario en vivo usando la detección previa (Desactivado para reducir carga HTTP)
-  /*
+  // Semilla inicial + refresco lento de metadatos del escenario (solo si llega via REST)
   useEffect(() => {
     if (!isConnected) return;
-
-    const interval = setInterval(async () => {
-      // Ahora usamos el endpoint unificado que detecta el escenario activo
-      const liveStops = await scenarioService.getLiveTimetable();
-      if (liveStops && liveStops.length > 0) setStops(liveStops);
-    }, 2000);
-
+    fetchStops();
+    const interval = setInterval(fetchStops, 30000);
     return () => clearInterval(interval);
-  }, [isConnected]);
-  */
+  }, [isConnected]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatDistance = (m: number) => {
     if (data.SpeedUnit === 'MPH') {
@@ -133,7 +103,7 @@ function App() {
               >
                 {/* Sección superior: Perfil de vía */}
                 <div className="h-[220px] relative">
-                  <TrackProfile />
+                  <TrackProfile stops={displayStops} />
                   
                   {/* Info Bar (Del nuevo boceto) */}
                   <div className="absolute bottom-0 left-0 right-0 h-10 bg-black/60 border-y border-white/5 backdrop-blur-md flex items-center px-6 justify-between">
@@ -200,7 +170,7 @@ function App() {
 
                   {/* Columna 3: Métricas secundarias */}
                   <div className="flex flex-col gap-4 overflow-hidden">
-                    <ScenarioHud stops={stops} />
+                    <ScenarioHud stops={displayStops} onScenarioChanged={fetchStops} />
                     
                     <div className="p-4 bg-white/5 border border-white/5 rounded-sm shrink-0">
                       <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Adaptive Telemetry Hub</h3>

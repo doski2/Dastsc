@@ -1,25 +1,58 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Any, List
 import asyncio
+import json
+import math
 import os
 import time
-from typing import List
+import traceback
 
-# Estos se copiarán a continuación
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
 from core.scenarios import ScenarioManager
-# from physics.engine import PhysicsEngine
+import core.scenario_index as scenario_index
 
-app = FastAPI(title="Nexus v3 Engine")
+def _sanitize(obj: Any) -> Any:
+    """Reemplaza float no-finitos (Infinity, -Infinity, NaN) por 0 recursivamente.
+    Evita que JSON.parse falle en el frontend cuando el plugin emite valores
+    indefinidos (señales sin leer, límites fuera de rango, etc.).
+    """
+    if isinstance(obj, float):
+        return obj if math.isfinite(obj) else 0.0
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
+
+
+_CORS_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5173",
+]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("--------------------------------------------------")
+    print("   NEXUS V3 ENGINE - CORE UPDATED (JSON FIX)      ")
+    print("--------------------------------------------------")
+    asyncio.create_task(telemetry_reader())
+    yield
+
+
+app = FastAPI(title="Nexus v3 Engine", lifespan=lifespan)
 print("DEBUG: V3 ENGINE STARTING")
 print(f"DEBUG: PATH: {os.path.abspath(__file__)}")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=_CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -77,10 +110,11 @@ class TelemetryManager:
             self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        self.last_payload.update(message)
+        safe = _sanitize(message)
+        self.last_payload.update(safe)
         for connection in self.active_connections:
             try:
-                await connection.send_json(message)
+                await connection.send_json(safe)
             except Exception:
                 pass
 
@@ -94,7 +128,8 @@ async def telemetry_reader():
     last_mtime = 0
     last_scenario_check = 0
     scenario_data = {}
-    
+    last_rv: str = ""  # RV del tren del jugador, actualizado con cada trama de telemetría
+
     # OPTIMIZACIÓN: Cache de mtime para evitar glob.glob constante
     last_save_mtime = 0
 
@@ -104,15 +139,16 @@ async def telemetry_reader():
             # Detectar ruta activa de telemetría
             active_path = GETDATA_PATH if os.path.exists(GETDATA_PATH) else ALT_PATH
 
-            # Chequeo de escenario cada 5 segundos (reducido de 2s para evitar picos de CPU)
-            # El chequeo detallado es costoso por la búsqueda de archivos XML pesados
-            if now - last_scenario_check > 5.0:
+            # Chequeo de escenario cada 1.5 segundos para detectar rápido cambios de parada
+            # (ACTIVE → SUCCEEDED cuando el tren parte de una estación)
+            if now - last_scenario_check > 1.5:
                 last_scenario_check = now
-                # Solo procesar si el archivo de guardado del TS ha cambiado realmente
+                # Refrescar datos del escenario cada 5 segundos (estados SUCCEEDED/ACTIVE + horarios)
                 active_info = manager.scenario_manager.find_active_scenario()
-                if active_info and active_info.get("mtime", 0) > last_save_mtime:
-                    last_save_mtime = active_info["mtime"]
-                    scenario_data = manager.scenario_manager.get_detailed_scenario_data()
+                if active_info:
+                    scenario_data = manager.scenario_manager.get_detailed_scenario_data(
+                        player_rv=last_rv or None
+                    )
 
             if os.path.exists(active_path):
                 # OPTIMIZACIÓN V3: Comprobar el tiempo de modificación del archivo (mtime)
@@ -125,6 +161,37 @@ async def telemetry_reader():
                         line = f.readline()
                         if line:
                             data = parse_telemetry_line(line)
+                            if data.get("RV"):
+                                last_rv = str(data["RV"])
+                                manager.scenario_manager.update_player_rv(last_rv)
+
+                            # Actualizar posición mundial del tren desde getFarPosition
+                            try:
+                                far_xt = float(data.get("FarXT") or 0)
+                                far_xo = float(data.get("FarXO") or 0)
+                                far_zt = float(data.get("FarZT") or 0)
+                                far_zo = float(data.get("FarZO") or 0)
+                                # Solo actualizar si Lua emitió valores no-nulos
+                                if far_xt != 0 or far_xo != 0:
+                                    world_x = far_xt * 1024.0 + far_xo
+                                    world_z = far_zt * 1024.0 + far_zo
+                                    manager.scenario_manager.update_train_position(world_x, world_z)
+                                else:
+                                    # Fallback: getFarPosition no disponible en este plugin.
+                                    # Inferir tile usando NX/NZ (tile-local 0-1024) y snap
+                                    # a la entidad de mapa más cercana de la ruta activa.
+                                    nx = float(data.get("NX") or 0)
+                                    nz = float(data.get("NZ") or 0)
+                                    if nx != 0 or nz != 0:
+                                        manager.scenario_manager.update_train_position_near(nx, nz)
+                            except (TypeError, ValueError):
+                                pass
+
+                            # Refrescar distancias cada frame (sin I/O: solo matemáticas)
+                            if scenario_data:
+                                manager.scenario_manager.refresh_distances(
+                                    scenario_data.get("stops", [])
+                                )
 
                             payload = {
                                 "type": "TELEMETRY",
@@ -152,18 +219,114 @@ async def telemetry_reader():
             await asyncio.sleep(0.5)
 
 
-@app.on_event("startup")
-async def startup_event():
-    print("--------------------------------------------------")
-    print("   NEXUS V3 ENGINE - CORE UPDATED (JSON FIX)      ")
-    print("--------------------------------------------------")
-    asyncio.create_task(telemetry_reader())
+# startup movido al asynccontextmanager lifespan (ver arriba)
+
+
+@app.get("/scenarios/list")
+async def list_scenarios():
+    """Devuelve todos los escenarios. Usa el índice SQLite si existe, si no hace fallback al método clásico."""
+    if not scenario_index.index_needs_rebuild():
+        forced = manager.scenario_manager._forced_save_path
+        forced_id = manager.scenario_manager._forced_scenario_id
+        active = manager.scenario_manager.find_active_scenario()
+        active_sp = active.get("save_path") if active else None
+        return scenario_index.list_scenarios(
+            active_save_path=active_sp,
+            forced_save_path=forced,
+            forced_scenario_id=forced_id,
+        )
+    return manager.scenario_manager.list_all_scenarios()
+
+
+@app.get("/scenarios/index/stats")
+async def get_index_stats():
+    """Devuelve estadísticas del índice SQLite de escenarios."""
+    return scenario_index.get_index_stats()
+
+
+@app.post("/scenarios/reindex")
+async def reindex_scenarios(request: Request):
+    """
+    Reconstruye el índice SQLite de escenarios usando serz.exe.
+    Body opcional: { "route_filter": "<GUID>" } para indexar solo una ruta.
+    Nota: la indexación de 350 escenarios puede tardar 2-3 minutos.
+    """
+    try:
+        raw = await request.body()
+        body: dict = json.loads(raw.decode("utf-8")) if raw else {}
+    except Exception:
+        body = {}
+    route_filter = body.get("route_filter") or None
+    loop = asyncio.get_running_loop()
+    stats = await loop.run_in_executor(
+        None,
+        lambda: scenario_index.build_index(route_filter=route_filter),
+    )
+    return stats
+
+
+@app.post("/scenarios/select")
+async def select_scenario(request: Request):
+    """
+    Fija manualmente el escenario activo.
+    - { "auto": true }              → vuelve a autodetección
+    - { "scenario_id": "<GUID>" }   → selecciona por ID (soporta jugados y no jugados)
+    - { "save_path": "..." }         → legacy: selecciona por ruta de CurrentSave.xml
+    """
+    try:
+        raw = await request.body()
+        body: dict = json.loads(raw.decode("utf-8")) if raw else {}
+    except Exception as _exc:
+        print(f"BODY PARSE ERROR: {_exc!r}")
+        body = {}
+
+    if body.get("auto"):
+        manager.scenario_manager.clear_manual_scenario()
+        return {"ok": True, "mode": "auto"}
+
+    scenario_id = (body.get("scenario_id") or "").strip()
+    if scenario_id:
+        scenario_dir = scenario_index.get_scenario_dir(scenario_id)
+        if not scenario_dir:
+            return {"ok": False, "error": "Scenario not in index. Try POST /scenarios/reindex first."}
+        manager.scenario_manager.select_by_id(scenario_id, scenario_dir)
+        return {"ok": True, "mode": "manual_id", "scenario_id": scenario_id}
+
+    # Legacy: save_path directo
+    save_path = (body.get("save_path") or "").strip()
+    if save_path:
+        ok = manager.scenario_manager.select_manual_scenario(save_path)
+        if not ok:
+            return {"ok": False, "error": f"Path not found: {save_path}"}
+        return {"ok": True, "mode": "manual", "save_path": save_path}
+
+    return {"ok": False, "error": "Provide scenario_id, save_path, or auto=true"}
+
 
 
 @app.get("/scenarios/live")
 async def get_live_scenario():
     """Endpoint para que el frontend obtenga los datos del escenario detectado."""
     return manager.scenario_manager.get_detailed_scenario_data()
+
+
+@app.get("/debug/pos")
+async def debug_position():
+    """Diagnóstico en vivo: posición actual del tren y distancias a cada parada."""
+    sm = manager.scenario_manager
+    stops_cache = sm._stop_entity_cache
+    cache_distances = []
+    for ex, ez in stops_cache:
+        d = sm._distance_to_entity(ex, ez)
+        cache_distances.append(round(d, 1) if d >= 0 else None)
+    return {
+        "train_x": round(sm._last_train_x, 2) if sm._last_train_x is not None else None,
+        "train_z": round(sm._last_train_z, 2) if sm._last_train_z is not None else None,
+        "cached_route_id": sm._cached_route_id,
+        "stop_entity_cache_len": len(stops_cache),
+        "distances_m": cache_distances,
+        "forced_scenario_id": sm._forced_scenario_id,
+    }
 
 
 @app.websocket("/ws/telemetry")
@@ -201,8 +364,6 @@ async def websocket_endpoint(websocket: WebSocket):
             except Exception as e:
                 # Si el mensaje no es JSON válido, receive_json lanzará error
                 print(f"Error procesando comando: {e}")
-                import traceback
-
                 traceback.print_exc()
     except WebSocketDisconnect:
         manager.disconnect(websocket)

@@ -2,18 +2,35 @@ import axios from 'axios';
 
 export interface ScenarioStop {
   name: string;
-  entity_name: string;
   type: 'STOP' | 'WAYPOINT';
-  is_waypoint: boolean;
+  is_active: boolean;
   satisfied: boolean;
-  is_platform: boolean;
-  due_time: string | null;
-  arrival_time: string | null;
-  raw_due: number;
+  due_time: string | null;           // hora programada (para mostrar en paradas pendientes)
+  departure_time: string | null;
+  arrival_time: string | null;       // hora real de llegada (solo cuando satisfied)
   stop_duration: number;
   x?: number;
   z?: number;
   distance_m: number;
+}
+
+export interface ScenarioListItem {
+  id: string;
+  route_id: string;
+  name: string;
+  loco: string;
+  service: string;
+  start_time: string;
+  start_location: string;
+  briefing: string;
+  duration_mins: number;
+  rating: number;
+  /** Lista de RV codes del tren del jugador (InitialRV) */
+  initial_rv: string[];
+  /** True si el escenario tiene CurrentSave.xml (fue jugado al menos una vez) */
+  has_save: boolean;
+  save_path: string | null;
+  is_active: boolean;
 }
 
 export interface Scenario {
@@ -28,59 +45,55 @@ const API_BASE = 'http://localhost:8000';
 class ScenarioService {
   private currentScenario: Scenario | null = null;
   private stops: ScenarioStop[] = [];
-  private lastUpdate = 0;
 
-  async getAvailableScenarios(): Promise<Scenario[]> {
+  /** Lista todos los escenarios instalados con CurrentSave.xml */
+  async getScenarioList(): Promise<ScenarioListItem[]> {
     try {
-      const response = await axios.get(`${API_BASE}/scenarios`);
-      return response.data;
+      const response = await axios.get(`${API_BASE}/scenarios/list`);
+      return response.data as ScenarioListItem[];
     } catch (error) {
-      console.error('Error fetching scenarios:', error);
+      console.error('Error fetching scenario list:', error);
       return [];
     }
   }
 
-  async detectActiveScenario(rvNumber: string): Promise<Scenario | null> {
+  /** Selecciona manualmente un escenario por su ID (GUID) */
+  async selectScenario(scenarioId: string): Promise<boolean> {
     try {
-      const response = await axios.get(`${API_BASE}/scenarios/detect`, {
-        params: { rv: rvNumber }
-      });
-      if (response.data) {
-        // Adaptar respuesta del backend al formato del frontend
-        this.currentScenario = {
-          id: response.data.scenario_id,
-          route_id: response.data.route_id,
-          name: "Escenario Detectado", // El backend no devuelve el nombre aquí aún
-          path: response.data.xml_path
-        };
-        return this.currentScenario;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error detecting active scenario:', error);
-      return null;
+      const response = await axios.post(`${API_BASE}/scenarios/select`, { scenario_id: scenarioId });
+      return response.data?.ok === true;
+    } catch (error: any) {
+      console.error('[ScenarioService] Error selecting scenario:', error?.response?.status, error?.response?.data || error);
+      return false;
     }
   }
 
-  async getLiveTimetable(routeId?: string, scenarioPath?: string, x?: number, z?: number): Promise<ScenarioStop[]> {
+  /** Vuelve al modo autodetección (el más reciente) */
+  async setAutoScenario(): Promise<void> {
     try {
-      // Intentamos usar el nuevo endpoint simplificado del backend
+      await axios.post(`${API_BASE}/scenarios/select`, { auto: true });
+    } catch (error) {
+      console.error('Error resetting to auto scenario:', error);
+    }
+  }
+
+  async getLiveTimetable(): Promise<ScenarioStop[]> {
+    try {
       const response = await axios.get(`${API_BASE}/scenarios/live`);
-      
+
       if (response.data && response.data.stops) {
-        // Mapear el formato del backend al frontend
         const mappedStops: ScenarioStop[] = response.data.stops.map((s: any) => ({
           name: s.station_name,
-          entity_name: s.station_name,
-          type: s.type || 'STOP',
-          is_waypoint: s.type === 'WAYPOINT',
-          satisfied: s.satisfied || false,
-          is_platform: true,
-          due_time: s.arrival_time,
-          arrival_time: s.actual_arrival || null,
-          raw_due: 0,
-          stop_duration: 0,
-          distance_m: s.distance || 0
+          type: (s.type === 'STOP' || s.type === 'WAYPOINT' ? s.type : 'STOP') as 'STOP' | 'WAYPOINT',
+          is_active: s.status === 'ACTIVE',
+          satisfied: s.status === 'SUCCEEDED',
+          due_time: s.scheduled_arrival && s.scheduled_arrival !== 'N/A' ? s.scheduled_arrival
+            : s.due_time !== 'N/A' ? s.due_time
+            : s.departure_time !== 'N/A' ? s.departure_time : null,
+          departure_time: s.departure_time !== 'N/A' ? s.departure_time : null,
+          arrival_time: s.status === 'SUCCEEDED' && s.arrival_time !== 'N/A' ? s.arrival_time : null,
+          stop_duration: s.dwell_secs || 0,
+          distance_m: s.distance || 0,
         }));
         this.stops = mappedStops;
         return this.stops;
@@ -92,10 +105,10 @@ class ScenarioService {
     }
   }
 
-  // Helper para obtener la siguiente parada relevante
   getNextStop(): ScenarioStop | null {
     return this.stops.find(s => !s.satisfied) || null;
   }
 }
 
 export const scenarioService = new ScenarioService();
+

@@ -1,73 +1,56 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { DataNormalizer } from './DataNormalizer';
+import { ScenarioStop } from '../services/ScenarioService';
 
-/**
- * Esquema de Telemetría Nexus v3
- * Refinado para renderizado de alta densidad y automatización por IA.
- */
 export interface TelemetryData {
-  // Dinámica de Velocidad
-  Speed: number;           // Siempre en m/s (Interno)
-  SpeedDisplay: number;    // Convertido a MPH/KPH según perfil
+  Speed: number;            // m/s (internal)
+  SpeedDisplay: number;     // MPH or KPH per profile
   SpeedUnit: 'MPH' | 'KPH';
-  ProjectedSpeed: number;  
-  Acceleration: number;    
-  GForce: number;          
-  LateralG: number;        // Fuerza lateral estimada (G)
-  SpeedLimit: number;      // Límite efectivo (m/s)
-  TrackLimit: number;      // Límite físico de la vía
-  SignalLimit: number;     // Límite impuesto por señales
-  FrontalSpeedLimit: number; // Límite en la cabina
-  
-  // Geografía de la Vía
-  Gradient: number;        
+  ProjectedSpeed: number;
+  Acceleration: number;
+  GForce: number;
+  LateralG: number;
+  SpeedLimit: number;       // effective limit (m/s)
+  TrackLimit: number;
+  SignalLimit: number;
+  FrontalSpeedLimit: number;
+  Gradient: number;
   DistToNextSignal: number;
   NextSignalAspect: string;
   NextSpeedLimit: number;
   DistToNextSpeedLimit: number;
-  NextLimit2Speed: number; // Segundo límite próximo
-  DistToNextLimit2: number; // Distancia al segundo límite próximo
+  NextLimit2Speed: number;
+  DistToNextLimit2: number;
   UpcomingLimits: { speed: number, distance: number }[];
-  
-  // Estaciones (Fase 2.3)
   StationDistance: number;
   StationName: string;
   StationLength: number;
-  
-  // Física y Mecánica
-  Throttle: number;        
-  TrainBrake: number;      
-  CombinedControl: number; // -1 to 1 (Brake to Power)
-  Reverser: number;        
-  BrakeCylinderPressure: number; 
-  BrakePipePressure: number;     
-  MainResPressure: number;       
-  EqResPressure: number;         
+  Throttle: number;
+  TrainBrake: number;
+  CombinedControl: number;  // -1 to 1 (Brake to Power)
+  Reverser: number;
+  BrakeCylinderPressure: number;
+  BrakePipePressure: number;
+  MainResPressure: number;
+  EqResPressure: number;
   PressureUnit: 'BAR' | 'PSI';
-  Amperage: number;        
+  Amperage: number;
   AmperageUnit: string;
-  Ammeter: number;         // Valor bruto del Amperímetro (A)
-  TractiveEffort: number;  // Valor bruto de esfuerzo (kN/Lbf)
-  TractionPercent: number; // -100 to 100
-  BrakingEffort: number;   // kN o Lbf
-  BrakingPercent: number;  // 0-100% de aplicación real
-  
+  Ammeter: number;
+  TractiveEffort: number;
+  TractionPercent: number;  // -100 to 100
+  BrakingEffort: number;
+  BrakingPercent: number;
   TrainLength: number;
   TrainMass: number;
   ConsistType: number;
-  TrainType: number;      // 0: Freight, 1: Passenger, 2: Postal, 3: Light Engine
-  ActiveCab: number; // 1 = Front, 2 = Back
-
-  // IA / Predictivo
-  ProjectedBrakingDistance: number; 
-  TripDistance: number;    // Metros totales recorridos en la sesión
-  
-  // Protección de Cola (Tail Protection)
-  TailDistanceRemaining: number;  // Metros de cola pendiente (0 = seguro acelerar)
-  TailSecondsRemaining: number;  // Segundos estimados de cola
-  TailIsActive: boolean;          // ¿Está activa la protección de cola?
-  
-  // Estado del sistema
+  TrainType: number;        // 0:Freight 1:Passenger 2:Postal 3:Light
+  ActiveCab: number;        // 1=Front 2=Back
+  ProjectedBrakingDistance: number;
+  TripDistance: number;     // total meters in session
+  TailDistanceRemaining: number; // 0 = safe to accelerate
+  TailSecondsRemaining: number;
+  TailIsActive: boolean;
   LocoName: string;
   RVNumber: string;
   RouteID: string;
@@ -77,8 +60,6 @@ export interface TelemetryData {
   location: string;
   IsEmergency: boolean;
   Timestamp: number;
-  
-  // Sistemas de Seguridad y Auxiliares (Nuevos)
   AWS: number;
   AWSState: number;
   AWSReset: number;
@@ -100,8 +81,28 @@ interface TelemetryContextType {
   lastMessageTime: number;
   activeProfile: any;
   availableProfiles: any[];
+  scenarioStops: ScenarioStop[];
+  scenarioProgress: ScenarioProgress;
   sendCommand: (cmd: string, val: number) => void;
   setProfile: (profileName: string) => void;
+}
+
+export interface SpeedingIncident {
+  start_time: number;
+  hour: number;
+  minute: number;
+  max_velocity_ms: number;
+  distance_m: number;
+  milepost: string;
+  speed_limit: number;
+}
+
+export interface ScenarioProgress {
+  simulation_time?: string;
+  distance_meters?: number;
+  unit_number?: string;
+  operational_errors?: number;
+  speeding_incidents?: SpeedingIncident[];
 }
 
 const DefaultData: TelemetryData = {
@@ -181,10 +182,13 @@ const TelemetryContext = createContext<TelemetryContextType | undefined>(undefin
 
 export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   const [data, setData] = useState<TelemetryData>(DefaultData);
+  const prevDataRef = useRef<TelemetryData>(DefaultData);
   const [isConnected, setIsConnected] = useState(false);
   const [activeProfile, setActiveProfile] = useState<any>(null);
   const [availableProfiles, setAvailableProfiles] = useState<any[]>([]);
   const [lastMessageTime, setLastMessageTime] = useState(0);
+  const [scenarioStops, setScenarioStops] = useState<ScenarioStop[]>([]);
+  const [scenarioProgress, setScenarioProgress] = useState<ScenarioProgress>({});
   
   const activeProfileRef = useRef<any>(null);
   const availableProfilesRef = useRef<any[]>([]);
@@ -192,6 +196,11 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   const reconnectTimeoutRef = useRef<any>(null);
   const isMounted = useRef(true);
   const normalizerRef = useRef(new DataNormalizer());
+  // Departure detection: min dist per active stop; locally done if tren goes >500m from <300m
+  const stopMinDistRef = useRef<Map<string, number>>(new Map());
+  const locallyDoneRef = useRef<Set<string>>(new Set());
+  // Odometer refinement: anchor euclidRef on first ACTIVE frame, subtract trip delta per frame
+  const stopOdometerRefRef = useRef<Map<string, { tripAtActivation: number; euclidRef: number; reliable: boolean }>>(new Map());
 
   // Sincronizar refs con el estado para que el closure del socket los vea
   useEffect(() => {
@@ -206,9 +215,7 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
     if (!isMounted.current) return;
     if (socketRef.current?.readyState === WebSocket.OPEN || socketRef.current?.readyState === WebSocket.CONNECTING) return;
 
-    // Limpiar cualquier timeout previo
     if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-
     console.log('Nexus v3 Hub: Connecting...');
     const ws = new WebSocket('ws://localhost:8000/ws/telemetry');
     socketRef.current = ws;
@@ -220,6 +227,9 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       }
       console.log('Nexus v3 Hub Connected');
       setIsConnected(true);
+      stopOdometerRefRef.current.clear();
+      stopMinDistRef.current.clear();
+      locallyDoneRef.current.clear();
     };
 
     ws.onmessage = (event) => {
@@ -246,7 +256,6 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
             incomingProfile = availableProfilesRef.current.find(p => p.id === incomingId);
           }
 
-          // Solo actualizar si hay un cambio real para evitar re-renders infinitos
           if (incomingId !== currentId) {
             console.log(`Hub: Profile Sync [${currentId} -> ${incomingId}]`, incomingProfile?.name);
             setActiveProfile(incomingProfile || null);
@@ -254,24 +263,98 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        // 3. Procesamiento de Telemetría
+        // 3. Paradas del escenario en tiempo real (desde payload.scenario.stops)
+        if (message.scenario?.stops && Array.isArray(message.scenario.stops)) {
+          const currentTrip = prevDataRef.current.TripDistance;
+          const mapped: ScenarioStop[] = message.scenario.stops.map((s: any) => {
+            const name: string = s.station_name;
+            let dist: number = s.distance ?? -1;
+            const serverStatus: string = s.status;
+
+            // Cuando el servidor confirma SUCCEEDED, limpiar todo el trackeo local
+            if (serverStatus === 'SUCCEEDED') {
+              locallyDoneRef.current.delete(name);
+              stopMinDistRef.current.delete(name);
+              stopOdometerRefRef.current.delete(name);
+            }
+
+            // Odometer refinement: anchor euclidRef on first ACTIVE frame; >2500m = unreliable → -1
+            if (serverStatus === 'ACTIVE' && dist >= 0) {
+              if (!stopOdometerRefRef.current.has(name)) {
+                const reliable = dist < 2500;
+                stopOdometerRefRef.current.set(name, {
+                  tripAtActivation: currentTrip,
+                  euclidRef: reliable ? dist : 0,
+                  reliable,
+                });
+              }
+              const ref = stopOdometerRefRef.current.get(name)!;
+              if (ref.reliable) {
+                dist = Math.max(0, ref.euclidRef - (currentTrip - ref.tripAtActivation));
+              } else {
+                dist = -1; // unreliable (no getFarPosition)
+              }
+            }
+
+            // Rastrear distancia mínima para detección de partida
+            if (serverStatus === 'ACTIVE' && dist >= 0) {
+              const prev = stopMinDistRef.current.get(name);
+              if (prev === undefined || dist < prev) {
+                stopMinDistRef.current.set(name, dist);
+              }
+              // Detección de partida: el tren estuvo a < 300m y ahora está a > 500m
+              const minSeen = stopMinDistRef.current.get(name) ?? Infinity;
+              if (minSeen < 300 && dist > 500) {
+                locallyDoneRef.current.add(name);
+              }
+            }
+
+            const locallyDone = locallyDoneRef.current.has(name);
+            if (locallyDone) stopOdometerRefRef.current.delete(name);
+
+            return {
+              name,
+              type: (s.type === 'STOP' || s.type === 'WAYPOINT' ? s.type : 'STOP') as 'STOP' | 'WAYPOINT',
+              is_active: serverStatus === 'ACTIVE' && !locallyDone,
+              satisfied: serverStatus === 'SUCCEEDED' || locallyDone,
+              due_time: s.due_time !== 'N/A' ? s.due_time : s.arrival_time !== 'N/A' ? s.arrival_time : null,
+              departure_time: s.departure_time !== 'N/A' ? s.departure_time : null,
+              arrival_time: null,
+              stop_duration: s.dwell_secs || 0,
+              distance_m: dist,
+            };
+          });
+          setScenarioStops(mapped);
+
+          // Progreso general del escenario (errores, velocidad, unidad)
+          const cp = message.scenario.current_progress;
+          if (cp) {
+            setScenarioProgress({
+              simulation_time: cp.simulation_time,
+              distance_meters: cp.distance_meters,
+              unit_number: cp.unit_number,
+              operational_errors: cp.operational_errors,
+              speeding_incidents: cp.speeding_incidents ?? [],
+            });
+          }
+        }
+
+        // 4. Procesamiento de Telemetría
         if (message.type === 'DATA' || message.type === 'TELEMETRY') {
           const raw = message.type === 'DATA' ? message.data : message;
           if (!raw) return;
 
-          setData(prev => {
-            if (!isMounted.current) return prev;
-            const currentProfile = activeProfileRef.current;
-            const normalized = normalizerRef.current.normalize(raw, prev, currentProfile);
-
-            return {
-              ...prev,
-              ...normalized,
-              LocoName: raw.LocoName || normalized.LocoName || prev.LocoName,
-              location: raw.location || raw.Location || normalized.location || prev.location, 
-              Timestamp: now
-            };
-          });
+          const currentProfile = activeProfileRef.current;
+          const normalized = normalizerRef.current.normalize(raw, prevDataRef.current, currentProfile);
+          const next: TelemetryData = {
+            ...prevDataRef.current,
+            ...normalized,
+            LocoName: raw.LocoName || normalized.LocoName || prevDataRef.current.LocoName,
+            location: raw.location || raw.Location || normalized.location || prevDataRef.current.location,
+            Timestamp: now,
+          };
+          prevDataRef.current = next;
+          setData(next);
           setLastMessageTime(now);
         } else if (message.type === 'INIT') {
           console.log('INIT received:', message);
@@ -329,9 +412,13 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     isMounted.current = true;
-    connect();
+    // Defer 1 tick to avoid StrictMode double-mount WebSocket race condition
+    const initTimeout = setTimeout(() => {
+      if (isMounted.current) connect();
+    }, 0);
     return () => {
       isMounted.current = false;
+      clearTimeout(initTimeout);
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (socketRef.current) {
         socketRef.current.close();
@@ -347,6 +434,8 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       lastMessageTime, 
       activeProfile, 
       availableProfiles,
+      scenarioStops,
+      scenarioProgress,
       sendCommand,
       setProfile 
     }}>
