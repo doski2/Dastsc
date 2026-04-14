@@ -596,6 +596,27 @@ class ScenarioManager:
                     arr_tod = stop.find("ArriveTime/sTimeOfDay")
                     dep_tod = stop.find("DepartTime/sTimeOfDay")
                     scheduled_arrival = _parse_time_of_day(arr_tod)
+                    departure_time = _parse_time_of_day(dep_tod)
+
+                    # DueTime es relativo al StartTime del servicio (segundos desde inicio)
+                    # → convertir a hora real HH:MM sumando start_secs_raw
+                    due_node = target.find("DueTime")
+                    due_time = "N/A"
+                    if due_node is not None and due_node.text:
+                        try:
+                            due_secs = float(due_node.text)
+                            if due_secs > 0 and start_secs_raw > 0:
+                                due_time = _secs_to_hhmm(start_secs_raw + due_secs)
+                            elif due_secs > 0:
+                                due_time = _parse_seconds(due_node)
+                        except ValueError:
+                            pass
+
+                    # Si ArriveTime/DepartTime son 0:0 (N/A) usar DueTime como horario programado
+                    if scheduled_arrival == "N/A" and due_time != "N/A":
+                        scheduled_arrival = due_time
+                    if departure_time == "N/A" and due_time != "N/A":
+                        departure_time = due_time
 
                     # Tiempo real de llegada: ArrivalTime (seg desde inicio escenario), solo SUCCEEDED
                     arr_real_node = target.find("ArrivalTime")
@@ -607,12 +628,6 @@ class ScenarioManager:
                             arrival_time = scheduled_arrival
                     else:
                         arrival_time = scheduled_arrival
-
-                    departure_time = _parse_time_of_day(dep_tod)
-
-                    # Fallback: DueTime en segundos
-                    due_node = target.find("DueTime")
-                    due_time = _parse_seconds(due_node) if due_node is not None else "N/A"
 
                     # Tiempo de parada
                     dur_node = target.find("Duration")
@@ -643,6 +658,128 @@ class ScenarioManager:
         except Exception as e:
             data["error_save"] = str(e)
         self._stop_entity_cache = _entity_cache_save
+
+        # --- 1b. Scenario.xml — fallback cuando el save no tiene datos de conductor ---
+        # InitialSave.xml en escenarios no iniciados solo contiene junctions; las instrucciones
+        # reales (paradas, horarios) viven en Scenario.xml.
+        if not data["stops"]:
+            scenario_xml_path = os.path.join(scenario_dir, "Scenario.xml")
+            if os.path.exists(scenario_xml_path):
+                try:
+                    stree = ET.parse(scenario_xml_path)
+                    sroot = stree.getroot()
+                    import core.scenario_index as _si2
+
+                    s_player_driver = None
+                    s_rv_match = None
+                    s_pd_match = None
+                    rv_base = effective_rv.split(";")[0].strip() if effective_rv else ""
+
+                    for driver in sroot.findall(".//cDriver"):
+                        if rv_base and s_rv_match is None:
+                            for rv_node in driver.findall(".//InitialRV/e"):
+                                txt = (rv_node.text or "").strip()
+                                if txt and (rv_base in txt or txt in rv_base):
+                                    s_rv_match = driver
+                                    break
+                        if s_pd_match is None:
+                            pd_node = driver.find("PlayerDriver")
+                            if pd_node is not None and (pd_node.text or "").strip() == "1":
+                                s_pd_match = driver
+
+                    s_player_driver = s_rv_match or s_pd_match
+                    _entity_cache_scenario: List[tuple] = []
+
+                    if s_player_driver is not None:
+                        svc_node = s_player_driver.find(
+                            "ServiceName/Localisation-cUserLocalisedString/English"
+                        )
+                        if svc_node is not None and svc_node.text:
+                            data["scenario_info"]["service_name"] = svc_node.text
+
+                        s_start_node = s_player_driver.find("StartTime")
+                        s_start_secs = 0.0
+                        if s_start_node is not None and s_start_node.text:
+                            if "service_start_time" not in data["scenario_info"]:
+                                data["scenario_info"]["service_start_time"] = _parse_seconds(s_start_node)
+                            try:
+                                s_start_secs = float(s_start_node.text)
+                            except ValueError:
+                                pass
+
+                        _STOP_TAGS = {"cStopAtDestinations", "cPickUpPassengers"}
+                        for stop in s_player_driver.iter():
+                            if stop.tag not in _STOP_TAGS:
+                                continue
+                            target = stop.find("DeltaTarget/cDriverInstructionTarget")
+                            if target is None:
+                                target = stop.find("cDriverInstructionTarget")
+                            if target is None:
+                                continue
+                            hidden_node = target.find("Hidden")
+                            if hidden_node is not None and hidden_node.text == "1":
+                                continue
+
+                            disp_node = target.find("DisplayName")
+                            station_name = disp_node.text if disp_node is not None and disp_node.text else "Unknown"
+
+                            if stop.tag == "cPickUpPassengers":
+                                stop_type = "STOP"
+                            else:
+                                wp_node = target.find("Waypoint")
+                                stop_type = "WAYPOINT" if (wp_node is not None and wp_node.text == "1") else "STOP"
+
+                            # Scenario.xml no tiene estado de ejecución → todos INACTIVE
+                            # DueTime relativo a StartTime → hora real HH:MM
+                            due_node = target.find("DueTime")
+                            due_time = "N/A"
+                            if due_node is not None and due_node.text:
+                                try:
+                                    due_secs_v = float(due_node.text)
+                                    if due_secs_v > 0 and s_start_secs > 0:
+                                        due_time = _secs_to_hhmm(s_start_secs + due_secs_v)
+                                    elif due_secs_v > 0:
+                                        due_time = _parse_seconds(due_node)
+                                except ValueError:
+                                    pass
+
+                            arr_tod = stop.find("ArriveTime/sTimeOfDay")
+                            dep_tod = stop.find("DepartTime/sTimeOfDay")
+                            scheduled_arrival = _parse_time_of_day(arr_tod)
+                            departure_time = _parse_time_of_day(dep_tod)
+                            if scheduled_arrival == "N/A" and due_time != "N/A":
+                                scheduled_arrival = due_time
+                            if departure_time == "N/A" and due_time != "N/A":
+                                departure_time = due_time
+
+                            dur_node = target.find("Duration")
+                            dwell_secs = 0
+                            if dur_node is not None and dur_node.text:
+                                try:
+                                    dwell_secs = int(float(dur_node.text))
+                                except ValueError:
+                                    pass
+
+                            ex, ez = _si2.lookup_entity_position(route_id, station_name)
+                            dist = self._distance_to_entity(ex, ez)
+                            _entity_cache_scenario.append((ex, ez))
+
+                            data["stops"].append({
+                                "station_name": station_name,
+                                "scheduled_arrival": scheduled_arrival,
+                                "arrival_time": scheduled_arrival,
+                                "departure_time": departure_time,
+                                "due_time": due_time,
+                                "dwell_secs": dwell_secs,
+                                "status": "INACTIVE",
+                                "type": stop_type,
+                                "distance": dist,
+                            })
+
+                        if _entity_cache_scenario:
+                            self._stop_entity_cache = _entity_cache_scenario
+                except Exception as e_sc:
+                    data["error_scenario_xml"] = str(e_sc)
 
         # --- 2. ScenarioProperties.xml (metadatos estáticos como fallback) ---
         props = self._read_scenario_properties(scenario_dir)

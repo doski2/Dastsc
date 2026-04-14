@@ -24,6 +24,7 @@ import sqlite3
 import subprocess
 import tempfile
 import time
+import traceback
 import xml.etree.ElementTree as ET
 import zipfile
 from datetime import timedelta
@@ -872,5 +873,6 @@ def get_index_stats() -> Dict[str, Any]:
             "with_stops": with_stops,
             "db_size_kb": round(db_size / 1024),
         }
-    except Exception as exc:
-        return {"status": "error", "error": str(exc)}
+    except Exception:
+        traceback.print_exc()
+        return {"status": "error", "error": "internal_error"}

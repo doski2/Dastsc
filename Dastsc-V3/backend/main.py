@@ -12,6 +12,7 @@ import traceback
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
 from core.scenarios import ScenarioManager
+from core.station_tracker import StationTracker
 import core.scenario_index as scenario_index
 
 def _sanitize(obj: Any) -> Any:
@@ -120,6 +121,7 @@ class TelemetryManager:
 
 
 manager = TelemetryManager()
+_station_tracker = StationTracker()
 
 
 async def telemetry_reader():
@@ -127,8 +129,11 @@ async def telemetry_reader():
     sync_counter = 0
     last_mtime = 0
     last_scenario_check = 0
+    last_scenario_path = ""   # Ruta del save usado en el último parse
+    last_scenario_mtime = 0.0  # mtime del save en el último parse
     scenario_data = {}
     last_rv: str = ""  # RV del tren del jugador, actualizado con cada trama de telemetría
+    last_telemetry_time: float = 0.0  # timestamp del último frame de telemetría
 
     while True:
         try:
@@ -140,12 +145,22 @@ async def telemetry_reader():
             # (ACTIVE → SUCCEEDED cuando el tren parte de una estación)
             if now - last_scenario_check > 1.5:
                 last_scenario_check = now
-                # Refrescar datos del escenario cada 5 segundos (estados SUCCEEDED/ACTIVE + horarios)
                 active_info = manager.scenario_manager.find_active_scenario()
                 if active_info:
-                    scenario_data = manager.scenario_manager.get_detailed_scenario_data(
-                        player_rv=last_rv or None
-                    )
+                    new_path = active_info.get("save_path") or ""
+                    new_mtime = float(active_info.get("mtime") or 0)
+                    # Solo re-parsear si el fichero cambió o si aún no tenemos datos.
+                    # Evita parsear Scenario.xml (2.4 MB) en cada ciclo cuando no hay cambios.
+                    # Se ejecuta en un hilo para no bloquear el event loop (~300ms de I/O).
+                    if new_path != last_scenario_path or new_mtime != last_scenario_mtime or not scenario_data:
+                        last_scenario_path = new_path
+                        last_scenario_mtime = new_mtime
+                        _rv_snap = last_rv or None
+                        loop = asyncio.get_event_loop()
+                        scenario_data = await loop.run_in_executor(
+                            None,
+                            lambda: manager.scenario_manager.get_detailed_scenario_data(player_rv=_rv_snap),
+                        )
 
             if os.path.exists(active_path):
                 # OPTIMIZACIÓN V3: Comprobar el tiempo de modificación del archivo (mtime)
@@ -158,6 +173,20 @@ async def telemetry_reader():
                         line = f.readline()
                         if line:
                             data = parse_telemetry_line(line)
+
+                            # Actualizar StationTracker (Opción 2: odómetro + perfil de ruta)
+                            now_t = time.time()
+                            delta_t = now_t - last_telemetry_time if last_telemetry_time > 0 else 0.0
+                            last_telemetry_time = now_t
+                            speed_ms = float(data.get("CurrentSpeed") or 0.0)
+                            door_l = float(data.get("DoorL") or 0.0)
+                            door_r = float(data.get("DoorR") or 0.0)
+                            stops_for_tracker = scenario_data.get("stops", []) if scenario_data else []
+                            computed_station_dist = _station_tracker.update(speed_ms, delta_t, stops_for_tracker, door_l, door_r)
+                            # Sobreescribir StationDistance del Lua (siempre -1) con el valor calculado
+                            if computed_station_dist >= 0:
+                                data["StationDistance"] = round(computed_station_dist, 1)
+
                             if data.get("RV"):
                                 last_rv = str(data["RV"])
                                 manager.scenario_manager.update_player_rv(last_rv)

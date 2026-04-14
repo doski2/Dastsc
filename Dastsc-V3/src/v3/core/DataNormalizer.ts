@@ -189,8 +189,9 @@ export class DataNormalizer {
       RVNumber: raw.RVNumber || raw.RvNumber || '',
       RouteID: raw.RouteID || raw.RouteId || '',
       ScenarioPath: raw.ScenarioPath || '',
-      X: Number(raw.X || raw.PosX || 0),
-      Z: Number(raw.Z || raw.PosZ || 0),
+      // Coordenadas mundiales: FarXT*1024+FarXO (estables entre tiles, a diferencia de NX/NZ)
+      X: Number(raw.FarXT || 0) * 1024 + Number(raw.FarXO || 0),
+      Z: Number(raw.FarZT || 0) * 1024 + Number(raw.FarZO || 0),
       IsEmergency: raw.EmergencyBrake === 1,
       // Mapeo robusto de AWS basado en el debug.txt (AWSReset, AWSWarnCount, etc.)
       AWS: Number(raw.AWS || 0),

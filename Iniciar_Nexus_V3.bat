@@ -23,6 +23,11 @@ echo [2/2] Iniciando Frontend de Usuario (V3 UI)...
 start "NEXUS_V3_FRONTEND" cmd /k "cd /d %FRONTEND_DIR% && npm run dev"
 
 echo.
+echo [3/3] Abriendo navegador (esperando que el frontend arranque)...
+timeout /t 5 /nobreak > nul
+start "" "http://localhost:5173"
+
+echo.
 echo ----------------------------------------------------
 echo SISTEMA INICIADO:
 echo Frontend: http://localhost:5173

@@ -34,8 +34,9 @@ export class PhysicsNormalizer {
 
     // 4. G-Lateral
     const rawCurvature = Number(raw.Curvature || 0);
-    const currX = Number(raw.PosX || 0);
-    const currZ = Number(raw.PosZ || 0);
+    // Usar coordenadas mundiales Far (mismo origen que DataNormalizer y el backend)
+    const currX = Number(raw.FarXT || 0) * 1024 + Number(raw.FarXO || 0);
+    const currZ = Number(raw.FarZT || 0) * 1024 + Number(raw.FarZO || 0);
     let lateralG = 0;
 
     if (Math.abs(rawCurvature) > 0.00001) {
