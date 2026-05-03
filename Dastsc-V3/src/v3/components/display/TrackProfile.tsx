@@ -58,8 +58,8 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
         // Visualización del gradiente según cabina
         const visualGradient = (raw.ActiveCab === 2) ? -rawGradient : rawGradient;
         const pitchEffect = (smooth.gForce || 0) * 12;
-
-        const gradientOffset = (visualGradient * 15) + pitchEffect;
+        // Clampar offset: máx ±60px para evitar que rutas empinadas (>25‰) salgan del canvas
+        const gradientOffset = Math.max(-60, Math.min(60, (visualGradient * 3.5) + pitchEffect));
         const curvatureIntensity = currentLateralG * 100;
 
         const getY = (m: number) => {
@@ -70,7 +70,9 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
         };
 
         // 1. Línea de la vía
-        const coreColor = visualGradient > 0 ? "#f87171" : visualGradient < 0 ? "#4ade80" : "#22d3ee";
+        // visualGradient < 0 = bajada (peligroso, frena peor) → rojo
+        // visualGradient > 0 = subida (esfuerzo pero frena mejor) → verde
+        const coreColor = visualGradient < 0 ? "#f87171" : visualGradient > 0 ? "#4ade80" : "#22d3ee";
         ctx.beginPath();
         const segments = 60; 
         for (let i = 0; i <= segments; i++) {

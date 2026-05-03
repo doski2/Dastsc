@@ -11,15 +11,24 @@ interface StopProps {
   distance: number;
   satisfied: boolean;
   isActive?: boolean;
+  isMPH?: boolean;
 }
 
-const StopRow: React.FC<StopProps> = ({ name, type, dueTime, actualArrival, distance, satisfied, isActive }) => {
+const StopRow: React.FC<StopProps> = ({ name, type, dueTime, actualArrival, distance, satisfied, isActive, isMPH }) => {
   const isWaypoint = type === 'WAYPOINT';
   
   const formatDist = (m: number) => {
     if (m < 0) return '---';
+    if (isMPH) {
+      const yards = Math.round(m * 1.09361);
+      return yards < 1760 ? `${yards}yd` : `${(m / 1609.34).toFixed(1)}mi`;
+    }
     return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
   };
+
+  // Umbrales de proximidad adaptados a la unidad
+  const nearThreshold  = isMPH ? 550  : 500;   // ~500yd  / 500m
+  const closeThreshold = isMPH ? 1100 : 1000;  // ~1mi inicio / 1km
 
   // Lógica para calcular retraso si tenemos hora prevista y real
   const getDelay = () => {
@@ -92,8 +101,8 @@ const StopRow: React.FC<StopProps> = ({ name, type, dueTime, actualArrival, dist
           </span>
         </div>
         <div className="flex items-center gap-1">
-           <Timer className={`w-2.5 h-2.5 ${distance < 1000 && isActive ? 'text-cyan-500/60' : 'text-white/20'}`} />
-           <span className={`text-[10px] font-mono ${distance < 500 && isActive ? 'text-yellow-400' : 'text-white/30'}`}>
+           <Timer className={`w-2.5 h-2.5 ${distance < closeThreshold && isActive ? 'text-cyan-500/60' : 'text-white/20'}`} />
+           <span className={`text-[10px] font-mono ${distance < nearThreshold && isActive ? 'text-yellow-400' : 'text-white/30'}`}>
              {formatDist(distance)}
            </span>
         </div>
@@ -103,7 +112,8 @@ const StopRow: React.FC<StopProps> = ({ name, type, dueTime, actualArrival, dist
 };
 
 export const ScenarioHud: React.FC<{ stops: any[]; onScenarioChanged?: () => void }> = ({ stops, onScenarioChanged }) => {
-  const { scenarioProgress } = useTelemetry();
+  const { scenarioProgress, data } = useTelemetry();
+  const isMPH = data?.SpeedUnit === 'MPH';
   const [showSelector, setShowSelector] = useState(false);
   const [scenarioList, setScenarioList] = useState<ScenarioListItem[]>([]);
   const [filter, setFilter] = useState('');
@@ -389,6 +399,7 @@ export const ScenarioHud: React.FC<{ stops: any[]; onScenarioChanged?: () => voi
             distance={stop.distance}
             satisfied={stop.satisfied}
             isActive={stop.isActive}
+            isMPH={isMPH}
           />
         ))}
       </div>

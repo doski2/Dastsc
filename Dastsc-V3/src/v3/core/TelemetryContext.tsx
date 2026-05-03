@@ -25,6 +25,9 @@ export interface TelemetryData {
   StationDistance: number;
   StationName: string;
   StationLength: number;
+  StationNameOCR: string;    // nombre detectado por OCR del HUD del juego
+  StationETA: string;        // ETA calculada por el juego (HH:MM:SS)
+  StationScheduled: string;  // hora programada del juego (HH:MM:SS)
   Throttle: number;
   TrainBrake: number;
   CombinedControl: number;  // -1 to 1 (Brake to Power)
@@ -85,6 +88,8 @@ interface TelemetryContextType {
   scenarioProgress: ScenarioProgress;
   sendCommand: (cmd: string, val: number) => void;
   setProfile: (profileName: string) => void;
+  /** Limpia los refs de estado local (locallyDone, stopMinDist, odometer) */
+  resetLocalState: () => void;
 }
 
 export interface SpeedingIncident {
@@ -128,6 +133,9 @@ const DefaultData: TelemetryData = {
   StationDistance: -1,
   StationName: '',
   StationLength: 200,
+  StationNameOCR: '',
+  StationETA: '',
+  StationScheduled: '',
   Throttle: 0,
   CombinedControl: 0,
   TrainBrake: 0,
@@ -329,11 +337,12 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
           });
 
           // ── Inferencia de partida cuando el servidor envía todo INACTIVE ──────────
-          // Ocurre cuando se lee de Scenario.xml (sin CurrentSave.xml todavía).
-          // Detecta la parada más cercana, la marca como activa y rastrea la partida
-          // para actualizar locallyDoneRef con estado persistente (no solo visual).
+          // Solo se activa si NO hay ninguna parada marcada ACTIVE por el servidor.
+          // Cuando el tracker está funcionando, siempre habrá al menos un ACTIVE.
+          // Esta lógica es solo para el primer frame antes de que el tracker inicialice.
           const hasAnyServerActive = mapped.some(m => m.is_active && !m.satisfied);
-          if (!hasAnyServerActive && mapped.some(m => m.distance_m >= 0)) {
+          const hasTrackerDistance = mapped.some(m => m.distance_m >= 0 && m.distance_m < 2000);
+          if (!hasAnyServerActive && !hasTrackerDistance && mapped.some(m => m.distance_m >= 0)) {
             let inferMinDist = Infinity;
             let inferActiveIdx = -1;
             let inferActiveName = '';
@@ -485,7 +494,12 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       scenarioStops,
       scenarioProgress,
       sendCommand,
-      setProfile 
+      setProfile,
+      resetLocalState: () => {
+        stopOdometerRefRef.current.clear();
+        stopMinDistRef.current.clear();
+        locallyDoneRef.current.clear();
+      },
     }}>
       {children}
     </TelemetryContext.Provider>

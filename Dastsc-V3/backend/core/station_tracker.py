@@ -27,6 +27,7 @@ from typing import Dict, List, Optional, Tuple
 
 
 _PROFILE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "birmingham_xc_profile.json")
+_STATE_PATH  = os.path.join(os.path.dirname(__file__), "..", "data", "tracker_state.json")
 
 DWELL_SPEED_MS = 0.5       # m/s: por debajo de este valor se considera "en parada" (modo velocidad)
 DWELL_MIN_SECS = 10.0      # segundos minimos en parada para confirmar detencion (modo velocidad)
@@ -107,6 +108,8 @@ class StationTracker:
         self._door_checks: int = 0           # frames procesados para detección automática
         self._last_stops_key: tuple = ()
         self._last_stop_names: List[str] = []
+        self._pending_save: bool = False  # set True cuando hay estado nuevo que persistir
+        self.load_state()  # recuperar estado de la última sesión si existe
 
     def reset(self) -> None:
         self._odometer_m = 0.0
@@ -124,6 +127,52 @@ class StationTracker:
         self._door_checks = 0
         self._last_stops_key = ()
         self._last_stop_names = []
+        self._pending_save = False
+        self.save_state()
+
+    def save_state(self) -> None:
+        """Persiste el estado mínimo en disco para sobrevivir reinicios del backend."""
+        try:
+            state = {
+                "completed_stops": self._completed_stops,
+                "odometer_m": round(self._odometer_m, 1),
+                "odometer_at_last_departure": round(self._odometer_at_last_departure, 1),
+                "last_departed_name": self._last_departed_name,
+                "segment_dist": round(self._segment_dist, 1) if self._segment_dist >= 0 else -1.0,
+                "has_doors": self._has_doors,
+                "stops_key": list(self._last_stops_key),
+                "learned": {f"{k[0]}|||{k[1]}": round(v, 1) for k, v in self._learned.items()},
+            }
+            os.makedirs(os.path.dirname(_STATE_PATH), exist_ok=True)
+            with open(_STATE_PATH, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+        except Exception:
+            pass
+
+    def load_state(self) -> None:
+        """Recupera el estado del disco. Si la lista de paradas cambió (escenario diferente)
+        ignora el estado guardado para evitar contadores desfasados."""
+        if not os.path.exists(_STATE_PATH):
+            return
+        try:
+            with open(_STATE_PATH, "r", encoding="utf-8") as f:
+                state = json.load(f)
+            self._completed_stops = int(state.get("completed_stops", 0))
+            self._odometer_m = float(state.get("odometer_m", 0.0))
+            self._odometer_at_last_departure = float(state.get("odometer_at_last_departure", 0.0))
+            self._last_departed_name = state.get("last_departed_name")
+            self._segment_dist = float(state.get("segment_dist", -1.0))
+            self._has_doors = bool(state.get("has_doors", False))
+            self._last_stops_key = tuple(state.get("stops_key", []))
+            self._last_stop_names = list(self._last_stops_key)
+            learned_raw = state.get("learned", {})
+            self._learned = {}
+            for k_str, v in learned_raw.items():
+                parts = k_str.split("|||", 1)
+                if len(parts) == 2:
+                    self._learned[(parts[0], parts[1])] = float(v)
+        except Exception:
+            pass
 
     def _get_stop_names(self, stops: List[Dict]) -> List[str]:
         names = []
@@ -174,6 +223,13 @@ class StationTracker:
         stop_names = self._get_stop_names(stops)
         new_key = tuple(stop_names)
         if new_key != self._last_stops_key and new_key:
+            # Escenario diferente al guardado → resetear contadores pero conservar learned
+            if self._last_stops_key and new_key != self._last_stops_key:
+                self._completed_stops = 0
+                self._odometer_m = 0.0
+                self._odometer_at_last_departure = 0.0
+                self._last_departed_name = None
+                self._segment_dist = -1.0
             self._last_stops_key = new_key
             self._last_stop_names = stop_names
             self._update_segment(stop_names)
@@ -224,6 +280,10 @@ class StationTracker:
         if next_idx >= len(stop_names):
             return -1.0
 
+        # Parada confirmada por puertas abiertas → distancia 0 (estamos en la parada)
+        if self._at_station_by_door:
+            return 0.0
+
         if self._segment_dist < 0:
             self._update_segment(stop_names)
 
@@ -233,6 +293,11 @@ class StationTracker:
         dist_in_segment = self._odometer_m - self._odometer_at_last_departure
         remaining = self._segment_dist - dist_in_segment
         return max(0.0, remaining)
+
+    @property
+    def next_stop_index(self) -> int:
+        """Índice del siguiente stop no completado en la lista de paradas."""
+        return self._completed_stops
 
     def _on_departure(self, stop_names: List[str]) -> None:
         if self._completed_stops < len(stop_names):
@@ -248,3 +313,4 @@ class StationTracker:
             self._completed_stops += 1
             self._odometer_at_last_departure = self._odometer_m
             self._update_segment(stop_names)
+            self._pending_save = True  # El bucle async lo persiste en executor

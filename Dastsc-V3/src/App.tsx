@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Activity, ShieldCheck, Cpu, Settings } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTelemetry } from './v3/core/TelemetryContext'
@@ -36,7 +36,7 @@ function App() {
   const [stops, setStops] = useState<ScenarioStop[]>([])
 
   // stops en tiempo real: WebSocket tiene prioridad (actualiza cada frame),
-  // REST poll cada 30s sirve de semilla inicial y para cambios de escenario manual.
+  // REST poll cada 5s sirve de semilla inicial y para cambios de escenario manual.
   const displayStops = scenarioStops.length > 0 ? scenarioStops : stops;
 
   const fetchStops = async () => {
@@ -44,13 +44,30 @@ function App() {
     setStops(liveStops);
   };
 
-  // Semilla inicial + refresco lento de metadatos del escenario (solo si llega via REST)
+  // Semilla inicial + refresco cada 5s (fallback si WebSocket no trae stops con distancias)
   useEffect(() => {
     if (!isConnected) return;
     fetchStops();
-    const interval = setInterval(fetchStops, 30000);
+    const interval = setInterval(fetchStops, 5000);
     return () => clearInterval(interval);
   }, [isConnected]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Forzar refresh REST cuando el WebSocket devuelve stops sin distancias válidas
+  // (ocurre en los primeros frames antes de que el GPS esté calibrado)
+  const prevAllNegRef = React.useRef(false);
+  useEffect(() => {
+    if (scenarioStops.length === 0) return;
+    const allNegative = scenarioStops.every(s => (s.distance_m ?? -1) < 0);
+    if (allNegative && !prevAllNegRef.current) {
+      // Primera vez que llegan todos -1: esperar 2s y refrescar REST
+      const t = setTimeout(fetchStops, 2000);
+      prevAllNegRef.current = true;
+      return () => clearTimeout(t);
+    }
+    if (!allNegative) {
+      prevAllNegRef.current = false;
+    }
+  }, [scenarioStops]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatDistance = (m: number) => {
     if (data.SpeedUnit === 'MPH') {

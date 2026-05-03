@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { useTelemetrySmoothing } from '../../hooks/useTelemetrySmoothing';
+import { useTelemetry } from '../../core/TelemetryContext';
 import { CanvasLayer } from './CanvasLayer';
 import { scenarioService, ScenarioStop } from '../../services/ScenarioService';
 
@@ -10,16 +11,28 @@ type CurveMode = 'DYNAMIC' | 'SIGNAL' | 'LIMIT';
  */
 export const BrakingCurve: React.FC = () => {
   const { smooth, raw, isConnected, activeProfile } = useTelemetrySmoothing();
+  const { scenarioStops, resetLocalState } = useTelemetry();
   const [mode, setMode] = useState<CurveMode>('DYNAMIC');
-  const [stops, setStops] = useState<ScenarioStop[]>([]);
+  const [resetting, setResetting] = useState(false);
   
-  // En modo dinámico, si hay un escenario cargado, usamos la primera parada pendiente
+  // En modo dinámico: siguiente parada real (no WAYPOINT, no satisfecha)
+  // Priorizar la parada que el tracker marcó como ACTIVE (is_active=true),
+  // sin filtrar por distancia para evitar saltos cuando el tren está en andén.
+  // Fallback: primera no satisfecha con distancia significativa (cuando tracker aún no inicializa)
   const nextAutoStop = useMemo(() => {
-    return stops.find(s => !s.satisfied);
-  }, [stops]);
+    const serverActive = scenarioStops.find(
+      s => s.is_active && !s.satisfied && s.type !== 'WAYPOINT'
+    );
+    if (serverActive) return serverActive;
+    return scenarioStops.find(
+      s => !s.satisfied && s.type !== 'WAYPOINT' && s.distance_m > 100
+    );
+  }, [scenarioStops]);
 
   // anulación manual para modo dinámico (millas)
   const [customMiles, setCustomMiles] = useState<string>('');
+  // Ref para detectar cambio de parada activa y re-anclar remainingDist
+  const lastAutoStopNameRef = useRef<string>('');
   
   // calcular distancia objetivo: Manual > Escenario Automático > Proyectada
   const customTargetDist = React.useMemo(() => {
@@ -40,6 +53,18 @@ export const BrakingCurve: React.FC = () => {
     setRemainingDist(customTargetDist);
     lastTimeRef.current = Date.now();
   }, [customTargetDist, activeProfile]);
+
+  // Cuando cambia la parada activa en modo AUTO, re-anclar remainingDist desde
+  // la distancia del tracker y resetear el puntero de TripDistance.
+  useEffect(() => {
+    if (customMiles || !nextAutoStop) return;
+    const newName = nextAutoStop.name;
+    if (newName !== lastAutoStopNameRef.current) {
+      lastAutoStopNameRef.current = newName;
+      setRemainingDist(nextAutoStop.distance_m);
+      lastTripRef.current = null; // re-anclar puntero de trip
+    }
+  }, [nextAutoStop?.name, customMiles]);
 
   // bucle de decremento: descontar según distancia real recorrida (TripDistance) si está disponible
   useEffect(() => {
@@ -127,7 +152,7 @@ export const BrakingCurve: React.FC = () => {
         // Etiqueta Distancia (en la base)
         let targetDistForLabels = raw.ProjectedBrakingDistance || 500;
         if (mode === 'DYNAMIC') {
-          targetDistForLabels = customMiles ? remainingDist : (nextAutoStop?.distance_m || targetDistForLabels);
+          targetDistForLabels = remainingDist || targetDistForLabels;
         } else if (mode === 'SIGNAL') {
           targetDistForLabels = raw.DistToNextSignal;
         } else if (mode === 'LIMIT') {
@@ -168,7 +193,7 @@ export const BrakingCurve: React.FC = () => {
     let targetDist = raw.ProjectedBrakingDistance || 500;
 
     if (mode === 'DYNAMIC') {
-      targetDist = customMiles ? remainingDist : (nextAutoStop?.distance_m || targetDist);
+      targetDist = remainingDist || targetDist;
     }
 
     let targetSpeedMS = 0; // m/s internos para física
@@ -387,7 +412,8 @@ export const BrakingCurve: React.FC = () => {
               return { label: 'Manual Stop', dist: remainingDist, val: `${customMiles} mi` };
             }
             if (nextAutoStop) {
-              return { label: `Station: ${nextAutoStop.name}`, dist: nextAutoStop.distance_m, val: nextAutoStop.type !== 'WAYPOINT' ? 'PLATFORM' : 'WPT' };
+              // remainingDist se decrementa con TripDistance desde que se ancló al cambiar de parada
+              return { label: `Station: ${nextAutoStop.name}`, dist: remainingDist, val: nextAutoStop.type !== 'WAYPOINT' ? 'PLATFORM' : 'WPT' };
             }
             return { label: 'Optimal Stop', dist: raw.ProjectedBrakingDistance, val: 'Dynamic' };
         }
@@ -450,6 +476,24 @@ export const BrakingCurve: React.FC = () => {
       };
   }, [raw.Speed, raw.NextSpeedLimit, raw.SpeedUnit, raw.TrainMass, raw.TrainType, raw.Gradient, activeProfile, info.dist, mode]);
 
+  // ETA calculado localmente: TimeOfDay + remainingDist / Speed
+  // Fuente primaria sin OCR; OCR override si está disponible
+  const computedETA = useMemo(() => {
+    if (raw.StationETA) return raw.StationETA; // OCR tiene prioridad
+    if (!raw.Speed || raw.Speed < 0.5 || !nextAutoStop || remainingDist <= 0) return null;
+    const secsToArrival = remainingDist / raw.Speed;
+    const parts = raw.TimeOfDay.split(':').map(Number);
+    if (parts.length !== 3) return null;
+    const totalSecs = parts[0] * 3600 + parts[1] * 60 + parts[2] + secsToArrival;
+    const h = Math.floor(totalSecs / 3600) % 24;
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = Math.floor(totalSecs % 60);
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }, [raw.Speed, raw.TimeOfDay, raw.StationETA, nextAutoStop, remainingDist]);
+
+  // Hora programada: del escenario (due_time) o fallback OCR
+  const scheduledTime = nextAutoStop?.due_time || raw.StationScheduled || null;
+
 return (
     <div className="relative flex-1 bg-white/[0.02] border border-white/5 rounded-sm overflow-hidden flex flex-col min-h-[300px]">
       <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10 pointer-events-none">
@@ -463,6 +507,46 @@ return (
             {info.label}: <span className="text-white">{formatDistance(info.dist)}</span>
             <span className="ml-2 text-[10px] opacity-40">[{info.val}]</span>
           </span>
+
+          {/* Panel de siguiente estación en modo DYNAMIC */}
+          {mode === 'DYNAMIC' && nextAutoStop && (
+            <div className="flex flex-col gap-0.5 bg-black/70 border border-cyan-500/25 rounded-sm px-2 py-1 max-w-[95%]">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[7px] text-cyan-500/50 font-black uppercase tracking-widest shrink-0">NEXT STOP</span>
+                <span className="text-[11px] text-cyan-200 font-mono font-bold truncate">{nextAutoStop.name}</span>
+              </div>
+              <div className="flex gap-2 flex-wrap text-[8px] font-mono">
+                <span className="text-white/40">DETECTED: <strong className="text-white/80">{formatDistance(nextAutoStop.distance_m)}</strong></span>
+                <span className="text-white/20">·</span>
+                <span className="text-white/30">RAW: <strong className="text-amber-300/60">{Math.round(nextAutoStop.distance_m)}m</strong></span>
+                {brakeParams && (
+                  <>
+                    <span className="text-white/20">·</span>
+                    <span className="text-white/30">BRAKE DIST: <strong className="text-red-300/60">{Math.round(brakeParams.needed)}m</strong></span>
+                  </>
+                )}
+              </div>
+              {(scheduledTime || computedETA) && (
+                <div className="flex gap-2 flex-wrap text-[8px] font-mono mt-0.5">
+                  {scheduledTime && (
+                    <span className="text-white/40">
+                      @ <strong className="text-green-300/70">{scheduledTime}</strong>
+                      {raw.StationScheduled && raw.StationScheduled !== scheduledTime && (
+                        <span className="text-green-500/40 ml-1">(ocr)</span>
+                      )}
+                    </span>
+                  )}
+                  {scheduledTime && computedETA && <span className="text-white/20">·</span>}
+                  {computedETA && (
+                    <span className="text-white/40">
+                      ETA <strong className={raw.StationETA ? 'text-yellow-300/70' : 'text-white/50'}>{computedETA}</strong>
+                      {raw.StationETA && <span className="text-yellow-500/40 ml-1">(ocr)</span>}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           
           {/* Dashboard de Frenado Exacto */}
           {brakeParams && brakeParams.dist > 0 && (
@@ -520,6 +604,20 @@ return (
            <button onClick={() => setMode('DYNAMIC')} className={`px-2 py-1 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-all ${mode === 'DYNAMIC' ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'}`}>Dynamic</button>
            <button onClick={() => setMode('SIGNAL')} className={`px-2 py-1 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-all ${mode === 'SIGNAL' ? 'bg-red-500/20 border-red-500/50 text-red-400' : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'}`}>Signal</button>
            <button onClick={() => setMode('LIMIT')} className={`px-2 py-1 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-all ${mode === 'LIMIT' ? 'bg-amber-500/20 border-amber-500/50 text-amber-400' : 'bg-white/5 border-white/5 text-white/30 hover:bg-white/10'}`}>Limit</button>
+           <button
+             disabled={resetting}
+             onClick={async () => {
+               setResetting(true);
+               await scenarioService.resetTracker();
+               resetLocalState();
+               setCustomMiles('');
+               setResetting(false);
+             }}
+             className="px-2 py-1 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-all bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 disabled:opacity-40"
+             title="Resetea el tracker del servidor y el estado local del navegador"
+           >
+             {resetting ? '...' : 'Reset'}
+           </button>
         </div>
       </div>
 

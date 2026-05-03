@@ -7,13 +7,13 @@ import json
 import math
 import os
 import time
-import traceback
 
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
 from core.scenarios import ScenarioManager
 from core.station_tracker import StationTracker
 import core.scenario_index as scenario_index
+import core.ocr_hud as ocr_hud
 
 def _sanitize(obj: Any) -> Any:
     """Reemplaza float no-finitos (Infinity, -Infinity, NaN) por 0 recursivamente.
@@ -41,6 +41,21 @@ async def lifespan(app: FastAPI):
     print("--------------------------------------------------")
     print("   NEXUS V3 ENGINE - CORE UPDATED (JSON FIX)      ")
     print("--------------------------------------------------")
+    # Suprimir ConnectionResetError [WinError 10054] del ProactorEventLoop en Windows.
+    # Ocurre cuando el navegador cierra el WebSocket con un RST en vez de FIN.
+    # 'source_traceback' es un StackSummary (objeto), no un string — usar 'handle'.
+    loop = asyncio.get_event_loop()
+    _orig_handler = loop.get_exception_handler()  # puede ser None
+    def _suppress_win_reset(lp, context):
+        exc = context.get('exception')
+        handle_str = str(context.get('handle', '') or '')
+        if isinstance(exc, (ConnectionResetError, OSError)) and '_call_connection_lost' in handle_str:
+            return  # ruido de Windows — ignorar
+        if _orig_handler is not None:
+            _orig_handler(lp, context)
+        else:
+            lp.default_exception_handler(context)
+    loop.set_exception_handler(_suppress_win_reset)
     asyncio.create_task(telemetry_reader())
     yield
 
@@ -88,6 +103,7 @@ class TelemetryManager:
         self.scenario_manager = ScenarioManager()
         self.current_profile = None
         self.last_payload = {}
+        self.last_scenario_data: dict = {}  # scenario_data cacheado del loop de telemetría (con distancias GPS vivas)
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -123,6 +139,11 @@ class TelemetryManager:
 manager = TelemetryManager()
 _station_tracker = StationTracker()
 
+if ocr_hud.is_available():
+    print("[OCR] Sistema de captura HUD disponible (mss + pytesseract)")
+else:
+    print("[OCR] No disponible — instalar mss, pytesseract y Tesseract binary")
+
 
 async def telemetry_reader():
     """Bucle principal de sondeo (mayor frecuencia para v3)."""
@@ -134,6 +155,11 @@ async def telemetry_reader():
     scenario_data = {}
     last_rv: str = ""  # RV del tren del jugador, actualizado con cada trama de telemetría
     last_telemetry_time: float = 0.0  # timestamp del último frame de telemetría
+    # Variables de estado OCR (locales al bucle)
+    ocr_last_result: dict = {}
+    ocr_last_capture_time: float = 0.0
+    ocr_door_was_open: bool = False
+    last_tracker_idx: int = -1  # para detectar avance de parada y limpiar OCR
 
     while True:
         try:
@@ -183,9 +209,51 @@ async def telemetry_reader():
                             door_r = float(data.get("DoorR") or 0.0)
                             stops_for_tracker = scenario_data.get("stops", []) if scenario_data else []
                             computed_station_dist = _station_tracker.update(speed_ms, delta_t, stops_for_tracker, door_l, door_r)
+                            # Persistir estado del tracker en executor (evita bloquear el event loop
+                            # con I/O de disco en el momento de detección de partida).
+                            if _station_tracker._pending_save:
+                                _station_tracker._pending_save = False
+                                loop = asyncio.get_event_loop()
+                                loop.run_in_executor(None, _station_tracker.save_state)
                             # Sobreescribir StationDistance del Lua (siempre -1) con el valor calculado
                             if computed_station_dist >= 0:
                                 data["StationDistance"] = round(computed_station_dist, 1)
+
+                            # ── OCR: captura del display de próxima parada ─────────────────────
+                            # Trigger 1: cierre de puertas con el tren en movimiento
+                            # Trigger 2: polling cada 5-10s según la distancia actual
+                            if ocr_hud.is_available():
+                                doors_open_now = (door_l > 0.5) or (door_r > 0.5)
+                                door_just_closed = ocr_door_was_open and not doors_open_now and speed_ms > 0.5
+                                ocr_door_was_open = doors_open_now
+
+                                ocr_interval = 30.0  # sin datos — esperar más
+                                if ocr_last_result.get("distance_m") is not None:
+                                    d = ocr_last_result["distance_m"]
+                                    ocr_interval = 5.0 if d < 1000 else 10.0
+
+                                should_capture = (
+                                    door_just_closed
+                                    or (now - ocr_last_capture_time) >= ocr_interval
+                                )
+
+                                if should_capture:
+                                    ocr_last_capture_time = now
+                                    loop = asyncio.get_event_loop()
+                                    ocr_result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
+                                    if ocr_result:
+                                        ocr_last_result = ocr_result
+                                        # Si OCR da distancia, tiene prioridad sobre el odómetro
+                                        if ocr_result.get("distance_m") is not None:
+                                            data["StationDistance"] = ocr_result["distance_m"]
+                                        if ocr_result.get("station_name"):
+                                            data["StationNameOCR"] = ocr_result["station_name"]
+                                        if ocr_result.get("eta"):
+                                            data["StationETA"] = ocr_result["eta"]
+                                        if ocr_result.get("scheduled_time"):
+                                            data["StationScheduled"] = ocr_result["scheduled_time"]
+
+                            # ──────────────────────────────────────────────────────────────────
 
                             if data.get("RV"):
                                 last_rv = str(data["RV"])
@@ -213,11 +281,54 @@ async def telemetry_reader():
                             except (TypeError, ValueError):
                                 pass
 
-                            # Refrescar distancias cada frame (sin I/O: solo matemáticas)
+                            # Refrescar distancias GPS cada frame (sin I/O: solo matemáticas)
                             if scenario_data:
                                 manager.scenario_manager.refresh_distances(
                                     scenario_data.get("stops", [])
                                 )
+                                # Fusión tracker → GPS: aplicar DESPUÉS de refresh_distances
+                                # para que el odómetro (distancia por vía) no sea sobreescrito
+                                # por la distancia en línea recta euclidiana del GPS.
+                                if computed_station_dist >= 0:
+                                    tracker_idx = _station_tracker.next_stop_index
+                                    tracker_stops = [
+                                        s for s in stops_for_tracker
+                                        if s.get("type") != "WAYPOINT" and s.get("station_name")
+                                        and s.get("station_name") != "Unknown"
+                                    ]
+                                    # ── Status override desde el tracker ───────────────────────
+                                    # El XML puede tener todas las paradas como INACTIVE cuando
+                                    # no existe CurrentSave.xml o el escenario acaba de empezar.
+                                    # El odómetro del tracker es la fuente de verdad: marcamos
+                                    # las paradas anteriores a tracker_idx como SUCCEEDED y la
+                                    # actual como ACTIVE para que el frontend no haga inferencia
+                                    # GPS (euclidiana e imprecisa) y elija la parada equivocada.
+                                    completed_names = {
+                                        ts.get("station_name", "")
+                                        for ts in tracker_stops[:tracker_idx]
+                                    }
+                                    active_name = (
+                                        tracker_stops[tracker_idx].get("station_name", "")
+                                        if tracker_idx < len(tracker_stops) else ""
+                                    )
+                                    for stop in scenario_data.get("stops", []):
+                                        sname = stop.get("station_name", "")
+                                        if sname in completed_names:
+                                            stop["status"] = "SUCCEEDED"
+                                        elif sname == active_name and stop.get("status") != "SUCCEEDED":
+                                            stop["status"] = "ACTIVE"
+                                            stop["distance"] = round(computed_station_dist, 1)
+                                    # Cuando el tracker avanza a la siguiente parada,
+                                    # limpiar cache OCR y señalizar al frontend para que borre
+                                    # los datos de la parada anterior.
+                                    if last_tracker_idx >= 0 and tracker_idx != last_tracker_idx:
+                                        ocr_last_result = {}
+                                        ocr_last_capture_time = 0.0  # forzar recaptura inmediata
+                                        data["StationNameOCR"] = ""
+                                        data["StationETA"] = ""
+                                        data["StationScheduled"] = ""
+                                    last_tracker_idx = tracker_idx
+                                manager.last_scenario_data = scenario_data
 
                             payload = {
                                 "type": "TELEMETRY",
@@ -332,7 +443,14 @@ async def select_scenario(request: Request):
 
 @app.get("/scenarios/live")
 async def get_live_scenario():
-    """Endpoint para que el frontend obtenga los datos del escenario detectado."""
+    """Endpoint para que el frontend obtenga los datos del escenario detectado.
+    Usa el scenario_data cacheado del loop de telemetría (con distancias GPS vivas).
+    Si aún no hay cache, parsea de disco."""
+    cached = manager.last_scenario_data
+    if cached:
+        # Refrescar distancias con posición actual antes de responder
+        manager.scenario_manager.refresh_distances(cached.get("stops", []))
+        return cached
     return manager.scenario_manager.get_detailed_scenario_data()
 
 
@@ -355,47 +473,147 @@ async def debug_position():
     }
 
 
+@app.post("/api/tracker/reset")
+async def reset_tracker():
+    """Resetea el StationTracker y borra el estado persistido en disco.
+    Usar al empezar una nueva sesión de juego o cuando el estado se desincroniza."""
+    _station_tracker.reset()
+    return {"ok": True, "message": "Tracker reseteado"}
+
+
+@app.get("/api/ocr/debug")
+async def ocr_debug():
+    """
+    Captura la región OCR ahora mismo y devuelve:
+    - La imagen guardada en backend/ocr_debug.png (para ver qué está capturando)
+    - El texto OCR en bruto
+    - El resultado parseado
+    """
+    if not ocr_hud.is_available():
+        return {"error": "OCR no disponible (mss/pytesseract no instalados)"}
+
+    try:
+        import mss as _mss
+        from PIL import Image, ImageOps, ImageEnhance
+        from core.ocr_hud import OCR_REGION
+
+        with _mss.mss() as sct:
+            shot = sct.grab(OCR_REGION)
+            img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
+
+        # Guardar imagen original en disco para inspección
+        debug_path = os.path.join(os.path.dirname(__file__), "ocr_debug.png")
+        img.save(debug_path)
+
+        # También procesar como lo hace el OCR real
+        gray = img.convert("L")
+        inverted = ImageOps.invert(gray)
+        enhanced = ImageEnhance.Contrast(inverted).enhance(2.5)
+        w, h = enhanced.size
+        scaled = enhanced.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
+        proc_path = os.path.join(os.path.dirname(__file__), "ocr_debug_processed.png")
+        scaled.save(proc_path)
+
+        # OCR
+        result = ocr_hud.capture_next_stop()
+
+        return {
+            "ok": True,
+            "saved_to": debug_path,
+            "processed_to": proc_path,
+            "region": OCR_REGION,
+            "parsed": result,
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+@app.get("/debug/stops")
+async def debug_stops():
+    """Diagnóstico: estado completo de las paradas con distancias GPS y tracker.
+    Lee el cache del loop — distancias ya fusionadas (tracker sobrewscribe GPS)."""
+    sm = manager.scenario_manager
+    data = manager.last_scenario_data or sm.get_detailed_scenario_data()
+    stops = data.get("stops", [])
+    tracker_idx = _station_tracker.next_stop_index
+    tracker_names = [
+        s.get("station_name", "") for s in stops
+        if s.get("type") != "WAYPOINT" and s.get("station_name") and s.get("station_name") != "Unknown"
+    ]
+    return {
+        "train_x": round(sm._last_train_x, 2) if sm._last_train_x is not None else None,
+        "train_z": round(sm._last_train_z, 2) if sm._last_train_z is not None else None,
+        "tracker_completed_stops": tracker_idx,
+        "tracker_next_stop": tracker_names[tracker_idx] if tracker_idx < len(tracker_names) else None,
+        "tracker_at_station": _station_tracker._at_station_by_door,
+        "tracker_has_doors": _station_tracker._has_doors,
+        "stops": [
+            {
+                "name": s.get("station_name"),
+                "type": s.get("type"),
+                "status": s.get("status"),
+                "distance_gps": s.get("distance"),
+                "entity_x": sm._stop_entity_cache[i][0] if i < len(sm._stop_entity_cache) else None,
+            }
+            for i, s in enumerate(stops)
+        ],
+    }
+
+
 @app.websocket("/ws/telemetry")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
         while True:
-            # Usar receive_json() de FastAPI para evitar dependencias directas de 'json' en este punto
             try:
                 cmd = await websocket.receive_json()
-                if cmd.get("type") == "SELECT_PROFILE":
-                    profile_id = cmd.get("profile_id")
-                    print(f"DEBUG V3: Solicitud de perfil -> {profile_id}")
-                    if manager.profile_manager.select_manual_profile(profile_id):
-                        manager.current_profile = manager.profile_manager.manual_profile
-                        perfil_nombre = (
-                            manager.current_profile.get("name")
-                            if manager.current_profile
-                            else "None"
-                        )
-                        perfil_id = (
-                            manager.current_profile.get("id")
-                            if manager.current_profile
-                            else "None"
-                        )
-                        print(f"DEBUG V3: Perfil activo cambiado a -> {perfil_nombre}")
-
-                        await manager.broadcast(
-                            {
-                                "type": "PROFILE_CHANGED",
-                                "active_profile": manager.current_profile,
-                                "active_profile_id": perfil_id,
-                            }
-                        )
+            except WebSocketDisconnect:
+                # Cliente desconectado limpiamente — salir del bucle
+                break
+            except RuntimeError:
+                # Socket ya cerrado (p.ej. "Cannot call receive once a disconnect message has been received")
+                break
             except Exception as e:
-                # Si el mensaje no es JSON válido, receive_json lanzará error
+                # Mensaje no válido (no es JSON), ignorar y continuar
                 print(f"Error procesando comando: {e}")
-                traceback.print_exc()
+                continue
+
+            if cmd.get("type") == "SELECT_PROFILE":
+                profile_id = cmd.get("profile_id")
+                print(f"DEBUG V3: Solicitud de perfil -> {profile_id}")
+                if manager.profile_manager.select_manual_profile(profile_id):
+                    manager.current_profile = manager.profile_manager.manual_profile
+                    perfil_nombre = (
+                        manager.current_profile.get("name")
+                        if manager.current_profile
+                        else "None"
+                    )
+                    perfil_id = (
+                        manager.current_profile.get("id")
+                        if manager.current_profile
+                        else "None"
+                    )
+                    print(f"DEBUG V3: Perfil activo cambiado a -> {perfil_nombre}")
+
+                    await manager.broadcast(
+                        {
+                            "type": "PROFILE_CHANGED",
+                            "active_profile": manager.current_profile,
+                            "active_profile_id": perfil_id,
+                        }
+                    )
     except WebSocketDisconnect:
+        pass
+    finally:
         manager.disconnect(websocket)
 
 
 if __name__ == "__main__":
+    import sys
+    # SelectorEventLoop no tiene el bug de _call_connection_lost en Windows.
+    # loop="asyncio" en uvicorn.run() es la segunda línea de defensa por si
+    # uvicorn reemplaza el policy con su propio loop internamente.
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, loop="asyncio")

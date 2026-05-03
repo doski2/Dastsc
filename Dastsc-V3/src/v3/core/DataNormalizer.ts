@@ -85,7 +85,9 @@ export class DataNormalizer {
     const pFactor = pressureUnit === 'PSI' ? 14.5038 : 1;
 
     // Gradiente y Frenado
-    const currentGrad = Number(raw.Gradient || 0);
+    // TS Classic: GetGradient() usa convención inversa (positivo = descente, negativo = subida)
+    // Negamos para usar la convención estándar: positivo = subida, negativo = bajada
+    const currentGrad = -Number(raw.Gradient || 0);
 
     const maxBC = pressureUnit === 'PSI' ? 72.5 : 5.0; 
     const bcPercent = Math.min(1.1, brk.bc / maxBC);
@@ -184,7 +186,12 @@ export class DataNormalizer {
         const decelMS2 = (totalBrakingEffort > 0 && mass > 0)
           ? totalBrakingEffort / mass
           : 0.7; // Desaceleración estándar de tren (m/s²)
-        return Math.round((v * v) / (2 * Math.max(0.1, decelMS2)));
+        // Corrección por gradiente: Gradient en ‰ → fracción → componente gravitatoria (m/s²)
+        // Pendiente positiva (subida) ayuda al freno; negativa (bajada) lo reduce
+        const gradFraction = currentGrad / 1000.0;
+        const gravComponent = gradFraction * 9.81;
+        const effectiveDecel = Math.max(0.05, decelMS2 + gravComponent);
+        return Math.round((v * v) / (2 * effectiveDecel));
       })(),
       RVNumber: raw.RVNumber || raw.RvNumber || '',
       RouteID: raw.RouteID || raw.RouteId || '',
@@ -208,6 +215,13 @@ export class DataNormalizer {
       DoorsOpen: { left: Number(raw.DoorL || 0) > 0.5, right: Number(raw.DoorR || 0) > 0.5 },
       TimeOfDay: timeStr,
       LocoName: raw.LocoName || '',
+      // Los campos OCR solo llegan en frames de captura (cada 5-30s).
+      // - Si el campo NO está en el payload (undefined) → conservar prevData (frame normal sin captura)
+      // - Si el campo está explícitamente vacío ('') → limpiar (señal de nueva parada desde backend)
+      // - Si el campo tiene valor → usarlo
+      StationNameOCR: raw.StationNameOCR !== undefined ? (raw.StationNameOCR || '') : (prevData.StationNameOCR || ''),
+      StationETA: raw.StationETA !== undefined ? (raw.StationETA || '') : (prevData.StationETA || ''),
+      StationScheduled: raw.StationScheduled !== undefined ? (raw.StationScheduled || '') : (prevData.StationScheduled || ''),
       Timestamp: Date.now()
     };
   }

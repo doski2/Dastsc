@@ -105,6 +105,18 @@ class ScenarioService {
     }
   }
 
+  /** Resetea el tracker del servidor y limpia el estado de la sesión actual */
+  async resetTracker(): Promise<boolean> {
+    try {
+      await axios.post(`${API_BASE}/api/tracker/reset`);
+      this.stops = [];
+      return true;
+    } catch (error) {
+      console.error('Error resetting tracker:', error);
+      return false;
+    }
+  }
+
   getNextStop(): ScenarioStop | null {
     return this.stops.find(s => !s.satisfied) || null;
   }
