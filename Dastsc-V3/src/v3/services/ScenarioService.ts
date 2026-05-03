@@ -93,7 +93,7 @@ class ScenarioService {
           departure_time: s.departure_time !== 'N/A' ? s.departure_time : null,
           arrival_time: s.status === 'SUCCEEDED' && s.arrival_time !== 'N/A' ? s.arrival_time : null,
           stop_duration: s.dwell_secs || 0,
-          distance_m: s.distance || 0,
+          distance_m: s.distance ?? -1,
         }));
         this.stops = mappedStops;
         return this.stops;

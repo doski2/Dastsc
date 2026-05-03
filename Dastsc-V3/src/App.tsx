@@ -71,8 +71,7 @@ function App() {
 
   const formatDistance = (m: number) => {
     if (data.SpeedUnit === 'MPH') {
-      const yards = m * 1.09361;
-      return yards < 1760 ? `${Math.round(yards)}yd` : `${(m * 0.000621371).toFixed(2)}mi`;
+      return `${(m * 0.000621371).toFixed(2)}mi`;
     }
     return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
   };

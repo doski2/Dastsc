@@ -13,8 +13,6 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
     const formatDistance = (m: number) => {
         if (m === undefined || m < 0) return "---";
         if (raw.SpeedUnit === "MPH") {
-            const yards = m * 1.09361;
-            if (yards < 1000) return `${Math.round(yards)}yd`;
             return `${(m * 0.000621371).toFixed(2)}mi`;
         }
         return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
@@ -55,11 +53,10 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
         const rawGradient = smooth.gradient || 0;
         const currentLateralG = smooth.lateralG || 0;
 
-        // Visualización del gradiente según cabina
-        const visualGradient = (raw.ActiveCab === 2) ? -rawGradient : rawGradient;
-        const pitchEffect = (smooth.gForce || 0) * 12;
+        // DataNormalizer ya aplica la inversión de cabina: raw.Gradient siempre es correcto
+        const visualGradient = rawGradient;
         // Clampar offset: máx ±60px para evitar que rutas empinadas (>25‰) salgan del canvas
-        const gradientOffset = Math.max(-60, Math.min(60, (visualGradient * 3.5) + pitchEffect));
+        const gradientOffset = Math.max(-60, Math.min(60, visualGradient * 3.5));
         const curvatureIntensity = currentLateralG * 100;
 
         const getY = (m: number) => {
@@ -108,7 +105,7 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
 
         const isMPH = raw.SpeedUnit === "MPH";
         const scaleMarkers = isMPH
-            ? [0, 91.44, 182.88, 365.76, 731.52, 1609.34, 3218.68, 4828.03, 6437.38, 8046.72]
+            ? [0, 402.34, 804.67, 1609.34, 3218.69, 4828.03, 6437.38, 8046.72]
             : [0, 100, 500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7000, 8000];
 
         for (const m of scaleMarkers) {
@@ -121,8 +118,8 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
 
             let label = "";
             if (isMPH) {
-                const yards = Math.round(m * 1.09361);
-                label = yards === 0 ? "0" : yards < 1760 ? `${yards}y` : `${Math.round(yards / 1760)}mi`;
+                const miles = m * 0.000621371;
+                label = m === 0 ? "0" : miles < 1 ? `${miles.toFixed(2)}mi` : `${Math.round(miles)}mi`;
             } else {
                 label = m === 0 ? "0" : m < 1000 ? `${m}m` : `${m / 1000}km`;
             }
@@ -193,7 +190,6 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
             ctx.fillText(formatDistance(sigDist), xSig, ySig - 105);
         }
 
-        // 6. L�mites de Velocidad Pr�ximos
         // 6. Límites de Velocidad Próximos
         const limits = raw.UpcomingLimits || [];
         limits.filter((l: any) => l.distance > 0 && l.distance < viewRange)

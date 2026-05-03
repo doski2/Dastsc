@@ -1,5 +1,4 @@
 import xml.etree.ElementTree as ET
-import math
 import os
 import glob
 import time
@@ -82,83 +81,11 @@ class ScenarioManager:
         self._forced_scenario_id: Optional[str] = None # by GUID (supports unplayed scenarios)
         self._forced_scenario_dir: Optional[str] = None
         self._last_player_rv: Optional[str] = None     # e.g. "323241_65041;Dest=53"
-        self._last_train_x: Optional[float] = None     # world coords (tile*1024 + offset)
-        self._last_train_z: Optional[float] = None
-        self._cached_route_id: Optional[str] = None    # avoids find_active_scenario() every frame
-        self._stop_entity_cache: List[tuple] = []      # entity positions for per-frame distance refresh
 
     def update_player_rv(self, rv: str) -> None:
         """Actualiza el RV del tren del jugador desde la telemetría en tiempo real."""
         if rv:
             self._last_player_rv = rv
-
-    def update_train_position(self, world_x: float, world_z: float) -> None:
-        """Actualiza la posición mundial del tren desde las coordenadas far de la telemetría."""
-        self._last_train_x = world_x
-        self._last_train_z = world_z
-
-    def refresh_distances(self, stops: List[dict]) -> None:
-        """
-        Actualiza en-lugar la clave 'distance' de cada parada usando la posición
-        actual del tren y las posiciones de entidad cacheadas.
-        Coste: solo matemáticas, sin I/O. Se puede llamar cada frame.
-        """
-        if self._last_train_x is None or not self._stop_entity_cache:
-            return
-        for i, stop in enumerate(stops):
-            if i < len(self._stop_entity_cache):
-                ex, ez = self._stop_entity_cache[i]
-                stop["distance"] = self._distance_to_entity(ex, ez)
-
-    def update_train_position_near(self, nx: float, nz: float) -> None:
-        """
-        Fallback cuando getFarPosition devuelve 0: infiere la posición mundial
-        haciendo tile-snapping sobre las entidades de la ruta activa.
-        NX/NZ son coordenadas tile-local (0-1024) de getNearPosition.
-        Incluye filtro anti-salto: rechaza actualizaciones que impliquen
-        un desplazamiento >400 m en un solo frame (tile-crossing noise).
-        """
-        try:
-            import core.scenario_index as _si
-            import math as _math
-            route_id = self._cached_route_id
-            if not route_id:
-                active = self.find_active_scenario()
-                if not active:
-                    return
-                sdir = (os.path.dirname(active["save_path"])
-                        if active.get("save_path") else active.get("scenario_dir", ""))
-                route_id = os.path.basename(os.path.dirname(os.path.dirname(sdir)))
-                self._cached_route_id = route_id
-            if not route_id:
-                return
-            wx, wz = _si.infer_world_position(route_id, nx, nz)
-            if wx is not None and wz is not None:
-                wx_f: float = float(wx)
-                wz_f: float = float(wz)
-                # Filtro anti-salto: rechaza si la nueva posición está >400m de la última.
-                # Esto ocurre al cruzar fronteras de tile con el snapping.
-                if self._last_train_x is not None:
-                    dx = wx_f - self._last_train_x
-                    dz = wz_f - (self._last_train_z or 0.0)
-                    if _math.sqrt(dx * dx + dz * dz) > 400:
-                        return  # salto imposible → ignorar
-                self._last_train_x = wx_f
-                self._last_train_z = wz_f
-        except Exception:
-            pass
-
-    def _distance_to_entity(self, entity_x: Optional[float], entity_z: Optional[float]) -> int:
-        """Distancia euclidiana en metros entre el tren y la entidad. Devuelve -1 si no disponible."""
-        if (
-            entity_x is None or entity_z is None
-            or self._last_train_x is None or self._last_train_z is None
-        ):
-            return -1
-        dx = entity_x - self._last_train_x
-        dz = entity_z - self._last_train_z
-        dist = math.sqrt(dx * dx + dz * dz)
-        return max(0, int(round(dist)))
 
     def select_manual_scenario(self, save_path: str) -> bool:
         """Fija manualmente el CurrentSave.xml a usar. Devuelve False si no existe."""
@@ -168,7 +95,6 @@ class ScenarioManager:
         self._cached_save_path = save_path
         self._forced_scenario_id = None
         self._forced_scenario_dir = None
-        self._cached_route_id = None
         return True
 
     def select_by_id(self, scenario_id: str, scenario_dir: str) -> bool:
@@ -178,7 +104,6 @@ class ScenarioManager:
         """
         self._forced_scenario_id = scenario_id
         self._forced_scenario_dir = scenario_dir
-        self._cached_route_id = None
         save_path = os.path.join(scenario_dir, "CurrentSave.xml")
         if os.path.exists(save_path):
             self._forced_save_path = save_path
@@ -194,7 +119,6 @@ class ScenarioManager:
         self._forced_scenario_dir = None
         self._cached_save_path = None
         self._last_search_time = 0
-        self._cached_route_id = None
 
     def list_all_scenarios(self):
         """
@@ -429,11 +353,7 @@ class ScenarioManager:
             if scenario_id:
                 try:
                     import core.scenario_index as _si
-                    entity_cache: List[tuple] = []
                     for s in _si.get_stops(scenario_id):
-                        ex, ez = s.get("entity_x"), s.get("entity_z")
-                        entity_cache.append((ex, ez))
-                        dist = self._distance_to_entity(ex, ez)
                         data["stops"].append({
                             "station_name": s["name"],
                             "arrival_time": s["arrive_time"],
@@ -442,9 +362,8 @@ class ScenarioManager:
                             "dwell_secs": s["duration_secs"],
                             "status": "INACTIVE",
                             "type": s["type"],
-                            "distance": dist,
+                            "distance": -1,
                         })
-                    self._stop_entity_cache = entity_cache
                 except Exception as exc:
                     data["error_index"] = str(exc)
             return data
@@ -522,7 +441,6 @@ class ScenarioManager:
                         pd_match = driver
 
             player_driver = rv_match or pd_match
-            _entity_cache_save: List[tuple] = []
 
             if player_driver is not None:
                 # Nombre y hora de inicio del servicio
@@ -638,10 +556,8 @@ class ScenarioManager:
                         except ValueError:
                             pass
 
-                    # Distancia desde posición del tren hasta la entidad
-                    ex, ez = _si.lookup_entity_position(route_id, station_name)
-                    dist = self._distance_to_entity(ex, ez)
-                    _entity_cache_save.append((ex, ez))
+                    # Distancia: siempre -1 (la calcula el tracker en tiempo real)
+                    dist = -1
 
                     data["stops"].append({
                         "station_name": station_name,
@@ -657,7 +573,6 @@ class ScenarioManager:
 
         except Exception as e:
             data["error_save"] = str(e)
-        self._stop_entity_cache = _entity_cache_save
 
         # --- 1b. Scenario.xml — fallback cuando el save no tiene datos de conductor ---
         # InitialSave.xml en escenarios no iniciados solo contiene junctions; las instrucciones
@@ -688,7 +603,6 @@ class ScenarioManager:
                                 s_pd_match = driver
 
                     s_player_driver = s_rv_match or s_pd_match
-                    _entity_cache_scenario: List[tuple] = []
 
                     if s_player_driver is not None:
                         svc_node = s_player_driver.find(
@@ -761,8 +675,7 @@ class ScenarioManager:
                                     pass
 
                             ex, ez = _si2.lookup_entity_position(route_id, station_name)
-                            dist = self._distance_to_entity(ex, ez)
-                            _entity_cache_scenario.append((ex, ez))
+                            dist = -1  # distancia calculada por el tracker en tiempo real
 
                             data["stops"].append({
                                 "station_name": station_name,
@@ -773,11 +686,11 @@ class ScenarioManager:
                                 "dwell_secs": dwell_secs,
                                 "status": "INACTIVE",
                                 "type": stop_type,
-                                "distance": dist,
+                                "distance": -1,
                             })
 
-                        if _entity_cache_scenario:
-                            self._stop_entity_cache = _entity_cache_scenario
+                        if data["stops"]:
+                            pass  # stop_entity_cache eliminado (tracker reemplaza GPS)
                 except Exception as e_sc:
                     data["error_scenario_xml"] = str(e_sc)
 

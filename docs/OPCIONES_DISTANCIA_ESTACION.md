@@ -134,9 +134,15 @@ Capturar la pantalla del juego y leer visualmente la distancia a la próxima est
 - Si el HUD cambia de posición o estilo, se rompe
 - Aumenta el consumo de CPU/GPU
 
-### Estado de implementación
+### Estado de implementación — **ACTIVA (Mayo 2026)**
 
-- No iniciado
+Implementado en `backend/core/ocr_hud.py`. Funciona como ancla de precisión para el odómetro:
+
+- Captura el HUD al cerrar puertas con tren en movimiento, o cada 5-30 s según distancia.
+- Cuando OCR lee una distancia, establece un **anchor**: `ocr_anchor_dist` + `ocr_anchor_odo`.
+- Entre capturas OCR, el odómetro decrementa desde ese anchor: `ocr_corrected = anchor_dist - (odo_now - anchor_odo)`.
+- Resultado: precisión del juego en el momento de la captura + suavidad del odómetro entre capturas.
+- Endpoint de debug: `GET /api/ocr/debug` para verificar el estado del anchor en tiempo real.
 
 ---
 
@@ -177,13 +183,25 @@ Descartada por ahora. Revisar si en otras rutas/trenes `getFarPosition` funciona
 
 ---
 
-## Recomendación de prioridad
+## Recomendación de prioridad — **Revisada Mayo 2026**
 
 | Prioridad | Opción | Estado |
 |-----------|--------|--------|
 | ~~1~~ | ~~Opción 1 (GetNextStation)~~ | **DESCARTADA** — No disponible en plugin global |
-| 1 | Opción 2 (Odómetro + BD) | **IMPLEMENTADA** — Activa desde 13/04/2026 |
-| 3 | Opción 3 (OCR) | Último recurso, si BD tiene errores acumulados |
+| 1 | Opción 2 (Odómetro + BD) | **IMPLEMENTADA** — Activa como base desde 13/04/2026 |
+| 2 | Opción 3 (OCR) | **IMPLEMENTADA** — Activa como ancla de precisión desde Mayo 2026 |
+
+### Solución final adoptada (Mayo 2026): Opción 2 + 3 combinadas
+
+El sistema usa **Opción 2 como esqueleto** (odómetro + perfil de ruta) y **Opción 3 como ancla** (OCR periódico):
+
+```
+StationDistance final = OCR_anchor - (odo_actual - odo_en_momento_OCR)
+```
+
+- Cuando no hay OCR disponible, usa solo el odómetro del tracker.
+- El frontend siempre recibe `StationDistance >= 0` (el `-1` del Lua nunca llega al frontend en condiciones normales).
+- En `BrakingCurve.tsx`, `effectiveDist` en modo `DYNAMIC` usa directamente `raw.StationDistance` sin RAF ni estado local adicional.
 
 ---
 

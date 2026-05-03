@@ -17,7 +17,8 @@ export class DataNormalizer {
   private state = {
     lastSimTime: 0,
     lastRealTime: 0,
-    activeCab: 1
+    activeCab: 1,
+    emaAccelMS2: 0,  // aceleración derivada del delta real de velocidad (signo correcto)
   };
 
   private loggedRawFields = false;
@@ -84,10 +85,29 @@ export class DataNormalizer {
     const pressureUnit = profile?.visuals?.pressure_unit || trainUnit;
     const pFactor = pressureUnit === 'PSI' ? 14.5038 : 1;
 
+    // Aceleración derivada del delta real de velocidad (sign correcto independientemente del juego)
+    // TS Classic puede enviar raw.Acceleration con convención positivo=frenado → no fiable
+    if (dtSim > 0.01 && dtSim < 2.0) {
+      const rawDelta = (phys.speedMS - prevData.Speed) / dtSim;
+      this.state.emaAccelMS2 = rawDelta * 0.15 + this.state.emaAccelMS2 * 0.85;
+    }
+    const computedGForce = this.state.emaAccelMS2 / 9.80665;
+
     // Gradiente y Frenado
-    // TS Classic: GetGradient() usa convención inversa (positivo = descente, negativo = subida)
-    // Negamos para usar la convención estándar: positivo = subida, negativo = bajada
-    const currentGrad = -Number(raw.Gradient || 0);
+    // TS Classic: GetGradient() usa convención ESTÁNDAR (positivo = subida, negativo = bajada)
+    // Si el tren opera desde la cabina trasera (cab 2), va en sentido contrario → invertir gradiente.
+    //
+    // El Lua solo actualiza ActiveCab via OnCameraEnter (cámara interior). Si el maquinista usa
+    // cámara exterior o el evento no se dispara, ActiveCab se queda en 1 aunque la cabina real sea 2.
+    // Fallback: si ActiveCab=1 pero Reversal=-1 (reversa), asumimos cab 2 porque en TSC el
+    // maquinista siempre conduce hacia adelante desde su cabina activa.
+    const reportedCab = this.state.activeCab;
+    const reversal = Number(raw.Reversal || raw.Reverser || 0);
+    // Si el juego dice cab 1 pero el reversor está en reversa con velocidad, probablemente es cab 2
+    const inferredCab = (reportedCab === 1 && reversal < 0 && phys.speedMS > 0.5) ? 2 : reportedCab;
+    const cabSign = inferredCab === 2 ? -1 : 1;
+    const gameRawGrad = Number(raw.Gradient || 0); // valor original del juego (positivo=subida)
+    const currentGrad = cabSign * gameRawGrad;
 
     const maxBC = pressureUnit === 'PSI' ? 72.5 : 5.0; 
     const bcPercent = Math.min(1.1, brk.bc / maxBC);
@@ -137,9 +157,11 @@ export class DataNormalizer {
       Reverser: Number(raw.Reversal || raw.Reverser || 0),
       SpeedDisplay: phys.speedMS * fromMS,
       SpeedUnit: speedUnit,
-      Acceleration: phys.acceleration,
-      GForce: phys.gForce,
-      ProjectedSpeed: (phys.speedMS + (phys.acceleration * 10)) * fromMS,
+      Acceleration: this.state.emaAccelMS2,
+      GForce: computedGForce,
+      // ProjectedSpeed: velocidad estimada en 5s basada en el delta real de velocidad (dSpeed/dt)
+      // Evita depender del signo de raw.Acceleration (convención variable según versión del juego)
+      ProjectedSpeed: Math.max(0, (phys.speedMS + this.state.emaAccelMS2 * 5)) * fromMS,
       SpeedLimit: sig.effectiveSpeedLimit * fromMS,
       FrontalSpeedLimit: rawLimitMS * fromMS,
       TrackLimit: (Number(raw.TrackLimit) || rawLimitMS) * fromMS,
@@ -150,8 +172,13 @@ export class DataNormalizer {
       DistToNextLimit2: (sig as any).rawNextLimit2DistFromLua,
       UpcomingLimits: upcomingLimits,
       Gradient: currentGrad,
+      RawGradient: gameRawGrad, // valor sin normalizar del juego (TS Classic: positivo=bajada en dir. cab1)
       LateralG: phys.lateralG,
-      StationDistance: raw.StationDistance ?? -1,
+      // StationDistance: preferir raw si es válido (>= 0), sino conservar el último
+      // valor conocido de prevData (evita parpadeo a -1 entre frames sin escenario).
+      StationDistance: (raw.StationDistance !== undefined && raw.StationDistance >= 0)
+        ? raw.StationDistance
+        : (prevData.StationDistance >= 0 ? prevData.StationDistance : -1),
       StationName: raw.StationName || '',
       StationLength: Number(raw.PlatformLength || raw.StationLength || 200),
       BrakeCylinderPressure: brk.bc * pFactor,
@@ -166,7 +193,7 @@ export class DataNormalizer {
       Ammeter: Number(raw.Ammeter || 0),
       TractiveEffort: Number(raw.TractiveEffort || 0),
       TractionPercent: brk.tractionPercent,
-      ActiveCab: this.state.activeCab,
+      ActiveCab: inferredCab,
       TrainType: Number(raw.ConsistType || 1),
       NextSignalAspect: sig.nextSignalAspect,
       DistToNextSignal: sig.nextSignalDistance,

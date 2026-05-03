@@ -66,6 +66,7 @@
     "physics_config": {
         "max_braking_kn": 250,
         "max_braking_decel": 1.1,
-        "dynamic_brake_ratio": 0.8
+        "dynamic_brake_ratio": 0.8,
+        "brake_fill_time_s": 5
     }
 }

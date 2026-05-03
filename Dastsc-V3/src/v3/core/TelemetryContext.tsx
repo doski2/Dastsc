@@ -15,6 +15,7 @@ export interface TelemetryData {
   SignalLimit: number;
   FrontalSpeedLimit: number;
   Gradient: number;
+  RawGradient: number; // valor original del juego (positivo=bajada en cab1)
   DistToNextSignal: number;
   NextSignalAspect: string;
   NextSpeedLimit: number;
@@ -123,6 +124,7 @@ const DefaultData: TelemetryData = {
   SignalLimit: 0,
   FrontalSpeedLimit: 0,
   Gradient: 0,
+  RawGradient: 0,
   DistToNextSignal: 0,
   NextSignalAspect: 'CLEAR',
   NextSpeedLimit: 0,
@@ -207,8 +209,6 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   // Departure detection: min dist per active stop; locally done if tren goes >500m from <300m
   const stopMinDistRef = useRef<Map<string, number>>(new Map());
   const locallyDoneRef = useRef<Set<string>>(new Set());
-  // Odometer refinement: anchor euclidRef on first ACTIVE frame, subtract trip delta per frame
-  const stopOdometerRefRef = useRef<Map<string, { tripAtActivation: number; euclidRef: number; reliable: boolean }>>(new Map());
 
   // Sincronizar refs con el estado para que el closure del socket los vea
   useEffect(() => {
@@ -235,7 +235,6 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       }
       console.log('Nexus v3 Hub Connected');
       setIsConnected(true);
-      stopOdometerRefRef.current.clear();
       stopMinDistRef.current.clear();
       locallyDoneRef.current.clear();
     };
@@ -273,55 +272,31 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
 
         // 3. Paradas del escenario en tiempo real (desde payload.scenario.stops)
         if (message.scenario?.stops && Array.isArray(message.scenario.stops)) {
-          const currentTrip = prevDataRef.current.TripDistance;
           const mapped: ScenarioStop[] = message.scenario.stops.map((s: any) => {
             const name: string = s.station_name;
-            let dist: number = s.distance ?? -1;
-            const rawDist: number = dist; // Distancia euclidiana del servidor, ANTES del refinamiento
+            const dist: number = s.distance ?? -1;
             const serverStatus: string = s.status;
 
-            // Cuando el servidor confirma SUCCEEDED, limpiar todo el trackeo local
+            // Cuando el servidor confirma SUCCEEDED, limpiar trackeo local
             if (serverStatus === 'SUCCEEDED') {
               locallyDoneRef.current.delete(name);
               stopMinDistRef.current.delete(name);
-              stopOdometerRefRef.current.delete(name);
             }
 
-            // Odometer refinement: anchor euclidRef on first ACTIVE frame; >2500m = unreliable → -1
-            // Solo afecta a la distancia mostrada en pantalla, NO a la detección de partida.
+            // Detección de partida local (fallback si el tracker no responde a tiempo)
+            // Usa la distancia directa del backend (ya calculada por el tracker).
             if (serverStatus === 'ACTIVE' && dist >= 0) {
-              if (!stopOdometerRefRef.current.has(name)) {
-                const reliable = dist < 2500;
-                stopOdometerRefRef.current.set(name, {
-                  tripAtActivation: currentTrip,
-                  euclidRef: reliable ? dist : 0,
-                  reliable,
-                });
-              }
-              const ref = stopOdometerRefRef.current.get(name)!;
-              if (ref.reliable) {
-                dist = Math.max(0, ref.euclidRef - (currentTrip - ref.tripAtActivation));
-              } else {
-                dist = -1; // unreliable (no getFarPosition)
-              }
-            }
-
-            // Detección de partida: usar rawDist (euclidiana real) y NO el odómetro.
-            // El odómetro se queda en 0 al pasar la estación (max(0,...)) → dist>1500 nunca era true.
-            if (serverStatus === 'ACTIVE' && rawDist >= 0) {
               const prev = stopMinDistRef.current.get(name);
-              if (prev === undefined || rawDist < prev) {
-                stopMinDistRef.current.set(name, rawDist);
+              if (prev === undefined || dist < prev) {
+                stopMinDistRef.current.set(name, dist);
               }
-              // Detección de partida: el tren estuvo a < 500m y ahora está a > 1500m
               const minSeen = stopMinDistRef.current.get(name) ?? Infinity;
-              if (minSeen < 500 && rawDist > 1500) {
+              if (minSeen < 500 && dist > 1500) {
                 locallyDoneRef.current.add(name);
               }
             }
 
             const locallyDone = locallyDoneRef.current.has(name);
-            if (locallyDone) stopOdometerRefRef.current.delete(name);
 
             return {
               name,
@@ -330,57 +305,11 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
               satisfied: serverStatus === 'SUCCEEDED' || locallyDone,
               due_time: s.due_time !== 'N/A' ? s.due_time : s.arrival_time !== 'N/A' ? s.arrival_time : null,
               departure_time: s.departure_time !== 'N/A' ? s.departure_time : null,
-              arrival_time: null,
+              arrival_time: (serverStatus === 'SUCCEEDED' && s.arrival_time && s.arrival_time !== 'N/A') ? s.arrival_time : null,
               stop_duration: s.dwell_secs || 0,
               distance_m: dist,
             };
           });
-
-          // ── Inferencia de partida cuando el servidor envía todo INACTIVE ──────────
-          // Solo se activa si NO hay ninguna parada marcada ACTIVE por el servidor.
-          // Cuando el tracker está funcionando, siempre habrá al menos un ACTIVE.
-          // Esta lógica es solo para el primer frame antes de que el tracker inicialice.
-          const hasAnyServerActive = mapped.some(m => m.is_active && !m.satisfied);
-          const hasTrackerDistance = mapped.some(m => m.distance_m >= 0 && m.distance_m < 2000);
-          if (!hasAnyServerActive && !hasTrackerDistance && mapped.some(m => m.distance_m >= 0)) {
-            let inferMinDist = Infinity;
-            let inferActiveIdx = -1;
-            let inferActiveName = '';
-            mapped.forEach((m, i) => {
-              if (!m.satisfied && m.type === 'STOP' && m.distance_m >= 0 && m.distance_m < inferMinDist) {
-                inferMinDist = m.distance_m;
-                inferActiveIdx = i;
-                inferActiveName = m.name;
-              }
-            });
-            if (inferActiveIdx >= 0) {
-              // Rastrear distancia mínima a la parada inferida activa
-              const prevMin = stopMinDistRef.current.get(inferActiveName);
-              if (prevMin === undefined || inferMinDist < prevMin) {
-                stopMinDistRef.current.set(inferActiveName, inferMinDist);
-              }
-              // Partida confirmada: estuvo cerca (< 500m) y ahora está lejos (> 1500m)
-              const minSeenInfer = stopMinDistRef.current.get(inferActiveName) ?? Infinity;
-              if (minSeenInfer < 500 && inferMinDist > 1500) {
-                locallyDoneRef.current.add(inferActiveName);
-                stopOdometerRefRef.current.delete(inferActiveName);
-              }
-              // Re-aplicar locallyDone al array mapped
-              mapped.forEach(m => {
-                if (locallyDoneRef.current.has(m.name)) {
-                  m.satisfied = true;
-                  m.is_active = false;
-                  stopOdometerRefRef.current.delete(m.name);
-                }
-              });
-              // Activar la primera STOP no satisfecha a partir de la parada inferida
-              const effectiveActive = mapped
-                .slice(inferActiveIdx)
-                .find(m => !m.satisfied && m.type === 'STOP');
-              if (effectiveActive) effectiveActive.is_active = true;
-            }
-          }
-          // ─────────────────────────────────────────────────────────────────────────
 
           setScenarioStops(mapped);
 
@@ -496,7 +425,6 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       sendCommand,
       setProfile,
       resetLocalState: () => {
-        stopOdometerRefRef.current.clear();
         stopMinDistRef.current.clear();
         locallyDoneRef.current.clear();
       },

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Clock, Navigation, MapPin, CheckCircle2, Timer, Search, X, RefreshCw, AlertTriangle } from 'lucide-react';
-import { scenarioService, ScenarioListItem } from '../../services/ScenarioService';
+import { scenarioService, ScenarioListItem, ScenarioStop } from '../../services/ScenarioService';
 import { useTelemetry } from '../../core/TelemetryContext';
 
 interface StopProps {
@@ -20,14 +20,13 @@ const StopRow: React.FC<StopProps> = ({ name, type, dueTime, actualArrival, dist
   const formatDist = (m: number) => {
     if (m < 0) return '---';
     if (isMPH) {
-      const yards = Math.round(m * 1.09361);
-      return yards < 1760 ? `${yards}yd` : `${(m / 1609.34).toFixed(1)}mi`;
+      return `${(m / 1609.34).toFixed(2)}mi`;
     }
     return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`;
   };
 
   // Umbrales de proximidad adaptados a la unidad
-  const nearThreshold  = isMPH ? 550  : 500;   // ~500yd  / 500m
+  const nearThreshold  = isMPH ? 550  : 500;   // ~0.34mi / 500m
   const closeThreshold = isMPH ? 1100 : 1000;  // ~1mi inicio / 1km
 
   // Lógica para calcular retraso si tenemos hora prevista y real
@@ -111,7 +110,7 @@ const StopRow: React.FC<StopProps> = ({ name, type, dueTime, actualArrival, dist
   );
 };
 
-export const ScenarioHud: React.FC<{ stops: any[]; onScenarioChanged?: () => void }> = ({ stops, onScenarioChanged }) => {
+export const ScenarioHud: React.FC<{ stops: ScenarioStop[]; onScenarioChanged?: () => void }> = ({ stops, onScenarioChanged }) => {
   const { scenarioProgress, data } = useTelemetry();
   const isMPH = data?.SpeedUnit === 'MPH';
   const [showSelector, setShowSelector] = useState(false);
@@ -306,6 +305,19 @@ export const ScenarioHud: React.FC<{ stops: any[]; onScenarioChanged?: () => voi
     }
   }
   // ───────────────────────────────────────────────────────────────────────────
+
+  // Ordenar para display: satisfechas primero (orden de ruta ya recorrida),
+  // luego pendientes por distance ascendente. Pendientes sin distancia al final.
+  processedStops.sort((a, b) => {
+    if (a.satisfied && !b.satisfied) return -1;
+    if (!a.satisfied && b.satisfied) return 1;
+    if (!a.satisfied && !b.satisfied) {
+      if (a.distance >= 0 && b.distance >= 0) return a.distance - b.distance;
+      if (a.distance >= 0) return -1;
+      if (b.distance >= 0) return 1;
+    }
+    return 0;
+  });
 
   if (!processedStops || processedStops.length === 0) {
     return (

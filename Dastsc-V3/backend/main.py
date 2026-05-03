@@ -11,9 +11,10 @@ import time
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
 from core.scenarios import ScenarioManager
-from core.station_tracker import StationTracker
+from core.station_tracker import StationTracker, _normalize_name as _nn_name
 import core.scenario_index as scenario_index
 import core.ocr_hud as ocr_hud
+import core.brake_log as brake_log
 
 def _sanitize(obj: Any) -> Any:
     """Reemplaza float no-finitos (Infinity, -Infinity, NaN) por 0 recursivamente.
@@ -160,6 +161,10 @@ async def telemetry_reader():
     ocr_last_capture_time: float = 0.0
     ocr_door_was_open: bool = False
     last_tracker_idx: int = -1  # para detectar avance de parada y limpiar OCR
+    # Anchor OCR: cuando el juego da la distancia exacta, la usamos como base
+    # y decrementamos con el odómetro entre capturas para mayor precisión.
+    ocr_anchor_dist: float = -1.0     # distancia OCR en el momento de captura (m)
+    ocr_anchor_odo: float = 0.0       # odómetro del tracker en el momento de captura
 
     while True:
         try:
@@ -215,18 +220,29 @@ async def telemetry_reader():
                                 _station_tracker._pending_save = False
                                 loop = asyncio.get_event_loop()
                                 loop.run_in_executor(None, _station_tracker.save_state)
-                            # Sobreescribir StationDistance del Lua (siempre -1) con el valor calculado
-                            if computed_station_dist >= 0:
+                            # Sobreescribir StationDistance del Lua (siempre -1) con el valor calculado.
+                            # Si existe un anchor OCR, usarlo como base y decrementar con el odómetro:
+                            # esto da la precisión del juego + la suavidad del odómetro entre capturas.
+                            if ocr_anchor_dist >= 0:
+                                odo_delta = _station_tracker._odometer_m - ocr_anchor_odo
+                                ocr_corrected = max(0.0, ocr_anchor_dist - odo_delta)
+                                data["StationDistance"] = round(ocr_corrected, 1)
+                            elif computed_station_dist >= 0:
                                 data["StationDistance"] = round(computed_station_dist, 1)
 
+                            # ── Detección de cierre de puertas (compartida con OCR y tracker) ─
+                            doors_open_now = (door_l > 0.5) or (door_r > 0.5)
+                            # Las puertas en TSC solo se abren/cierran con el tren parado.
+                            # No se necesita filtro de velocidad — basta con detectar la transicion abierto->cerrado.
+                            door_just_closed = ocr_door_was_open and not doors_open_now
+                            ocr_door_was_open = doors_open_now
+                            # Nombre OCR capturado en este frame al cerrar puertas (para override)
+                            _ocr_name_on_close: str = ""
+
                             # ── OCR: captura del display de próxima parada ─────────────────────
-                            # Trigger 1: cierre de puertas con el tren en movimiento
+                            # Trigger 1: cierre de puertas (TSC: puertas solo operables con tren parado)
                             # Trigger 2: polling cada 5-10s según la distancia actual
                             if ocr_hud.is_available():
-                                doors_open_now = (door_l > 0.5) or (door_r > 0.5)
-                                door_just_closed = ocr_door_was_open and not doors_open_now and speed_ms > 0.5
-                                ocr_door_was_open = doors_open_now
-
                                 ocr_interval = 30.0  # sin datos — esperar más
                                 if ocr_last_result.get("distance_m") is not None:
                                     d = ocr_last_result["distance_m"]
@@ -243,11 +259,18 @@ async def telemetry_reader():
                                     ocr_result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
                                     if ocr_result:
                                         ocr_last_result = ocr_result
-                                        # Si OCR da distancia, tiene prioridad sobre el odómetro
                                         if ocr_result.get("distance_m") is not None:
-                                            data["StationDistance"] = ocr_result["distance_m"]
+                                            # Establecer nuevo anchor: la distancia del juego
+                                            # es la fuente más precisa disponible.
+                                            ocr_anchor_dist = ocr_result["distance_m"]
+                                            ocr_anchor_odo = _station_tracker._odometer_m
+                                            data["StationDistance"] = ocr_anchor_dist
                                         if ocr_result.get("station_name"):
                                             data["StationNameOCR"] = ocr_result["station_name"]
+                                            # Si la captura fue por cierre de puertas, guardar
+                                            # el nombre para confirmar ACTIVE en el tracker.
+                                            if door_just_closed:
+                                                _ocr_name_on_close = ocr_result["station_name"]
                                         if ocr_result.get("eta"):
                                             data["StationETA"] = ocr_result["eta"]
                                         if ocr_result.get("scheduled_time"):
@@ -259,75 +282,66 @@ async def telemetry_reader():
                                 last_rv = str(data["RV"])
                                 manager.scenario_manager.update_player_rv(last_rv)
 
-                            # Actualizar posición mundial del tren desde getFarPosition
-                            try:
-                                far_xt = float(data.get("FarXT") or 0)
-                                far_xo = float(data.get("FarXO") or 0)
-                                far_zt = float(data.get("FarZT") or 0)
-                                far_zo = float(data.get("FarZO") or 0)
-                                # Solo actualizar si Lua emitió valores no-nulos
-                                if far_xt != 0 or far_xo != 0:
-                                    world_x = far_xt * 1024.0 + far_xo
-                                    world_z = far_zt * 1024.0 + far_zo
-                                    manager.scenario_manager.update_train_position(world_x, world_z)
-                                else:
-                                    # Fallback: getFarPosition no disponible en este plugin.
-                                    # Inferir tile usando NX/NZ (tile-local 0-1024) y snap
-                                    # a la entidad de mapa más cercana de la ruta activa.
-                                    nx = float(data.get("NX") or 0)
-                                    nz = float(data.get("NZ") or 0)
-                                    if nx != 0 or nz != 0:
-                                        manager.scenario_manager.update_train_position_near(nx, nz)
-                            except (TypeError, ValueError):
-                                pass
-
-                            # Refrescar distancias GPS cada frame (sin I/O: solo matemáticas)
+                            # Tracker: actualizar status de paradas (ACTIVE/SUCCEEDED)
+                            # Nota: se ejecuta aunque computed_station_dist sea -1 (sin perfil de ruta)
+                            # para que SUCCEEDED/ACTIVE se actualicen siempre que el tracker avance.
                             if scenario_data:
-                                manager.scenario_manager.refresh_distances(
-                                    scenario_data.get("stops", [])
+                                tracker_idx = _station_tracker.next_stop_index
+                                tracker_stops = [
+                                    s for s in stops_for_tracker
+                                    if s.get("type") != "WAYPOINT" and s.get("station_name")
+                                    and s.get("station_name") != "Unknown"
+                                ]
+                                completed_names = {
+                                    ts.get("station_name", "")
+                                    for ts in tracker_stops[:tracker_idx]
+                                }
+                                active_name = (
+                                    tracker_stops[tracker_idx].get("station_name", "")
+                                    if tracker_idx < len(tracker_stops) else ""
                                 )
-                                # Fusión tracker → GPS: aplicar DESPUÉS de refresh_distances
-                                # para que el odómetro (distancia por vía) no sea sobreescrito
-                                # por la distancia en línea recta euclidiana del GPS.
-                                if computed_station_dist >= 0:
-                                    tracker_idx = _station_tracker.next_stop_index
-                                    tracker_stops = [
-                                        s for s in stops_for_tracker
-                                        if s.get("type") != "WAYPOINT" and s.get("station_name")
-                                        and s.get("station_name") != "Unknown"
-                                    ]
-                                    # ── Status override desde el tracker ───────────────────────
-                                    # El XML puede tener todas las paradas como INACTIVE cuando
-                                    # no existe CurrentSave.xml o el escenario acaba de empezar.
-                                    # El odómetro del tracker es la fuente de verdad: marcamos
-                                    # las paradas anteriores a tracker_idx como SUCCEEDED y la
-                                    # actual como ACTIVE para que el frontend no haga inferencia
-                                    # GPS (euclidiana e imprecisa) y elija la parada equivocada.
-                                    completed_names = {
-                                        ts.get("station_name", "")
-                                        for ts in tracker_stops[:tracker_idx]
-                                    }
-                                    active_name = (
-                                        tracker_stops[tracker_idx].get("station_name", "")
-                                        if tracker_idx < len(tracker_stops) else ""
-                                    )
-                                    for stop in scenario_data.get("stops", []):
-                                        sname = stop.get("station_name", "")
-                                        if sname in completed_names:
-                                            stop["status"] = "SUCCEEDED"
-                                        elif sname == active_name and stop.get("status") != "SUCCEEDED":
-                                            stop["status"] = "ACTIVE"
+                                for stop in scenario_data.get("stops", []):
+                                    sname = stop.get("station_name", "")
+                                    if sname in completed_names:
+                                        stop["status"] = "SUCCEEDED"
+                                    elif sname == active_name and stop.get("status") != "SUCCEEDED":
+                                        stop["status"] = "ACTIVE"
+                                        if computed_station_dist >= 0:
                                             stop["distance"] = round(computed_station_dist, 1)
-                                    # Cuando el tracker avanza a la siguiente parada,
-                                    # limpiar cache OCR y señalizar al frontend para que borre
-                                    # los datos de la parada anterior.
-                                    if last_tracker_idx >= 0 and tracker_idx != last_tracker_idx:
-                                        ocr_last_result = {}
-                                        ocr_last_capture_time = 0.0  # forzar recaptura inmediata
-                                        data["StationNameOCR"] = ""
-                                        data["StationETA"] = ""
-                                        data["StationScheduled"] = ""
-                                    last_tracker_idx = tracker_idx
+                                # Cuando el tracker avanza de parada: limpiar cache OCR
+                                if last_tracker_idx >= 0 and tracker_idx != last_tracker_idx:
+                                    ocr_last_result = {}
+                                    ocr_last_capture_time = 0.0  # forzar recaptura inmediata
+                                    ocr_anchor_dist = -1.0       # invalidar anchor de parada anterior
+                                    ocr_anchor_odo = 0.0
+                                    data["StationNameOCR"] = ""
+                                    data["StationETA"] = ""
+                                    data["StationScheduled"] = ""
+                                last_tracker_idx = tracker_idx
+
+                            # ── Override OCR al cerrar puertas ────────────────────────────────
+                            # Cuando el OCR confirma el nombre de la siguiente parada en el
+                            # momento exacto del cierre de puertas, forzar ese stop a ACTIVE
+                            # y todos los anteriores a SUCCEEDED. Esto corrige el lag del
+                            # tracker (que avanza solo cuando speed > 2 m/s) y garantiza
+                            # que el Service Sheet refleje la parada correcta de inmediato.
+                            if _ocr_name_on_close and scenario_data:
+                                ocr_norm = _nn_name(_ocr_name_on_close)
+                                stops_list = scenario_data.get("stops", [])
+                                matched_idx = None
+                                for i, st in enumerate(stops_list):
+                                    if _nn_name(st.get("station_name", "")) == ocr_norm:
+                                        matched_idx = i
+                                        break
+                                if matched_idx is not None:
+                                    for i, st in enumerate(stops_list):
+                                        if i < matched_idx and st.get("status") != "SUCCEEDED":
+                                            st["status"] = "SUCCEEDED"
+                                        elif i == matched_idx and st.get("status") != "SUCCEEDED":
+                                            st["status"] = "ACTIVE"
+                            # ─────────────────────────────────────────────────────────────────
+
+                            if scenario_data:
                                 manager.last_scenario_data = scenario_data
 
                             payload = {
@@ -444,33 +458,12 @@ async def select_scenario(request: Request):
 @app.get("/scenarios/live")
 async def get_live_scenario():
     """Endpoint para que el frontend obtenga los datos del escenario detectado.
-    Usa el scenario_data cacheado del loop de telemetría (con distancias GPS vivas).
+    Usa el scenario_data cacheado del loop de telemetría.
     Si aún no hay cache, parsea de disco."""
     cached = manager.last_scenario_data
     if cached:
-        # Refrescar distancias con posición actual antes de responder
-        manager.scenario_manager.refresh_distances(cached.get("stops", []))
         return cached
     return manager.scenario_manager.get_detailed_scenario_data()
-
-
-@app.get("/debug/pos")
-async def debug_position():
-    """Diagnóstico en vivo: posición actual del tren y distancias a cada parada."""
-    sm = manager.scenario_manager
-    stops_cache = sm._stop_entity_cache
-    cache_distances = []
-    for ex, ez in stops_cache:
-        d = sm._distance_to_entity(ex, ez)
-        cache_distances.append(round(d, 1) if d >= 0 else None)
-    return {
-        "train_x": round(sm._last_train_x, 2) if sm._last_train_x is not None else None,
-        "train_z": round(sm._last_train_z, 2) if sm._last_train_z is not None else None,
-        "cached_route_id": sm._cached_route_id,
-        "stop_entity_cache_len": len(stops_cache),
-        "distances_m": cache_distances,
-        "forced_scenario_id": sm._forced_scenario_id,
-    }
 
 
 @app.post("/api/tracker/reset")
@@ -494,7 +487,7 @@ async def ocr_debug():
 
     try:
         import mss as _mss
-        from PIL import Image, ImageOps, ImageEnhance
+        from PIL import Image
         from core.ocr_hud import OCR_REGION
 
         with _mss.mss() as sct:
@@ -505,12 +498,15 @@ async def ocr_debug():
         debug_path = os.path.join(os.path.dirname(__file__), "ocr_debug.png")
         img.save(debug_path)
 
-        # También procesar como lo hace el OCR real
+        # También procesar como lo hace el OCR real (mismo pipeline)
         gray = img.convert("L")
-        inverted = ImageOps.invert(gray)
-        enhanced = ImageEnhance.Contrast(inverted).enhance(2.5)
-        w, h = enhanced.size
-        scaled = enhanced.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
+        from PIL import ImageOps as _ImgOps
+        auto = _ImgOps.autocontrast(gray, cutoff=2)
+        lut = [0] * 140 + [255] * 116
+        thresh = auto.point(lut)
+        w, h = thresh.size
+        scaled = thresh.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
+        scaled = scaled.convert("L")
         proc_path = os.path.join(os.path.dirname(__file__), "ocr_debug_processed.png")
         scaled.save(proc_path)
 
@@ -528,36 +524,34 @@ async def ocr_debug():
         return {"error": str(exc)}
 
 
-@app.get("/debug/stops")
-async def debug_stops():
-    """Diagnóstico: estado completo de las paradas con distancias GPS y tracker.
-    Lee el cache del loop — distancias ya fusionadas (tracker sobrewscribe GPS)."""
-    sm = manager.scenario_manager
-    data = manager.last_scenario_data or sm.get_detailed_scenario_data()
-    stops = data.get("stops", [])
-    tracker_idx = _station_tracker.next_stop_index
-    tracker_names = [
-        s.get("station_name", "") for s in stops
-        if s.get("type") != "WAYPOINT" and s.get("station_name") and s.get("station_name") != "Unknown"
-    ]
-    return {
-        "train_x": round(sm._last_train_x, 2) if sm._last_train_x is not None else None,
-        "train_z": round(sm._last_train_z, 2) if sm._last_train_z is not None else None,
-        "tracker_completed_stops": tracker_idx,
-        "tracker_next_stop": tracker_names[tracker_idx] if tracker_idx < len(tracker_names) else None,
-        "tracker_at_station": _station_tracker._at_station_by_door,
-        "tracker_has_doors": _station_tracker._has_doors,
-        "stops": [
-            {
-                "name": s.get("station_name"),
-                "type": s.get("type"),
-                "status": s.get("status"),
-                "distance_gps": s.get("distance"),
-                "entity_x": sm._stop_entity_cache[i][0] if i < len(sm._stop_entity_cache) else None,
-            }
-            for i, s in enumerate(stops)
-        ],
-    }
+# ── Aprendizaje de Frenado ────────────────────────────────────────────────────
+
+@app.post("/api/brake/event")
+async def post_brake_event(request: Request):
+    """Registra un evento de frenado real capturado por el frontend."""
+    try:
+        body = await request.json()
+        body["timestamp"] = body.get("timestamp") or time.time()
+        brake_log.append_event(body)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+@app.get("/api/brake/events")
+async def get_brake_events(limit: int = 50, profile: str = ""):
+    """Devuelve los últimos eventos de frenado, opcionalmente filtrados por perfil."""
+    events = brake_log.get_events(limit=limit, profile=profile or None)
+    return {"events": events, "count": len(events)}
+
+
+@app.get("/api/brake/stats")
+async def get_brake_stats(profile: str = ""):
+    """Estadísticas agregadas por muesca para calibrar las recomendaciones."""
+    stats = brake_log.get_stats(profile=profile or None)
+    return stats
+
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 @app.websocket("/ws/telemetry")

@@ -203,6 +203,14 @@ export const Speedometer: React.FC = () => {
         <div className={getContainerClasses()}>
             <CanvasLayer render={drawGauge} />
 
+            {/* Indicador de cabina trasera activa */}
+            {raw.ActiveCab === 2 && (
+                <div className="absolute top-2 right-2 z-20 flex items-center gap-1 bg-yellow-500/15 border border-yellow-400/50 rounded-sm px-2 py-1">
+                    <span className="text-[8px] text-yellow-300 font-black uppercase tracking-widest leading-none">CAB 2</span>
+                    <span className="text-[7px] text-yellow-400/60 font-mono uppercase leading-none">REAR</span>
+                </div>
+            )}
+
             {/* Avisadores Visuales Superiores (AWS/DSD) */}
             <div className="absolute top-4 flex flex-col gap-2 z-10 w-full items-center px-10">
                 {alerts.dsd && (

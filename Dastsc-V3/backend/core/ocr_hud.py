@@ -28,7 +28,7 @@ except ImportError:
 
 try:
     import pytesseract
-    from PIL import Image, ImageOps, ImageEnhance
+    from PIL import Image, ImageOps
     PIL_OK = True
 except ImportError:
     PIL_OK = False
@@ -49,10 +49,14 @@ OCR_REGION = {
 TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ── Patrones de parseo ────────────────────────────────────────────────────────
-_RE_DIST   = re.compile(r'(\d+[.,]?\d*)\s*(millas?|miles?|km|m)\b', re.IGNORECASE)
-_RE_ETA    = re.compile(r'ETA[:\s]+(\d{1,2}:\d{2}(?::\d{2})?)', re.IGNORECASE)
-_RE_TIME   = re.compile(r'\b(\d{1,2}:\d{2}(?::\d{2})?)\b')
-_RE_SCHED  = re.compile(r'@\s*(\d{1,2}:\d{2}(?::\d{2})?)', re.IGNORECASE)
+_RE_DIST      = re.compile(r'(\d+[.,]?\d*)\s*(millas?|miles?|km|m)\b', re.IGNORECASE)
+_RE_ETA       = re.compile(r'ETA[:\s]+(\d{1,2}:\d{2}(?::\d{2})?)', re.IGNORECASE)
+_RE_TIME      = re.compile(r'\b(\d{1,2}:\d{2}(?::\d{2})?)\b')
+_RE_SCHED     = re.compile(r'@\s*(\d{1,2}:\d{2}(?::\d{2})?)', re.IGNORECASE)
+# Línea que es SOLO una hora (p.ej. "08:16:06") → no es nombre de estación
+_RE_PURE_TIME = re.compile(r'^\d{1,2}:\d{2}(?::\d{2})?$')
+# Caracteres iniciales que no son letras ni dígitos (artefactos OCR del icono)
+_RE_LEADING_JUNK = re.compile(r'^[^A-Za-zÀ-ÿ0-9]+', re.UNICODE)
 
 
 def _setup_tesseract() -> None:
@@ -88,22 +92,33 @@ def capture_next_stop() -> Optional[Dict]:
             img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
 
         # ── Preprocesamiento ─────────────────────────────────────────────────
-        # El HUD tiene texto blanco/claro sobre fondo oscuro.
-        # Convertir a escala de grises, invertir (texto negro sobre blanco)
-        # y aumentar contraste para mejorar la tasa de reconocimiento.
+        # El HUD tiene un gradiente: zona superior oscura (icono + reloj) y zona
+        # inferior gris claro (nombre estación, distancia, ETA). Invertir la
+        # imagen completa deja la zona inferior con texto claro sobre gris
+        # oscuro → Tesseract no lo lee. Solución: autocontrast + umbral fijo,
+        # que funciona bien tanto para texto oscuro-sobre-claro como al revés.
         gray = img.convert("L")
-        inverted = ImageOps.invert(gray)
-        enhanced = ImageEnhance.Contrast(inverted).enhance(2.5)
+        auto = ImageOps.autocontrast(gray, cutoff=2)
+        # Umbral: píxeles < 140 → negro (texto), ≥ 140 → blanco (fondo)
+        # Tabla de lookup (256 entradas) — más rápido y compatible con Pillow typing
+        lut = [0] * 140 + [255] * 116
+        thresh = auto.point(lut)
         # Escalar 2× para que Tesseract trabaje mejor con fuentes pequeñas
-        w, h = enhanced.size
-        scaled = enhanced.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
+        w, h = thresh.size
+        scaled = thresh.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
+
+        # Guardar la imagen procesada como L (no "1") para compatibilidad
+        scaled = scaled.convert("L")
 
         # ── OCR ──────────────────────────────────────────────────────────────
-        # --psm 6: bloque de texto uniforme; lang spa para acentos correctos
+        # --psm 11: texto disperso — no asume layout uniforme, lee cada línea
+        # independientemente. Más robusto con HUDs de fondo gradiente.
+        # Sin whitelist: dejamos que Tesseract use su modelo completo para
+        # evitar que suprima líneas con caracteres de baja confianza.
         text = pytesseract.image_to_string(
             scaled,
             lang="spa+eng",
-            config="--psm 6 -c tessedit_char_whitelist='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzáéíóúüñÁÉÍÓÚÜÑ0123456789:.,@ ()'",
+            config="--psm 11",
         )
         return _parse(text)
 
@@ -150,15 +165,19 @@ def _parse(text: str) -> Optional[Dict]:
             result["scheduled_time"] = m_sched.group(1)
 
     # ── Nombre de estación ────────────────────────────────────────────────────
-    # Primera línea que no contiene distancia, '@' ni 'ETA'
+    # Primera línea que no sea hora pura, no contenga distancia, '@' ni 'ETA'
     for line in lines:
         if (
             not _RE_DIST.search(line)
             and "@" not in line
             and "eta" not in line.lower()
+            and not _RE_PURE_TIME.match(line)   # excluir el reloj "08:16:06"
             and len(line) > 3
         ):
-            result["station_name"] = line
+            # Limpiar artefactos del icono caminante al inicio ("R ", "| ", etc.)
+            clean = _RE_LEADING_JUNK.sub("", line).strip()
+            if len(clean) > 3:
+                result["station_name"] = clean
             break
 
     # Considerar válido solo si obtuvimos al menos nombre o distancia
