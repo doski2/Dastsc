@@ -62,7 +62,8 @@ def get_stats(profile: Optional[str] = None) -> Dict[str, Any]:
     for e in events:
         notch = e.get("notch", "?")
         decel = e.get("avg_decel_ms2", 0)
-        if notch and decel > 0:
+        # Ignorar entradas sin notch identificado o con deceleración irrisoria (ruido)
+        if notch and notch != "?" and decel >= 0.1:
             by_notch.setdefault(notch, []).append(decel)
 
     stats_by_notch = {

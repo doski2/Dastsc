@@ -43,22 +43,25 @@ interface ActiveEvent {
 }
 
 function estimateNotch(raw: TelemetryData, profile: any): string {
-  // Preferir la telemetría directa si el perfil tiene notches
+  // CombinedControl: posición del mando combinado, −1 (freno máx) a +1 (tracción máx).
+  // Coincide directamente con la escala de notches_throttle_brake del perfil.
+  const val = raw.CombinedControl ?? 0;
+
+  // Preferir notches del perfil si están definidos
   const notches = profile?.specs?.notches_throttle_brake;
   if (notches) {
-    // El valor combinado se usa como proxy (TractionPercent va de -100 a 100)
-    const val = (raw.TractionPercent ?? 0) / 100;
     const brakeNotches = notches
       .filter((n: any) => n.value < 0)
-      .sort((a: any, b: any) => a.value - b.value);
+      .sort((a: any, b: any) => a.value - b.value);   // ascendente: más negativo primero
     for (const n of brakeNotches) {
       if (val <= n.value + 0.05) return n.label;
     }
     if (brakeNotches.length && val < -0.05) return brakeNotches[brakeNotches.length - 1].label;
   }
-  // Fallback: porcentaje de frenado como texto
-  const pct = Math.round(Math.abs(raw.TractionPercent ?? 0));
-  return pct > 0 ? `B${pct}%` : '?';
+
+  // Fallback: porcentaje del mando como texto
+  if (val < -0.05) return `B${Math.round(Math.abs(val) * 100)}%`;
+  return '?';
 }
 
 export function useBrakeLearning(

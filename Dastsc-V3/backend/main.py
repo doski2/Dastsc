@@ -530,7 +530,8 @@ async def ocr_debug():
 async def post_brake_event(request: Request):
     """Registra un evento de frenado real capturado por el frontend."""
     try:
-        body = await request.json()
+        raw_body = await request.body()
+        body = json.loads(raw_body.decode("utf-8"))
         body["timestamp"] = body.get("timestamp") or time.time()
         brake_log.append_event(body)
         return {"ok": True}

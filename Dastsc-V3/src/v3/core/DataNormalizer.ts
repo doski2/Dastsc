@@ -172,7 +172,7 @@ export class DataNormalizer {
       DistToNextLimit2: (sig as any).rawNextLimit2DistFromLua,
       UpcomingLimits: upcomingLimits,
       Gradient: currentGrad,
-      RawGradient: gameRawGrad, // valor sin normalizar del juego (TS Classic: positivo=bajada en dir. cab1)
+      RawGradient: gameRawGrad, // valor sin normalizar del juego (TS Classic: positivo=subida, estándar)
       LateralG: phys.lateralG,
       // StationDistance: preferir raw si es válido (>= 0), sino conservar el último
       // valor conocido de prevData (evita parpadeo a -1 entre frames sin escenario).
