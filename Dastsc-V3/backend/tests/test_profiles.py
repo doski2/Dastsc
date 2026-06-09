@@ -34,7 +34,9 @@ class TestProfiles(unittest.TestCase):
     def test_get_all_profiles(self):
         profiles = self.manager.get_all_profiles()
         self.assertEqual(len(profiles), 2)
-        self.assertEqual(profiles[0]["name"], "Class 323")
+        names = {p["name"] for p in profiles}
+        self.assertIn("Class 323", names)
+        self.assertIn("Class 390", names)
 
     def test_select_manual_profile(self):
         # Select by ID

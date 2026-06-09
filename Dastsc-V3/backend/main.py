@@ -17,9 +17,6 @@ if sys.platform == "win32":
 
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
-from core.scenarios import ScenarioManager
-from core.station_tracker import StationTracker, _normalize_name as _nn_name
-import core.scenario_index as scenario_index
 import core.ocr_hud as ocr_hud
 import core.brake_log as brake_log
 
@@ -108,10 +105,8 @@ class TelemetryManager:
 
         print(f"DEBUG: NEXUS V3 Engine usando perfiles en: {self.active_profiles_path}")
         self.profile_manager = ProfileManager(self.active_profiles_path)
-        self.scenario_manager = ScenarioManager()
         self.current_profile = None
         self.last_payload = {}
-        self.last_scenario_data: dict = {}  # scenario_data cacheado del loop de telemetría (con distancias GPS vivas)
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -152,7 +147,6 @@ class TelemetryManager:
 
 
 manager = TelemetryManager()
-_station_tracker = StationTracker()
 
 if ocr_hud.is_available():
     print("[OCR] Sistema de captura HUD disponible (mss + pytesseract)")
@@ -164,32 +158,18 @@ async def telemetry_reader():
     """Bucle principal de sondeo (mayor frecuencia para v3)."""
     sync_counter = 0
     last_mtime = 0
-    last_scenario_check = 0
-    last_scenario_path = ""   # Ruta del save usado en el último parse
-    last_scenario_mtime = 0.0  # mtime del save en el último parse
-    scenario_data = {}
-    last_rv: str = ""  # RV del tren del jugador, actualizado con cada trama de telemetría
-    last_telemetry_time: float = 0.0  # timestamp del último frame de telemetría
-    # Variables de estado OCR (locales al bucle)
     ocr_last_result: dict = {}
     ocr_last_capture_time: float = 0.0
     ocr_door_was_open: bool = False
-    ocr_is_capturing: bool = False # Flag to avoid multiple concurrent captures
-    last_tracker_idx: int = -1
-    ocr_anchor_dist: float = -1.0
-    ocr_anchor_odo: float = 0.0
-    last_scenario_sent_time = 0.0
+    ocr_is_capturing: bool = False
 
-    async def run_ocr_capture(odo_at_capture: float):
-        nonlocal ocr_last_result, ocr_anchor_dist, ocr_anchor_odo, ocr_is_capturing
+    async def run_ocr_capture():
+        nonlocal ocr_last_result, ocr_is_capturing
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
             if result:
                 ocr_last_result = result
-                if result.get("distance_m") is not None:
-                    ocr_anchor_dist = result["distance_m"]
-                    ocr_anchor_odo = odo_at_capture
         except Exception as e:
             print(f"[OCR] Error: {e}")
         finally:
@@ -198,29 +178,7 @@ async def telemetry_reader():
     while True:
         try:
             now = time.time()
-            # Detectar ruta activa de telemetría
             active_path = GETDATA_PATH if os.path.exists(GETDATA_PATH) else ALT_PATH
-
-            # Chequeo de escenario cada 1.5 segundos para detectar rápido cambios de parada
-            # (ACTIVE → SUCCEEDED cuando el tren parte de una estación)
-            if now - last_scenario_check > 1.5:
-                last_scenario_check = now
-                active_info = manager.scenario_manager.find_active_scenario()
-                if active_info:
-                    new_path = active_info.get("save_path") or ""
-                    new_mtime = float(active_info.get("mtime") or 0)
-                    # Solo re-parsear si el fichero cambió o si aún no tenemos datos.
-                    # Evita parsear Scenario.xml (2.4 MB) en cada ciclo cuando no hay cambios.
-                    # Se ejecuta en un hilo para no bloquear el event loop (~300ms de I/O).
-                    if (new_path != last_scenario_path or new_mtime > last_scenario_mtime or not scenario_data):
-                        last_scenario_path = new_path
-                        last_scenario_mtime = new_mtime
-                        _rv_snap = last_rv or None
-                        loop = asyncio.get_event_loop()
-                        scenario_data = await loop.run_in_executor(
-                            None,
-                            lambda: manager.scenario_manager.get_detailed_scenario_data(player_rv=_rv_snap),
-                        )
 
             if os.path.exists(active_path):
                 # OPTIMIZACIÓN V3: Comprobar el tiempo de modificación del archivo (mtime)
@@ -234,55 +192,30 @@ async def telemetry_reader():
                         if line:
                             data = parse_telemetry_line(line)
 
-                            # Actualizar StationTracker (Opción 2: odómetro + perfil de ruta)
-                            now_t = time.time()
-                            delta_t = now_t - last_telemetry_time if last_telemetry_time > 0 else 0.0
-                            last_telemetry_time = now_t
-                            speed_ms = float(data.get("CurrentSpeed") or 0.0)
                             door_l = float(data.get("DoorL") or 0.0)
                             door_r = float(data.get("DoorR") or 0.0)
-                            stops_for_tracker = scenario_data.get("stops", []) if scenario_data else []
-                            computed_station_dist = _station_tracker.update(speed_ms, delta_t, stops_for_tracker, door_l, door_r)
-                            # Persistir estado del tracker en executor (evita bloquear el event loop
-                            # con I/O de disco en el momento de detección de partida).
-                            if _station_tracker._pending_save:
-                                _station_tracker._pending_save = False
-                                loop = asyncio.get_event_loop()
-                                loop.run_in_executor(None, _station_tracker.save_state)
-                            # Sobreescribir StationDistance del Lua (siempre -1) con el valor calculado.
-                            # Si existe un anchor OCR, usarlo como base y decrementar con el odómetro:
-                            # esto da la precisión del juego + la suavidad del odómetro entre capturas.
-                            if ocr_anchor_dist >= 0:
-                                odo_delta = _station_tracker._odometer_m - ocr_anchor_odo
-                                ocr_corrected = max(0.0, ocr_anchor_dist - odo_delta)
-                                data["StationDistance"] = round(ocr_corrected, 1)
-                            elif computed_station_dist >= 0:
-                                data["StationDistance"] = round(computed_station_dist, 1)
 
-                            # ── Detección de cierre de puertas (compartida con OCR y tracker) ─
+                            # Distancia desde el último resultado OCR
+                            if ocr_last_result.get("distance_m") is not None:
+                                data["StationDistance"] = round(ocr_last_result["distance_m"], 1)
+
+                            # ── Detección de cierre de puertas ───────────────────────────────
                             doors_open_now = (door_l > 0.5) or (door_r > 0.5)
-                            # Las puertas en TSC solo se abren/cierran con el tren parado.
-                            # No se necesita filtro de velocidad — basta con detectar la transicion abierto->cerrado.
                             door_just_closed = ocr_door_was_open and not doors_open_now
                             ocr_door_was_open = doors_open_now
-                            # Nombre OCR capturado en este frame al cerrar puertas (para override)
-                            _ocr_name_on_close: str = ""
 
                             # ── OCR: captura del display de próxima parada ─────────────────────
-                            # Trigger 1: cierre de puertas (TSC: puertas solo operables con tren parado)
-                            # Trigger 2: polling cada 5-10s según la distancia actual
                             if ocr_hud.is_available() and not ocr_is_capturing:
-                                ocr_interval = 30.0  # sin datos — esperar más
+                                ocr_interval = 30.0
                                 if ocr_last_result.get("distance_m") is not None:
                                     d = ocr_last_result["distance_m"]
                                     ocr_interval = 5.0 if d < 1000 else 10.0
-
-                                if (door_just_closed or (now - ocr_last_capture_time) >= ocr_interval):
+                                if door_just_closed or (now - ocr_last_capture_time) >= ocr_interval:
                                     ocr_last_capture_time = now
                                     ocr_is_capturing = True
-                                    asyncio.create_task(run_ocr_capture(_station_tracker._odometer_m))
+                                    asyncio.create_task(run_ocr_capture())
 
-                            # Aplicar resultados del OCR si existen (pueden venir de capturas anteriores)
+                            # Aplicar resultados del OCR
                             if ocr_last_result:
                                 if ocr_last_result.get("station_name"):
                                     data["StationNameOCR"] = ocr_last_result["station_name"]
@@ -290,70 +223,6 @@ async def telemetry_reader():
                                     data["StationETA"] = ocr_last_result["eta"]
                                 if ocr_last_result.get("scheduled_time"):
                                     data["StationScheduled"] = ocr_last_result["scheduled_time"]
-                            # ──────────────────────────────────────────────────────────────────
-
-                            if data.get("RV"):
-                                last_rv = str(data["RV"])
-                                manager.scenario_manager.update_player_rv(last_rv)
-
-                            # Tracker: actualizar status de paradas (ACTIVE/SUCCEEDED)
-                            # Nota: se ejecuta aunque computed_station_dist sea -1 (sin perfil de ruta)
-                            # para que SUCCEEDED/ACTIVE se actualicen siempre que el tracker avance.
-                            if scenario_data:
-                                tracker_idx = _station_tracker.next_stop_index
-                                tracker_stops = [
-                                    s for s in stops_for_tracker
-                                    if s.get("type") != "WAYPOINT" and s.get("station_name")
-                                    and s.get("station_name") != "Unknown"
-                                ]
-                                completed_names = {
-                                    ts.get("station_name", "")
-                                    for ts in tracker_stops[:tracker_idx]
-                                }
-                                active_name = (
-                                    tracker_stops[tracker_idx].get("station_name", "")
-                                    if tracker_idx < len(tracker_stops) else ""
-                                )
-                                for stop in scenario_data.get("stops", []):
-                                    sname = stop.get("station_name", "")
-                                    if sname in completed_names:
-                                        stop["status"] = "SUCCEEDED"
-                                    elif sname == active_name and stop.get("status") != "SUCCEEDED":
-                                        stop["status"] = "ACTIVE"
-                                        if computed_station_dist >= 0:
-                                            stop["distance"] = round(computed_station_dist, 1)
-                                # Cuando el tracker avanza de parada: invalidar anchor de distancia
-                                # pero conservar nombres/ETA hasta que el OCR los sobreescriba.
-                                if last_tracker_idx >= 0 and tracker_idx > last_tracker_idx:
-                                    ocr_anchor_dist = -1.0
-                                    ocr_anchor_odo = 0.0
-                                    ocr_last_capture_time = 0.0  # Forzar captura inmediata del nuevo objetivo
-                                last_tracker_idx = tracker_idx
-
-                            # ── Override OCR al cerrar puertas ────────────────────────────────
-                            # Cuando el OCR confirma el nombre de la siguiente parada en el
-                            # momento exacto del cierre de puertas, forzar ese stop a ACTIVE
-                            # y todos los anteriores a SUCCEEDED. Esto corrige el lag del
-                            # tracker (que avanza solo cuando speed > 2 m/s) y garantiza
-                            # que el Service Sheet refleje la parada correcta de inmediato.
-                            if _ocr_name_on_close and scenario_data:
-                                ocr_norm = _nn_name(_ocr_name_on_close)
-                                stops_list = scenario_data.get("stops", [])
-                                matched_idx = None
-                                for i, st in enumerate(stops_list):
-                                    if _nn_name(st.get("station_name", "")) == ocr_norm:
-                                        matched_idx = i
-                                        break
-                                if matched_idx is not None:
-                                    for i, st in enumerate(stops_list):
-                                        if i < matched_idx and st.get("status") != "SUCCEEDED":
-                                            st["status"] = "SUCCEEDED"
-                                        elif i == matched_idx and st.get("status") != "SUCCEEDED":
-                                            st["status"] = "ACTIVE"
-                            # ─────────────────────────────────────────────────────────────────
-
-                            if scenario_data:
-                                manager.last_scenario_data = scenario_data
 
                             payload = {
                                 "type": "TELEMETRY",
@@ -361,18 +230,7 @@ async def telemetry_reader():
                                 "timestamp": time.time(),
                             }
 
-                            # Solo enviar el escenario completo si ha cambiado o ha pasado 1s
-                            # Esto reduce el tráfico de red de ~50KB/frame a ~1KB/frame.
-                            if scenario_data and (now - last_scenario_sent_time > 1.0):
-                                payload["scenario"] = scenario_data
-                                last_scenario_sent_time = now
-
                             sync_counter += 1
-                            if sync_counter % 250 == 0:  # Cada 5 segundos aprox.
-                                # Enviar un pequeño keep-alive si no hay telemetría activa
-                                # (aunque aquí hay telemetría porque estamos dentro del loop mtime)
-                                pass
-
                             await manager.broadcast(payload)
                 else:
                     # Si el archivo no ha cambiado (ej. juego pausado), enviar keep-alive cada 2s
@@ -385,110 +243,6 @@ async def telemetry_reader():
         except Exception as e:
             print(f"Error en telemetry_reader: {e}")
             await asyncio.sleep(0.5)
-
-
-# startup movido al asynccontextmanager lifespan (ver arriba)
-
-
-@app.get("/scenarios/list")
-async def list_scenarios():
-    """Devuelve todos los escenarios. Usa el índice SQLite si existe, si no hace fallback al método clásico."""
-    if not scenario_index.index_needs_rebuild():
-        forced = manager.scenario_manager._forced_save_path
-        forced_id = manager.scenario_manager._forced_scenario_id
-        active = manager.scenario_manager.find_active_scenario()
-        active_sp = active.get("save_path") if active else None
-        return scenario_index.list_scenarios(
-            active_save_path=active_sp,
-            forced_save_path=forced,
-            forced_scenario_id=forced_id,
-        )
-    return manager.scenario_manager.list_all_scenarios()
-
-
-@app.get("/scenarios/index/stats")
-async def get_index_stats():
-    """Devuelve estadísticas del índice SQLite de escenarios."""
-    return scenario_index.get_index_stats()
-
-
-@app.post("/scenarios/reindex")
-async def reindex_scenarios(request: Request):
-    """
-    Reconstruye el índice SQLite de escenarios usando serz.exe.
-    Body opcional: { "route_filter": "<GUID>" } para indexar solo una ruta.
-    Nota: la indexación de 350 escenarios puede tardar 2-3 minutos.
-    """
-    try:
-        raw = await request.body()
-        body: dict = json.loads(raw.decode("utf-8")) if raw else {}
-    except Exception:
-        body = {}
-    route_filter = body.get("route_filter") or None
-    loop = asyncio.get_running_loop()
-    stats = await loop.run_in_executor(
-        None,
-        lambda: scenario_index.build_index(route_filter=route_filter),
-    )
-    return stats
-
-
-@app.post("/scenarios/select")
-async def select_scenario(request: Request):
-    """
-    Fija manualmente el escenario activo.
-    - { "auto": true }              → vuelve a autodetección
-    - { "scenario_id": "<GUID>" }   → selecciona por ID (soporta jugados y no jugados)
-    - { "save_path": "..." }         → legacy: selecciona por ruta de CurrentSave.xml
-    """
-    try:
-        raw = await request.body()
-        body: dict = json.loads(raw.decode("utf-8")) if raw else {}
-    except Exception as _exc:
-        print(f"BODY PARSE ERROR: {_exc!r}")
-        body = {}
-
-    if body.get("auto"):
-        manager.scenario_manager.clear_manual_scenario()
-        return {"ok": True, "mode": "auto"}
-
-    scenario_id = (body.get("scenario_id") or "").strip()
-    if scenario_id:
-        scenario_dir = scenario_index.get_scenario_dir(scenario_id)
-        if not scenario_dir:
-            return {"ok": False, "error": "Scenario not in index. Try POST /scenarios/reindex first."}
-        manager.scenario_manager.select_by_id(scenario_id, scenario_dir)
-        return {"ok": True, "mode": "manual_id", "scenario_id": scenario_id}
-
-    # Legacy: save_path directo
-    save_path = (body.get("save_path") or "").strip()
-    if save_path:
-        ok = manager.scenario_manager.select_manual_scenario(save_path)
-        if not ok:
-            return {"ok": False, "error": f"Path not found: {save_path}"}
-        return {"ok": True, "mode": "manual", "save_path": save_path}
-
-    return {"ok": False, "error": "Provide scenario_id, save_path, or auto=true"}
-
-
-
-@app.get("/scenarios/live")
-async def get_live_scenario():
-    """Endpoint para que el frontend obtenga los datos del escenario detectado.
-    Usa el scenario_data cacheado del loop de telemetría.
-    Si aún no hay cache, parsea de disco."""
-    cached = manager.last_scenario_data
-    if cached:
-        return cached
-    return manager.scenario_manager.get_detailed_scenario_data()
-
-
-@app.post("/api/tracker/reset")
-async def reset_tracker():
-    """Resetea el StationTracker y borra el estado persistido en disco.
-    Usar al empezar una nueva sesión de juego o cuando el estado se desincroniza."""
-    _station_tracker.reset()
-    return {"ok": True, "message": "Tracker reseteado"}
 
 
 @app.get("/api/ocr/debug")

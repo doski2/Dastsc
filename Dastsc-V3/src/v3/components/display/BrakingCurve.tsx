@@ -592,102 +592,117 @@ return (
                 <span className="text-[9px] font-mono text-white/50 uppercase">Target: {formatDistance(effectiveDist ?? 0)}</span>
               </div>
 
-              {/* Fases en orden inverso: la más lejana primero */}
+              {/* Fases: más urgente primero (B1 arriba, B3 abajo) */}
               {[...brakeParams.steps].reverse().map((step, i) => {
                 const distUntilAction = step.distStart;
-                const isApplyNow = distUntilAction <= 50 && distUntilAction >= -50;
-                const isPassed   = distUntilAction < -50;
-                const isUpcoming = distUntilAction > 50;
+                // APPLY NOW ampliado: ±150m (~3s a 180km/h)
+                const isApplyNow = distUntilAction <= 150 && distUntilAction >= -150;
+                const isPassed   = distUntilAction < -150;
+                const isUpcoming = distUntilAction > 150;
 
-                // Posición del odómetro en la que hay que aplicar esta muesca
-                // (Posición actual + distancia hasta el punto de acción)
+                // Countdown en segundos hasta el punto de frenado
+                const secondsUntil = raw.Speed > 2 ? distUntilAction / raw.Speed : null;
+
+                // Etiqueta principal: tiempo/distancia hasta la acción
+                const actionLabel = (() => {
+                  if (isApplyNow) return 'APPLY NOW';
+                  if (isPassed) {
+                    const overdueM = Math.abs(distUntilAction);
+                    return `DONE · -${formatDistance(overdueM)}`;
+                  }
+                  const distLabel = formatDistance(distUntilAction);
+                  if (secondsUntil !== null && secondsUntil < 300) {
+                    const min = Math.floor(secondsUntil / 60);
+                    const sec = Math.floor(secondsUntil % 60);
+                    const timeStr = min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+                    return `${distLabel} · ${timeStr}`;
+                  }
+                  return distLabel;
+                })();
+
+                // Deceleración esperada: usar valor real aprendido si existe, sino estimado
+                const learnedDecel = step.usingLearned
+                  ? brakeStats[step.notch]?.avg_decel
+                  : null;
+                const estimatedDecel = step.fraction *
+                  (activeProfile?.physics_config?.max_braking_decel || 0.8);
+                const decelDisplay = learnedDecel
+                  ? `${learnedDecel.toFixed(2)} m/s²`
+                  : `~${estimatedDecel.toFixed(2)} m/s²`;
+
+                // Odómetro como referencia secundaria
                 const brakingOdometerM = raw.TripDistance + distUntilAction;
-                const brakingOdometerLabel = raw.SpeedUnit === 'MPH'
-                  ? `mi ${(brakingOdometerM * 0.000621371).toFixed(2)}`
-                  : `km ${(brakingOdometerM / 1000).toFixed(2)}`;
-                
-                const remainingLabel = isUpcoming
-                  ? (() => {
-                      const distLabel = formatDistance(distUntilAction);
-                      if (raw.Speed > 2) {
-                        const seconds = Math.round(distUntilAction / raw.Speed);
-                        if (seconds < 300) {
-                          const min = Math.floor(seconds / 60);
-                          const sec = seconds % 60;
-                          const timeStr = min > 0 ? `${min}m ${sec}s` : `${sec}s`;
-                          return `IN ${distLabel} (${timeStr})`;
-                        }
-                      }
-                      return `IN ${distLabel}`;
-                    })()
-                  : isApplyNow ? 'APPLY NOW' : 'COMPLETED';
+                const odomLabel = raw.SpeedUnit === 'MPH'
+                  ? `odo ${(brakingOdometerM * 0.000621371).toFixed(2)} mi`
+                  : `odo ${(brakingOdometerM / 1000).toFixed(2)} km`;
 
                 return (
                   <div key={i} className={`group relative flex items-center gap-3 px-3 py-2 rounded-sm border transition-all duration-300 ${
                     isApplyNow
                       ? 'border-amber-400/60 bg-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
                       : isPassed
-                        ? 'border-white/5 bg-white/[0.01] opacity-30'
+                        ? 'border-green-500/20 bg-white/[0.01] opacity-40'
                         : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.05]'
                   }`}>
                     {/* Indicador de estado lateral */}
                     <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-sm ${
-                      isApplyNow ? 'bg-amber-400' : isPassed ? 'bg-green-500/40' : 'bg-white/10'
+                      isApplyNow ? 'bg-amber-400' : isPassed ? 'bg-green-500/50' : 'bg-white/10'
                     }`} />
 
-                    <div className="flex flex-col min-w-[65px]">
-                      <span className={`text-[11px] font-black font-mono tracking-tighter leading-none ${isApplyNow ? 'text-amber-300' : 'text-white/80'}`}>
-                        {brakingOdometerLabel}
+                    {/* COLUMNA 1: cuándo actuar (primario) */}
+                    <div className="flex flex-col min-w-[75px]">
+                      <span className={`text-[11px] font-black font-mono tracking-tighter leading-none ${
+                        isApplyNow ? 'text-amber-300 animate-pulse' : isPassed ? 'text-green-400/70' : 'text-white/80'
+                      }`}>
+                        {actionLabel}
                       </span>
-                      <div className="flex items-center gap-1 mt-1">
-                        <span className={`text-[8px] font-black font-mono leading-none ${
-                          isUpcoming ? 'text-white/40'
-                          : isApplyNow ? 'text-amber-400 animate-pulse'
-                          : 'text-green-500/60'
-                        }`}>
-                          {remainingLabel}
-                        </span>
-                      </div>
+                      <span className="text-[7px] font-mono text-white/20 mt-1 leading-none">{odomLabel}</span>
                     </div>
 
                     <div className="w-px h-7 bg-white/10 shrink-0" />
 
-                    <div className="flex flex-col min-w-[45px]">
+                    {/* COLUMNA 2: qué muesca aplicar */}
+                    <div className="flex flex-col min-w-[38px]">
                       <span className="text-[7px] text-white/30 font-black uppercase tracking-widest leading-none mb-1">NOTCH</span>
-                      <span className={`text-[13px] font-black font-mono leading-none ${isApplyNow ? 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'text-white/60'}`}>
+                      <span className={`text-[15px] font-black font-mono leading-none ${isApplyNow ? 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]' : isPassed ? 'text-green-400/60' : 'text-white/60'}`}>
                         {step.notch}
                       </span>
                     </div>
 
+                    <div className="w-px h-7 bg-white/10 shrink-0" />
+
+                    {/* COLUMNA 3: deceleración esperada + barra */}
                     <div className="flex flex-col flex-1 gap-1.5">
                       <div className="flex justify-between items-center">
-                        <span className={`text-[8px] font-black font-mono ${isApplyNow ? 'text-amber-400/80' : 'text-white/20'}`}>
-                          {Math.round(step.fraction * 100)}% POWER
+                        <span className={`text-[9px] font-black font-mono ${isApplyNow ? 'text-amber-400' : 'text-white/30'}`}>
+                          {decelDisplay}
                         </span>
                         {step.usingLearned ? (
-                          <div className="flex items-center gap-1 bg-violet-500/10 px-1 rounded-xs border border-violet-500/20">
-                            <span className="text-[7px] text-violet-400 font-black tracking-tighter">✦ LEARNED ({step.samples})</span>
+                          <div className="flex items-center gap-0.5 bg-violet-500/10 px-1 rounded-xs border border-violet-500/20">
+                            <span className="text-[7px] text-violet-400 font-black tracking-tighter">✦ {step.samples}×</span>
                           </div>
                         ) : (
-                          <span className="text-[7px] text-white/10 font-bold tracking-tighter italic">ESTIMATED</span>
+                          <span className="text-[7px] text-white/15 font-bold italic">EST</span>
                         )}
                       </div>
                       <div className="relative h-1 bg-white/5 rounded-full overflow-hidden">
                         <div
                           className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
-                            isApplyNow ? 'bg-gradient-to-r from-amber-600 to-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-white/20'
+                            isApplyNow ? 'bg-gradient-to-r from-amber-600 to-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                            : isPassed ? 'bg-green-500/40'
+                            : 'bg-white/20'
                           }`}
                           style={{ width: `${step.fraction * 100}%` }}
                         />
                       </div>
                     </div>
 
-                    {/* Barra de progreso de proximidad (solo para el próximo) */}
-                    {isUpcoming && distUntilAction < 1000 && (
+                    {/* Barra de cuenta atrás (solo próximos <800m) */}
+                    {isUpcoming && distUntilAction < 800 && (
                       <div className="absolute bottom-0 left-1 right-1 h-[1px] bg-white/5 overflow-hidden">
-                        <div 
-                          className="h-full bg-amber-500/30 transition-all duration-300"
-                          style={{ width: `${Math.max(0, 100 - (distUntilAction / 10))}%` }}
+                        <div
+                          className="h-full bg-amber-500/40 transition-all duration-300"
+                          style={{ width: `${Math.max(0, 100 - (distUntilAction / 8))}%` }}
                         />
                       </div>
                     )}
@@ -735,15 +750,12 @@ return (
              disabled={resetting}
              onClick={async () => {
                setResetting(true);
-               try {
-                 await fetch('http://localhost:8000/api/tracker/reset', { method: 'POST' });
-               } catch (e) {}
                resetLocalState();
                setCustomMiles('');
                setResetting(false);
              }}
              className="px-2 py-1 rounded-xs border text-[9px] font-black uppercase tracking-tighter transition-all bg-rose-500/10 border-rose-500/30 text-rose-400 hover:bg-rose-500/20 disabled:opacity-40"
-             title="Resetea el tracker del servidor y el estado local del navegador"
+             title="Resetea el estado local del navegador"
            >
              {resetting ? '...' : 'Reset'}
            </button>

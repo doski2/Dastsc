@@ -32,8 +32,23 @@ def _save(events: List[Dict[str, Any]]) -> None:
         json.dump(events, f, ensure_ascii=False, indent=2)
 
 
+_MAX_DURATION_S = 300   # eventos más largos son bugs del detector (tracker atascado)
+
+def _is_valid(event: Dict[str, Any]) -> bool:
+    """Descarta eventos que no aportan información útil para el autopilot."""
+    if event.get("notch", "?") == "?":
+        return False
+    if float(event.get("duration_s", 0)) > _MAX_DURATION_S:
+        return False
+    if float(event.get("avg_decel_ms2", 0)) < 0.10:
+        return False
+    return True
+
+
 def append_event(event: Dict[str, Any]) -> None:
-    """Añade un evento al log. Mantiene como máximo _MAX_EVENTS entradas."""
+    """Añade un evento al log si pasa validación. Mantiene como máximo _MAX_EVENTS entradas."""
+    if not _is_valid(event):
+        return
     events = _load()
     events.append(event)
     if len(events) > _MAX_EVENTS:

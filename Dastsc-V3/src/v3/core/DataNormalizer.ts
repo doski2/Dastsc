@@ -170,12 +170,15 @@ export class DataNormalizer {
     // Controles
     const currentThrottle = Number(raw.Throttle || raw.Regulator || 0);
     const currentBrake = Number(raw.TrainBrake || raw.TrainBrakeControl || 0);
+    // CombinedControl: el 323 usa ThrottleAndBrake, otros usan Combined.
+    // ?? en lugar de || para no descartar el 0 (posición OFF).
+    const rawCombined = raw.Combined ?? raw.ThrottleAndBrake ?? null;
 
     return {
       Speed: phys.speedMS,
       Throttle: currentThrottle,
       TrainBrake: currentBrake,
-      CombinedControl: Number(raw.Combined || (currentThrottle - currentBrake)),
+      CombinedControl: rawCombined !== null ? Number(rawCombined) : (currentThrottle - currentBrake),
       Reverser: Number(raw.Reversal || raw.Reverser || 0),
       SpeedDisplay: phys.speedMS * displayFromMS,
       SpeedUnit: displayUnit === 'KPH' ? 'km/h' : 'MPH',

@@ -22,8 +22,9 @@ const MIN_SPEED_TO_START_MS = 2.0;      // m/s mínimo para considerar una frena
 const DECEL_THRESHOLD_MS2 = 0.05;       // m/s² para confirmar inicio de frenado
 const CONFIRM_SECS = 1.5;               // segundos continuos de deceleración para confirmar
 const RELEASE_SECS = 3.0;               // segundos sin deceleración para cerrar el evento
-const MIN_DURATION_SECS = 2.0;          // descartar frenadas muy cortas (ruido)
-const MIN_DECEL_AVG_MS2 = 0.05;         // descartar eventos con deceleración media irrisoria
+const MIN_DURATION_SECS = 5.0;          // descartar frenadas muy cortas (ruido)
+const MIN_DECEL_AVG_MS2 = 0.10;         // descartar eventos con deceleración media irrisoria
+const MAX_DURATION_SECS = 240;          // forzar cierre de eventos atascados (>4 min = bug)
 
 interface BrakeSample {
   speed: number;       // m/s
@@ -100,10 +101,15 @@ export function useBrakeLearning(
     if (avgDecel < MIN_DECEL_AVG_MS2) return;
     const maxDecel = Math.max(...decels);
 
-    // Muesca más frecuente durante el evento
+    // Muesca dominante: contar solo muestras donde el freno estaba activo (notch != '?')
+    // para no contaminar el resultado con frames en posición OFF.
     const notchCount: Record<string, number> = {};
-    samples.forEach(s => { notchCount[s.notch] = (notchCount[s.notch] ?? 0) + 1; });
+    samples
+      .filter(s => s.notch !== '?' && s.decel >= DECEL_THRESHOLD_MS2)
+      .forEach(s => { notchCount[s.notch] = (notchCount[s.notch] ?? 0) + 1; });
     const dominantNotch = Object.entries(notchCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '?';
+    // Sin muesca identificada → no guardar (evento sin información útil para el autopilot)
+    if (dominantNotch === '?') return;
 
     const distanceCovered = Math.abs(
       (samples[samples.length - 1].trip ?? 0) - (event.startTrip ?? 0)
@@ -189,8 +195,9 @@ export function useBrakeLearning(
       // Cerrar evento si:
       const stopped = speed < 0.5;
       const releasedTooLong = (now - ev.lastDecelT) / 1000 > RELEASE_SECS;
+      const tooLong = (now - ev.samples[0].t) / 1000 > MAX_DURATION_SECS;
 
-      if (stopped || releasedTooLong) {
+      if (stopped || releasedTooLong || tooLong) {
         if (ev.confirmed) {
           console.debug('[BrakeLearning] Enviando evento', { stopped, releasedTooLong, endSpeed: speed.toFixed(2) });
           submitEvent(ev, speed);
