@@ -1,13 +1,12 @@
 import React from "react";
 import { CanvasLayer } from "./CanvasLayer";
 import { useTelemetrySmoothing } from "../../hooks/useTelemetrySmoothing";
-import { ScenarioStop } from "../../services/ScenarioService";
 
 /**
  * TrackProfile renderiza la visualización de la vía curva de alto rendimiento.
  * Optimizada: Estilo sólido sin efectos de neón para mayor claridad.
  */
-export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] }) => {
+export const TrackProfile: React.FC = () => {
     const { smooth, raw, isConnected } = useTelemetrySmoothing();
 
     const formatDistance = (m: number) => {
@@ -20,14 +19,6 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
 
     const drawTrack = React.useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
         if (!isConnected) return;
-
-        // Primera parada activa (no finalizda), o primera pendiente más cercana,
-        // o simplemente la primera pendiente si no hay distancias disponibles.
-        const nextStop = stops.find(s => s.is_active && !s.satisfied)
-                      ?? stops.filter(s => !s.satisfied && s.distance_m > 0).sort((a, b) => a.distance_m - b.distance_m)[0]
-                      ?? stops.find(s => !s.satisfied)
-                      ?? null;
-        const nextStopDist = nextStop && nextStop.distance_m > 0 ? nextStop.distance_m : -1;
 
         const centerY = height / 2;
         const viewRange = 8000; // 8km de alcance (Pro-HUD)
@@ -127,9 +118,10 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
         }
         ctx.restore();
 
-        // 4. Parada de Estación — usa distance_m del escenario (más preciso que StationDistance del plugin)
-        const stationDist = nextStopDist >= 0 ? nextStopDist : smooth.stationDistance;
-        const stationName  = nextStop?.name ?? raw.StationName;
+        // 4. Parada de Estación — usa StationDistance de la telemetría
+        const stationDist = smooth.stationDistance;
+        const stationName = raw.StationNameOCR || raw.StationName || "STATION";
+        
         if (stationDist !== undefined && stationDist >= 0 && stationDist < viewRange) {
             const xStop = getX(stationDist);
             const yStop = getY(stationDist);
@@ -233,7 +225,7 @@ export const TrackProfile: React.FC<{ stops?: ScenarioStop[] }> = ({ stops = [] 
         ctx.fill();
 
         ctx.restore(); 
-    }, [isConnected, raw, smooth, stops, formatDistance]);
+    }, [isConnected, raw, smooth, formatDistance]);
 
     return (
         <div className="relative w-full h-[300px] bg-gradient-to-t from-black/40 to-transparent overflow-hidden">

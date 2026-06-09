@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useTelemetrySmoothing } from '../../hooks/useTelemetrySmoothing';
 import { useTelemetry } from '../../core/TelemetryContext';
 import { CanvasLayer } from './CanvasLayer';
-import { scenarioService, ScenarioStop } from '../../services/ScenarioService';
 import { useBrakeLearning } from '../../hooks/useBrakeLearning';
 
 type CurveMode = 'DYNAMIC' | 'SIGNAL' | 'LIMIT';
@@ -12,13 +11,13 @@ type CurveMode = 'DYNAMIC' | 'SIGNAL' | 'LIMIT';
  */
 export const BrakingCurve: React.FC = () => {
   const { smooth, raw, isConnected, activeProfile } = useTelemetrySmoothing();
-  const { scenarioStops, resetLocalState } = useTelemetry();
+  const { resetLocalState } = useTelemetry();
   const [mode, setMode] = useState<CurveMode>('DYNAMIC');
   const [resetting, setResetting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [brakeHistory, setBrakeHistory] = useState<any[]>([]);
-  // Stats aprendidos por muesca: { [notchLabel]: { avg_decel_ms2, samples } }
-  const [brakeStats, setBrakeStats] = useState<Record<string, { avg_decel_ms2: number; samples: number }>>({});
+  // Stats aprendidos por muesca: { [notchLabel]: { avg_decel, samples } }
+  const [brakeStats, setBrakeStats] = useState<Record<string, { avg_decel: number; samples: number }>>({});
 
   // Auto-aprendizaje pasivo de frenadas — registra sin intervención del usuario
   useBrakeLearning(raw, activeProfile);
@@ -32,7 +31,10 @@ export const BrakingCurve: React.FC = () => {
         : 'http://localhost:8000/api/brake/stats';
       fetch(url)
         .then(r => r.json())
-        .then(d => setBrakeStats(d.stats ?? {}))
+        .then(d => {
+          // El backend devuelve { by_notch: { ... } }
+          setBrakeStats(d.by_notch ?? {});
+        })
         .catch(() => {});
     };
     load();
@@ -40,34 +42,17 @@ export const BrakingCurve: React.FC = () => {
     return () => clearInterval(interval);
   }, [activeProfile]);
   
-  // En modo dinámico: siguiente parada real (no WAYPOINT, no satisfecha)
-  // Priorizar la parada que el tracker marcó como ACTIVE (is_active=true),
-  // sin filtrar por distancia para evitar saltos cuando el tren está en andén.
-  // Fallback: primera no satisfecha con distancia significativa (cuando tracker aún no inicializa)
-  const nextAutoStop = useMemo(() => {
-    const serverActive = scenarioStops.find(
-      s => s.is_active && !s.satisfied && s.type !== 'WAYPOINT'
-    );
-    if (serverActive) return serverActive;
-    return scenarioStops.find(
-      s => !s.satisfied && s.type !== 'WAYPOINT' && s.distance_m > 100
-    );
-  }, [scenarioStops]);
-
   // anulación manual para modo dinámico (millas)
   const [customMiles, setCustomMiles] = useState<string>('');
 
   // Distancia efectiva al objetivo según modo activo.
-  // DYNAMIC: StationDistance del backend (OCR+tracker) o entrada manual.
-  // SIGNAL / LIMIT: distancias de telemetría directas.
-  // Sin RAF ni estado local — el backend actualiza StationDistance cada frame.
   const effectiveDist = useMemo(() => {
     if (mode === 'DYNAMIC') {
       if (customMiles) {
         const m = parseFloat(customMiles);
-        return !isNaN(m) ? m * 1609.34 : 0;
+        return !isNaN(m) ? m * 1609.34 : null;
       }
-      return raw.StationDistance >= 0 ? raw.StationDistance : 0;
+      return raw.StationDistance >= 0 ? raw.StationDistance : null;
     }
     if (mode === 'SIGNAL') return raw.DistToNextSignal;
     return raw.DistToNextSpeedLimit;
@@ -151,7 +136,7 @@ export const BrakingCurve: React.FC = () => {
 
     // Unidades en los ejes
     ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.fillText(raw.SpeedUnit || 'KM/H', -10, -5);
+    ctx.fillText(raw.SpeedUnit || 'km/h', -10, -5);
     ctx.textAlign = 'right';
     // unidad del eje x: millas si usa MPH, de lo contrario métrica como antes
     ctx.fillText(raw.SpeedUnit === 'MPH' ? 'mi' : 'm/km', graphWidth, graphHeight + 28);
@@ -376,21 +361,27 @@ export const BrakingCurve: React.FC = () => {
     ctx.fill();
 
     ctx.restore();
-  }, [isConnected, raw, smooth.speedDisplay, mode, customMiles, effectiveDist, nextAutoStop, activeProfile, formatDistance]);
+  }, [isConnected, raw, smooth.speedDisplay, mode, customMiles, effectiveDist, activeProfile, formatDistance]);
 
   const getTargetInfo = () => {
     switch(mode) {
-        case 'SIGNAL': return { label: 'Next Signal', dist: raw.DistToNextSignal, val: raw.NextSignalAspect };
-        case 'LIMIT': return { label: 'Next Limit', dist: raw.DistToNextSpeedLimit, val: `${raw.NextSpeedLimit} ${raw.SpeedUnit}` };
+        case 'SIGNAL': return { label: 'Next Signal', dist: raw.DistToNextSignal, val: raw.NextSignalAspect, isRealTarget: true };
+        case 'LIMIT': return { label: 'Next Limit', dist: raw.DistToNextSpeedLimit, val: `${raw.NextSpeedLimit} ${raw.SpeedUnit}`, isRealTarget: true };
         default: {
-            if (customMiles) {
-              return { label: 'Manual Stop', dist: effectiveDist, val: `${customMiles} mi` };
+            if (customMiles && effectiveDist !== null) {
+              return { label: 'Manual Stop', dist: effectiveDist, val: `${customMiles} mi`, isRealTarget: true };
             }
-            if (nextAutoStop) {
-              // effectiveDist: raw.StationDistance (OCR/tracker) si disponible, sino remainingDist local
-              return { label: `Station: ${nextAutoStop.name}`, dist: effectiveDist, val: nextAutoStop.type !== 'WAYPOINT' ? 'PLATFORM' : 'WPT' };
+            if (raw.StationNameOCR && effectiveDist !== null) {
+              return { label: `Station: ${raw.StationNameOCR}`, dist: effectiveDist, val: 'OCR', isRealTarget: true };
             }
-            return { label: 'Optimal Stop', dist: raw.ProjectedBrakingDistance, val: 'Dynamic' };
+            if (raw.StationName && effectiveDist !== null) {
+              return { label: `Station: ${raw.StationName}`, dist: effectiveDist, val: 'TRACKER', isRealTarget: true };
+            }
+            // Fallback: si tenemos distancia de estación por OCR/Tracker pero no tenemos el objeto stop aún
+            if (effectiveDist !== null && effectiveDist > 0) {
+              return { label: 'Next Station', dist: effectiveDist, val: 'DETECTOR', isRealTarget: true };
+            }
+            return { label: 'Optimal Stop', dist: raw.ProjectedBrakingDistance, val: 'Dynamic', isRealTarget: false };
         }
     }
   };
@@ -408,7 +399,11 @@ export const BrakingCurve: React.FC = () => {
           targetSpeedMS = raw.NextSpeedLimit * factor;
       }
 
-      if (!raw.Speed || !targetDist || raw.Speed <= targetSpeedMS) return null;
+      // Mostrar siempre que estemos por encima de la velocidad objetivo y en movimiento
+      if (raw.Speed < 0.5 || targetDist === null || targetDist === undefined || raw.Speed <= targetSpeedMS) return null;
+
+      // Si la distancia es negativa y es un objetivo real, ya lo pasamos
+      if (targetDist < -10 && info.isRealTarget) return null;
 
       const baseDecel = activeProfile?.physics_config?.max_braking_decel || 0.8;
       const massFactor = raw.TrainMass > 0 ? (raw.TrainMass / 500) : 1;
@@ -428,9 +423,10 @@ export const BrakingCurve: React.FC = () => {
       const decelFor = (fraction: number, notchLabel: string): number => {
         const learned = brakeStats[notchLabel];
         if (learned && learned.samples >= MIN_SAMPLES) {
-          // Valor aprendido real: ya incluye el efecto promedio del gradiente en esas frenadas
-          // Ajustamos con el gradiente actual para mayor precisión situacional
-          return learned.avg_decel_ms2 + gravityAcc;
+          // El campo en el backend es 'avg_decel'. El valor aprendido YA incluye el
+          // gradiente que había durante la medición, así que NO volvemos a sumar
+          // gravityAcc (evita el doble conteo del desnivel).
+          return learned.avg_decel;
         }
         return (baseDecel * fraction) / (massFactor * lagFactor) + gravityAcc;
       };
@@ -442,9 +438,13 @@ export const BrakingCurve: React.FC = () => {
         return (Math.pow(raw.Speed, 2) - Math.pow(targetSpeedMS, 2)) / (2 * decel);
       };
 
-      // Margen de reacción: 1.5s humano + tiempo de llenado de cilindros del perfil
-      const fillTimeSecs = activeProfile?.physics_config?.brake_fill_time_s ?? 5;
-      const reactionMargin = raw.Speed * (1.5 + fillTimeSecs);
+      // Margen de reacción: 1.5s humano + tiempo de llenado de cilindros del perfil.
+      // El fill_time típico de un freno neumático es ~2-3s; el default 5s era excesivo
+      // y disparaba "APPLY NOW" demasiado pronto. Acotamos el total a un máximo de 4s
+      // de margen para que el aviso sea realista a cualquier velocidad.
+      const fillTimeSecs = activeProfile?.physics_config?.brake_fill_time_s ?? 2.5;
+      const reactionSecs = Math.min(4.0, 1.5 + fillTimeSecs);
+      const reactionMargin = raw.Speed * reactionSecs;
 
       // Fases basadas en las muescas de servicio reales del perfil (excluir EMG = -1.0)
       // brakeNotches está ordenado de más negativo a menos (fuerza descendente)
@@ -452,9 +452,16 @@ export const BrakingCurve: React.FC = () => {
       let phases: { fraction: number; notchLabel: string; label: string }[];
       if (serviceNotches.length >= 1) {
         const total = serviceNotches.length;
-        const picks = total === 1 ? [0]
-          : total === 2 ? [0, 1]
-          : [0, Math.floor((total - 1) / 2), total - 1];
+        let picks: number[];
+        
+        if (total <= 4) {
+          // Si hay 4 o menos, mostrarlas todas
+          picks = Array.from({ length: total }, (_, i) => i);
+        } else {
+          // Si hay más, mostrar una selección (Min, Med-Low, Med-High, Max)
+          picks = [0, Math.floor(total * 0.33), Math.floor(total * 0.66), total - 1];
+        }
+        
         phases = picks.map((idx, i) => ({
           fraction: Math.abs(serviceNotches[idx].value),
           notchLabel: serviceNotches[idx].label,
@@ -484,21 +491,22 @@ export const BrakingCurve: React.FC = () => {
       });
 
       // La fase principal de referencia (servicio normal) es la del medio
-      const main = steps[1];
+      const main = steps[Math.floor(steps.length / 2)] || steps[0];
 
       return {
         dist: main.distStart,
         needed: main.distNeeded,
         notch: main.notch,
         steps,  // progresión completa
+        isRealTarget: info.isRealTarget,
       };
-  }, [raw.Speed, raw.NextSpeedLimit, raw.SpeedUnit, raw.TrainMass, raw.TrainType, raw.Gradient, activeProfile, info.dist, mode, brakeStats]);
+  }, [raw.Speed, raw.NextSpeedLimit, raw.SpeedUnit, raw.TrainMass, raw.TrainType, raw.Gradient, activeProfile, info.dist, info.isRealTarget, mode, brakeStats]);
 
   // ETA calculado localmente: TimeOfDay + remainingDist / Speed
   // Fuente primaria sin OCR; OCR override si está disponible
   const computedETA = useMemo(() => {
     if (raw.StationETA) return raw.StationETA; // OCR tiene prioridad
-    if (!raw.Speed || raw.Speed < 0.5 || !nextAutoStop || effectiveDist <= 0) return null;
+    if (!raw.Speed || raw.Speed < 0.5 || effectiveDist === null || effectiveDist <= 0) return null;
     const secsToArrival = effectiveDist / raw.Speed;
     const parts = raw.TimeOfDay.split(':').map(Number);
     if (parts.length !== 3) return null;
@@ -507,10 +515,10 @@ export const BrakingCurve: React.FC = () => {
     const m = Math.floor((totalSecs % 3600) / 60);
     const s = Math.floor(totalSecs % 60);
     return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  }, [raw.Speed, raw.TimeOfDay, raw.StationETA, nextAutoStop, effectiveDist]);
+  }, [raw.Speed, raw.TimeOfDay, raw.StationETA, effectiveDist]);
 
-  // Hora programada: del escenario (due_time) o fallback OCR
-  const scheduledTime = nextAutoStop?.due_time || raw.StationScheduled || null;
+  // Hora programada: del escenario (StationScheduled)
+  const scheduledTime = raw.StationScheduled || null;
 
 return (
     <div className="relative flex-1 bg-white/[0.02] border border-white/5 rounded-sm overflow-hidden flex flex-col min-h-[300px]">
@@ -527,112 +535,162 @@ return (
           <span className={`text-[14px] font-mono font-bold drop-shadow-[0_0_8px_rgba(34,211,238,0.4)] truncate ${
             mode === 'DYNAMIC' ? 'text-cyan-400' : mode === 'SIGNAL' ? 'text-red-400' : 'text-amber-400'
           }`}>
-            {info.label}: <span className="text-white">{formatDistance(info.dist)}</span>
+            {info.label} // <span className="text-white">{formatDistance(info.dist ?? 0)}</span>
             {mode === 'DYNAMIC' && raw.StationDistance > 0 && (
               <span className="ml-1.5 px-1 py-0.5 bg-cyan-500/15 border border-cyan-500/30 text-cyan-400/70 text-[7px] font-black rounded-xs leading-none align-middle">OCR</span>
             )}
             <span className="ml-2 text-[10px] opacity-40">[{info.val}]</span>
+            {/* Debug invisible para soporte técnico */}
+            <span className="sr-only">Logic: {brakeParams ? 'HAS_PARAMS' : 'NO_PARAMS'} | Target: {info.isRealTarget ? 'REAL' : 'PROJ'} | Dist: {info.dist}</span>
           </span>
 
+          {/* Barra de progreso global al objetivo */}
+          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden mt-1 mb-2">
+            <div 
+              className={`h-full transition-all duration-500 ${
+                mode === 'DYNAMIC' ? 'bg-cyan-500' : mode === 'SIGNAL' ? 'bg-red-500' : 'bg-amber-500'
+              }`}
+              style={{ width: `${Math.max(0, Math.min(100, (1 - (info.dist / 5000)) * 100))}%` }}
+            />
+          </div>
+
           {/* Panel de siguiente estación en modo DYNAMIC */}
-          {mode === 'DYNAMIC' && nextAutoStop && (
+          {mode === 'DYNAMIC' && (scheduledTime || computedETA) && (
             <div className="flex flex-col gap-0.5 bg-black/70 border border-cyan-500/25 rounded-sm px-2 py-1 max-w-[95%]">
               <div className="flex items-center gap-1.5">
-                <span className="text-[7px] text-cyan-500/50 font-black uppercase tracking-widest shrink-0">NEXT STOP</span>
-                <span className="text-[11px] text-cyan-200 font-mono font-bold truncate">{nextAutoStop.name}</span>
+                <span className="text-[7px] text-cyan-500/50 font-black uppercase tracking-widest shrink-0">ETA INFO</span>
               </div>
               {brakeParams && (
                 <div className="flex gap-2 flex-wrap text-[8px] font-mono">
                   <span className="text-white/30">BRAKE DIST: <strong className="text-red-300/60">{Math.round(brakeParams.needed)}m</strong></span>
                 </div>
               )}
-              {(scheduledTime || computedETA) && (
-                <div className="flex gap-2 flex-wrap text-[8px] font-mono mt-0.5">
-                  {scheduledTime && (
-                    <span className="text-white/40">
-                      @ <strong className="text-green-300/70">{scheduledTime}</strong>
-                      {raw.StationScheduled && raw.StationScheduled !== scheduledTime && (
-                        <span className="text-green-500/40 ml-1">(ocr)</span>
-                      )}
-                    </span>
-                  )}
-                  {scheduledTime && computedETA && <span className="text-white/20">·</span>}
-                  {computedETA && (
-                    <span className="text-white/40">
-                      ETA <strong className={raw.StationETA ? 'text-yellow-300/70' : 'text-white/50'}>{computedETA}</strong>
-                      {raw.StationETA && <span className="text-yellow-500/40 ml-1">(ocr)</span>}
-                    </span>
-                  )}
-                </div>
-              )}
+              <div className="flex gap-2 flex-wrap text-[8px] font-mono mt-0.5">
+                {scheduledTime && (
+                  <span className="text-white/40">
+                    @ <strong className="text-green-300/70">{scheduledTime}</strong>
+                  </span>
+                )}
+                {scheduledTime && computedETA && <span className="text-white/20">·</span>}
+                {computedETA && (
+                  <span className="text-white/40">
+                    ETA <strong className={raw.StationETA ? 'text-yellow-300/70' : 'text-white/50'}>{computedETA}</strong>
+                  </span>
+                )}
+              </div>
             </div>
           )}
           
           {/* Dashboard de Frenado Exacto — progresión gradual */}
-          {brakeParams && brakeParams.dist > 0 && (
-            <div className="mt-16 flex flex-col bg-black/60 p-2 border-l-2 border-amber-500 backdrop-blur-sm gap-1.5">
-              <span className="text-[9px] text-amber-500 font-black uppercase tracking-widest">Brake Sequence:</span>
+          {brakeParams && brakeParams.isRealTarget && brakeParams.dist > -500 && (
+            <div className="mt-16 flex flex-col bg-black/80 p-2.5 border-l-2 border-amber-500 backdrop-blur-md gap-2 shadow-xl ring-1 ring-white/5">
+              <div className="flex justify-between items-center mb-0.5">
+                <span className="text-[10px] text-amber-500 font-black uppercase tracking-[0.15em] flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Braking Sequence
+                </span>
+                <span className="text-[9px] font-mono text-white/50 uppercase">Target: {formatDistance(effectiveDist ?? 0)}</span>
+              </div>
+
               {/* Fases en orden inverso: la más lejana primero */}
               {[...brakeParams.steps].reverse().map((step, i) => {
-                // distToBrakingPoint: positivo = aún faltan metros para llegar al punto de freno
-                //                     negativo = ya pasamos el punto (hay que frenar o ya frenamos)
-                const distToBrakingPoint = effectiveDist - step.distStart;
-                const isApplyNow = distToBrakingPoint <= 50 && distToBrakingPoint >= -50;
-                const isPassed   = distToBrakingPoint < -50;
-                // upcoming: distToBrakingPoint > 50
+                const distUntilAction = step.distStart;
+                const isApplyNow = distUntilAction <= 50 && distUntilAction >= -50;
+                const isPassed   = distUntilAction < -50;
+                const isUpcoming = distUntilAction > 50;
 
                 // Posición del odómetro en la que hay que aplicar esta muesca
-                const brakingOdometerM = raw.TripDistance + distToBrakingPoint;
+                // (Posición actual + distancia hasta el punto de acción)
+                const brakingOdometerM = raw.TripDistance + distUntilAction;
                 const brakingOdometerLabel = raw.SpeedUnit === 'MPH'
                   ? `mi ${(brakingOdometerM * 0.000621371).toFixed(2)}`
                   : `km ${(brakingOdometerM / 1000).toFixed(2)}`;
-                const remainingLabel = distToBrakingPoint > 50
-                  ? `in ${formatDistance(distToBrakingPoint)}`
-                  : isApplyNow ? 'APPLY NOW' : 'PASSED';
+                
+                const remainingLabel = isUpcoming
+                  ? (() => {
+                      const distLabel = formatDistance(distUntilAction);
+                      if (raw.Speed > 2) {
+                        const seconds = Math.round(distUntilAction / raw.Speed);
+                        if (seconds < 300) {
+                          const min = Math.floor(seconds / 60);
+                          const sec = seconds % 60;
+                          const timeStr = min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+                          return `IN ${distLabel} (${timeStr})`;
+                        }
+                      }
+                      return `IN ${distLabel}`;
+                    })()
+                  : isApplyNow ? 'APPLY NOW' : 'COMPLETED';
 
                 return (
-                  <div key={i} className={`flex items-center gap-2 px-1.5 py-1 rounded-xs border transition-all ${
+                  <div key={i} className={`group relative flex items-center gap-3 px-3 py-2 rounded-sm border transition-all duration-300 ${
                     isApplyNow
-                      ? 'border-amber-400 bg-amber-500/20'
+                      ? 'border-amber-400/60 bg-amber-500/20 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
                       : isPassed
-                        ? 'border-white/10 bg-white/[0.02] opacity-40'
-                        : 'border-white/5 bg-white/[0.02]'
+                        ? 'border-white/5 bg-white/[0.01] opacity-30'
+                        : 'border-white/10 bg-white/[0.03] hover:bg-white/[0.05]'
                   }`}>
-                    <div className="flex flex-col min-w-[52px]">
-                      <span className={`text-[10px] font-black font-mono leading-none ${isApplyNow ? 'text-amber-300' : 'text-white/70'}`}>
+                    {/* Indicador de estado lateral */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-sm ${
+                      isApplyNow ? 'bg-amber-400' : isPassed ? 'bg-green-500/40' : 'bg-white/10'
+                    }`} />
+
+                    <div className="flex flex-col min-w-[65px]">
+                      <span className={`text-[11px] font-black font-mono tracking-tighter leading-none ${isApplyNow ? 'text-amber-300' : 'text-white/80'}`}>
                         {brakingOdometerLabel}
                       </span>
-                      <span className={`text-[7px] font-mono leading-none mt-0.5 ${
-                        distToBrakingPoint > 50 ? 'text-white/30'
-                        : isApplyNow ? 'text-amber-400 font-black animate-pulse'
-                        : 'text-white/20'
-                      }`}>
-                        {remainingLabel}
-                      </span>
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className={`text-[8px] font-black font-mono leading-none ${
+                          isUpcoming ? 'text-white/40'
+                          : isApplyNow ? 'text-amber-400 animate-pulse'
+                          : 'text-green-500/60'
+                        }`}>
+                          {remainingLabel}
+                        </span>
+                      </div>
                     </div>
-                    <div className="w-px h-6 bg-white/10 shrink-0" />
-                    <div className="flex flex-col min-w-[36px]">
-                      <span className="text-[7px] text-white/30 uppercase leading-none">notch</span>
-                      <span className={`text-[11px] font-black font-mono leading-none ${isApplyNow ? 'text-amber-300' : 'text-white/50'}`}>
+
+                    <div className="w-px h-7 bg-white/10 shrink-0" />
+
+                    <div className="flex flex-col min-w-[45px]">
+                      <span className="text-[7px] text-white/30 font-black uppercase tracking-widest leading-none mb-1">NOTCH</span>
+                      <span className={`text-[13px] font-black font-mono leading-none ${isApplyNow ? 'text-amber-300 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'text-white/60'}`}>
                         {step.notch}
                       </span>
                     </div>
-                    <div className="flex flex-col flex-1 items-end">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[6px] text-white/20 uppercase leading-none">{Math.round(step.fraction * 100)}%</span>
-                        {step.usingLearned
-                          ? <span className="text-[6px] text-violet-400/80 uppercase leading-none font-black" title={`${step.samples} frenadas reales`}>✦{step.samples}</span>
-                          : <span className="text-[6px] text-white/15 uppercase leading-none" title="Usando estimación del perfil">~est</span>
-                        }
+
+                    <div className="flex flex-col flex-1 gap-1.5">
+                      <div className="flex justify-between items-center">
+                        <span className={`text-[8px] font-black font-mono ${isApplyNow ? 'text-amber-400/80' : 'text-white/20'}`}>
+                          {Math.round(step.fraction * 100)}% POWER
+                        </span>
+                        {step.usingLearned ? (
+                          <div className="flex items-center gap-1 bg-violet-500/10 px-1 rounded-xs border border-violet-500/20">
+                            <span className="text-[7px] text-violet-400 font-black tracking-tighter">✦ LEARNED ({step.samples})</span>
+                          </div>
+                        ) : (
+                          <span className="text-[7px] text-white/10 font-bold tracking-tighter italic">ESTIMATED</span>
+                        )}
                       </div>
-                      <div className="w-full mt-0.5 h-0.5 bg-white/5 rounded-full overflow-hidden">
+                      <div className="relative h-1 bg-white/5 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all ${isApplyNow ? 'bg-amber-400' : 'bg-white/20'}`}
-                          // eslint-disable-next-line react/forbid-dom-props
+                          className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${
+                            isApplyNow ? 'bg-gradient-to-r from-amber-600 to-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-white/20'
+                          }`}
                           style={{ width: `${step.fraction * 100}%` }}
                         />
                       </div>
                     </div>
+
+                    {/* Barra de progreso de proximidad (solo para el próximo) */}
+                    {isUpcoming && distUntilAction < 1000 && (
+                      <div className="absolute bottom-0 left-1 right-1 h-[1px] bg-white/5 overflow-hidden">
+                        <div 
+                          className="h-full bg-amber-500/30 transition-all duration-300"
+                          style={{ width: `${Math.max(0, 100 - (distUntilAction / 10))}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -677,7 +735,9 @@ return (
              disabled={resetting}
              onClick={async () => {
                setResetting(true);
-               await scenarioService.resetTracker();
+               try {
+                 await fetch('http://localhost:8000/api/tracker/reset', { method: 'POST' });
+               } catch (e) {}
                resetLocalState();
                setCustomMiles('');
                setResetting(false);

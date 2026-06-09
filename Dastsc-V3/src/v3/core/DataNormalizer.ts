@@ -41,14 +41,16 @@ export class DataNormalizer {
     
     this.state.activeCab = Number(raw.ActiveCab || 1);
 
+    // 0. Selección de Unidades
+    // 0. Selección de Unidades
+    // simUnit: Lo que el juego nos está enviando (basado en SpeedoType o el plugin)
+    // displayUnit: Lo que el usuario quiere ver (basado en el perfil)
+    const simUnit: 'MPH' | 'KPH' = Number(raw.SpeedoType) === 2 ? 'KPH' : 'MPH';
     const profileUnit = profile?.visuals?.unit;
-    let speedUnit: 'MPH' | 'KPH' = profileUnit === 'KPH' ? 'KPH' : 'MPH';
-    if (!profileUnit) {
-      speedUnit = Number(raw.SpeedoType || 1) === 2 ? 'KPH' : 'MPH';
-    }
+    const displayUnit: 'MPH' | 'KPH' = (profileUnit === 'KPH' || profileUnit === 'MPH') ? profileUnit : simUnit;
 
-    const toMS = speedUnit === 'KPH' ? 1/3.6 : 0.44704;
-    const fromMS = speedUnit === 'KPH' ? 3.6 : 2.23694;
+    const simToMS = simUnit === 'KPH' ? 1/3.6 : 0.44704;
+    const displayFromMS = displayUnit === 'KPH' ? 3.6 : 2.23694;
 
     let dtSim = 0;
     if (this.state.lastSimTime > 0) {
@@ -61,23 +63,22 @@ export class DataNormalizer {
     this.state.lastSimTime = rawSimTime;
     this.state.lastRealTime = now;
 
-    // 1. Unificación de Velocidad
+    // 1. Unificación de Velocidad (Convertir de simUnit a m/s)
     let speedMS = 0;
     if (raw.CabSpeed !== undefined && raw.CabSpeed !== 0) {
-      speedMS = raw.CabSpeed * toMS;
+      speedMS = raw.CabSpeed * simToMS;
     } else {
       speedMS = Math.abs(raw.CurrentSpeed || raw.Speed || 0);
-      if (raw.Speed !== undefined && raw.CurrentSpeed === undefined) speedMS *= toMS;
+      if (raw.Speed !== undefined && raw.CurrentSpeed === undefined) speedMS *= simToMS;
     }
 
     // --- LLAMADAS A SUB-NORMALIZADORES ---
     const phys = this.physics.normalize(raw, dtSim, speedMS);
-    const sig = this.signaling.normalize(raw, phys.speedMS, dtSim, trainLength, toMS);
+    const sig = this.signaling.normalize(raw, phys.speedMS, dtSim, trainLength, simToMS);
     const brk = this.brakes.normalize(raw, profile);
     // -------------------------------------
 
-    const currentLimitConverted = sig.currentLimitConverted;
-    const rawLimitMS = currentLimitConverted * toMS;
+    const rawLimitMS = sig.currentLimitConverted * simToMS;
 
     // Presiones y Unidades
     const interpretedAsPSI = raw.BC > 15 || raw.BP > 15 || raw.MR > 20;
@@ -117,28 +118,49 @@ export class DataNormalizer {
     const totalBrakingEffort = (baseBrakingEffort * (brk.brakeEfficiency || 1)) + 
                               ((brk.amperage < 0) ? Math.abs(brk.amperage) * 0.5 : 0);
 
-    // Próximos Límites para UI
+    // Próximos Límites para UI (Convertir todo a displayUnit de forma segura)
+    // FILTRO DE SEGURIDAD: el sim devuelve valores corruptos (200006/inf) cuando el
+    // próximo "límite" es en realidad una señal en rojo. currentLimitConverted ya viene
+    // en unidad de display (km/h o mph), igual que rawNextLimitSpeed → comparamos directo.
+    const MAX_SANE_LIMIT = 450;
+    const saneLimit = (v: number): number =>
+        (!isFinite(v) || v <= 0 || v > MAX_SANE_LIMIT) ? sig.currentLimitConverted : v;
+
     const rawUpcoming: { speed: number, distance: number }[] = [];
     if (sig.rawNextLimitDistFromLua > 0) {
-        rawUpcoming.push({ speed: sig.rawNextLimitSpeed, distance: sig.rawNextLimitDistFromLua });
+        // Primero a MS (unidad neutra) y luego a Display
+        const speedMS = saneLimit(sig.rawNextLimitSpeed) * simToMS;
+        rawUpcoming.push({ 
+            speed: speedMS * displayFromMS, 
+            distance: sig.rawNextLimitDistFromLua 
+        });
     }
     if ((sig as any).rawNextLimit2DistFromLua > 0) {
-        rawUpcoming.push({ speed: (sig as any).rawNextLimit2Speed, distance: (sig as any).rawNextLimit2DistFromLua });
+        const speedMS = saneLimit((sig as any).rawNextLimit2Speed) * simToMS;
+        rawUpcoming.push({ 
+            speed: speedMS * displayFromMS, 
+            distance: (sig as any).rawNextLimit2DistFromLua 
+        });
     }
     
+    // Mostramos siempre el primer próximo límite (aunque coincida con el actual) y
+    // deduplicamos solo límites consecutivos idénticos para no saturar el HUD.
     const upcomingLimits: { speed: number, distance: number }[] = [];
-    let lastRefSpeedMS = rawLimitMS; 
+    let lastRefSpeedMS = NaN; 
     for (const limit of rawUpcoming) {
         if (limit.distance <= 2.0) continue;
-        const limitSpeedMS = limit.speed * toMS;
-        if (Math.abs(limitSpeedMS - lastRefSpeedMS) > 0.1) {
+        const limitSpeedMS = limit.speed / displayFromMS;
+        if (isNaN(lastRefSpeedMS) || Math.abs(limitSpeedMS - lastRefSpeedMS) > 0.1) {
             upcomingLimits.push(limit);
             lastRefSpeedMS = limitSpeedMS;
             if (upcomingLimits.length >= 3) break;
         }
     }
 
-    const nextLimitSpeedMPH = upcomingLimits.length > 0 ? upcomingLimits[0].speed : 0;
+    // Si no hay próximos límites, el "NextSpeedLimit" es el actual convertido
+    const nextLimitSpeedDisplay = upcomingLimits.length > 0 
+        ? upcomingLimits[0].speed 
+        : (sig.currentLimitConverted * simToMS * displayFromMS);
     const nextLimitDist = upcomingLimits.length > 0 ? upcomingLimits[0].distance : 0;
 
     // Tiempo
@@ -155,20 +177,20 @@ export class DataNormalizer {
       TrainBrake: currentBrake,
       CombinedControl: Number(raw.Combined || (currentThrottle - currentBrake)),
       Reverser: Number(raw.Reversal || raw.Reverser || 0),
-      SpeedDisplay: phys.speedMS * fromMS,
-      SpeedUnit: speedUnit,
+      SpeedDisplay: phys.speedMS * displayFromMS,
+      SpeedUnit: displayUnit === 'KPH' ? 'km/h' : 'MPH',
       Acceleration: this.state.emaAccelMS2,
       GForce: computedGForce,
       // ProjectedSpeed: velocidad estimada en 5s basada en el delta real de velocidad (dSpeed/dt)
       // Evita depender del signo de raw.Acceleration (convención variable según versión del juego)
-      ProjectedSpeed: Math.max(0, (phys.speedMS + this.state.emaAccelMS2 * 5)) * fromMS,
-      SpeedLimit: sig.effectiveSpeedLimit * fromMS,
-      FrontalSpeedLimit: rawLimitMS * fromMS,
-      TrackLimit: (Number(raw.TrackLimit) || rawLimitMS) * fromMS,
-      SignalLimit: (Number(raw.SignalLimit) || rawLimitMS) * fromMS,
+      ProjectedSpeed: Math.max(0, (phys.speedMS + this.state.emaAccelMS2 * 5)) * displayFromMS,
+      SpeedLimit: sig.effectiveSpeedLimit * displayFromMS,
+      FrontalSpeedLimit: sig.currentLimitConverted * simToMS * displayFromMS,
+      TrackLimit: (raw.TrackLimit ? Number(raw.TrackLimit) * simToMS : (sig.currentLimitConverted * simToMS)) * displayFromMS,
+      SignalLimit: (raw.SignalLimit ? Number(raw.SignalLimit) * simToMS : (sig.currentLimitConverted * simToMS)) * displayFromMS,
       DistToNextSpeedLimit: nextLimitDist,
-      NextSpeedLimit: nextLimitSpeedMPH,
-      NextLimit2Speed: (sig as any).rawNextLimit2Speed * fromMS,
+      NextSpeedLimit: nextLimitSpeedDisplay,
+      NextLimit2Speed: saneLimit((sig as any).rawNextLimit2Speed) * simToMS * displayFromMS,
       DistToNextLimit2: (sig as any).rawNextLimit2DistFromLua,
       UpcomingLimits: upcomingLimits,
       Gradient: currentGrad,

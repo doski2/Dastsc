@@ -1,9 +1,9 @@
 {
-  "completed_stops": 6,
-  "odometer_m": 11090.1,
-  "odometer_at_last_departure": 11090.1,
-  "last_departed_name": "Duddeston Platform 1",
-  "segment_dist": 1700.0,
+  "completed_stops": 8,
+  "odometer_m": 9607.3,
+  "odometer_at_last_departure": 9607.3,
+  "last_departed_name": "Four Oaks Platform 3",
+  "segment_dist": -1.0,
   "has_doors": true,
   "stops_key": [
     "Four Oaks Platform 3",
@@ -16,9 +16,10 @@
     "Four Oaks Platform 3"
   ],
   "learned": {
-    "four oaks|||sutton coldfield": 2150.0,
-    "sutton coldfield|||wylde green": 2113.3,
-    "chester road|||erdington": 931.8,
-    "erdington|||duddeston": 5885.0
+    "four oaks|||sutton coldfield": 2152.1,
+    "sutton coldfield|||wylde green": 2116.7,
+    "wylde green|||chester road": 1152.4,
+    "duddeston|||birmingham new street": 2219.8,
+    "birmingham new street|||four oaks": 1949.6
   }
 }

@@ -1,11 +1,10 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { DataNormalizer } from './DataNormalizer';
-import { ScenarioStop } from '../services/ScenarioService';
 
 export interface TelemetryData {
   Speed: number;            // m/s (internal)
   SpeedDisplay: number;     // MPH or KPH per profile
-  SpeedUnit: 'MPH' | 'KPH';
+  SpeedUnit: 'MPH' | 'km/h';
   ProjectedSpeed: number;
   Acceleration: number;
   GForce: number;
@@ -85,11 +84,8 @@ interface TelemetryContextType {
   lastMessageTime: number;
   activeProfile: any;
   availableProfiles: any[];
-  scenarioStops: ScenarioStop[];
-  scenarioProgress: ScenarioProgress;
   sendCommand: (cmd: string, val: number) => void;
   setProfile: (profileName: string) => void;
-  /** Limpia los refs de estado local (locallyDone, stopMinDist, odometer) */
   resetLocalState: () => void;
 }
 
@@ -197,8 +193,6 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   const [activeProfile, setActiveProfile] = useState<any>(null);
   const [availableProfiles, setAvailableProfiles] = useState<any[]>([]);
   const [lastMessageTime, setLastMessageTime] = useState(0);
-  const [scenarioStops, setScenarioStops] = useState<ScenarioStop[]>([]);
-  const [scenarioProgress, setScenarioProgress] = useState<ScenarioProgress>({});
   
   const activeProfileRef = useRef<any>(null);
   const availableProfilesRef = useRef<any[]>([]);
@@ -206,9 +200,6 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
   const reconnectTimeoutRef = useRef<any>(null);
   const isMounted = useRef(true);
   const normalizerRef = useRef(new DataNormalizer());
-  // Departure detection: min dist per active stop; locally done if tren goes >500m from <300m
-  const stopMinDistRef = useRef<Map<string, number>>(new Map());
-  const locallyDoneRef = useRef<Set<string>>(new Set());
 
   // Sincronizar refs con el estado para que el closure del socket los vea
   useEffect(() => {
@@ -235,8 +226,6 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       }
       console.log('Nexus v3 Hub Connected');
       setIsConnected(true);
-      stopMinDistRef.current.clear();
-      locallyDoneRef.current.clear();
     };
 
     ws.onmessage = (event) => {
@@ -270,63 +259,7 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        // 3. Paradas del escenario en tiempo real (desde payload.scenario.stops)
-        if (message.scenario?.stops && Array.isArray(message.scenario.stops)) {
-          const mapped: ScenarioStop[] = message.scenario.stops.map((s: any) => {
-            const name: string = s.station_name;
-            const dist: number = s.distance ?? -1;
-            const serverStatus: string = s.status;
-
-            // Cuando el servidor confirma SUCCEEDED, limpiar trackeo local
-            if (serverStatus === 'SUCCEEDED') {
-              locallyDoneRef.current.delete(name);
-              stopMinDistRef.current.delete(name);
-            }
-
-            // Detección de partida local (fallback si el tracker no responde a tiempo)
-            // Usa la distancia directa del backend (ya calculada por el tracker).
-            if (serverStatus === 'ACTIVE' && dist >= 0) {
-              const prev = stopMinDistRef.current.get(name);
-              if (prev === undefined || dist < prev) {
-                stopMinDistRef.current.set(name, dist);
-              }
-              const minSeen = stopMinDistRef.current.get(name) ?? Infinity;
-              if (minSeen < 500 && dist > 1500) {
-                locallyDoneRef.current.add(name);
-              }
-            }
-
-            const locallyDone = locallyDoneRef.current.has(name);
-
-            return {
-              name,
-              type: (s.type === 'STOP' || s.type === 'WAYPOINT' ? s.type : 'STOP') as 'STOP' | 'WAYPOINT',
-              is_active: serverStatus === 'ACTIVE' && !locallyDone,
-              satisfied: serverStatus === 'SUCCEEDED' || locallyDone,
-              due_time: s.due_time !== 'N/A' ? s.due_time : s.arrival_time !== 'N/A' ? s.arrival_time : null,
-              departure_time: s.departure_time !== 'N/A' ? s.departure_time : null,
-              arrival_time: (serverStatus === 'SUCCEEDED' && s.arrival_time && s.arrival_time !== 'N/A') ? s.arrival_time : null,
-              stop_duration: s.dwell_secs || 0,
-              distance_m: dist,
-            };
-          });
-
-          setScenarioStops(mapped);
-
-          // Progreso general del escenario (errores, velocidad, unidad)
-          const cp = message.scenario.current_progress;
-          if (cp) {
-            setScenarioProgress({
-              simulation_time: cp.simulation_time,
-              distance_meters: cp.distance_meters,
-              unit_number: cp.unit_number,
-              operational_errors: cp.operational_errors,
-              speeding_incidents: cp.speeding_incidents ?? [],
-            });
-          }
-        }
-
-        // 4. Procesamiento de Telemetría
+        // 3. Procesamiento de Telemetría
         if (message.type === 'DATA' || message.type === 'TELEMETRY') {
           const raw = message.type === 'DATA' ? message.data : message;
           if (!raw) return;
@@ -361,12 +294,12 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       if (!isMounted.current) return;
 
       setIsConnected(false);
-      console.log(`Hub: Connection closed (${event.code}). Reconnecting in 3s...`);
+      console.log(`Hub: Connection closed (${event.code}). Reconnecting in 500ms...`);
       
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = setTimeout(() => {
         if (isMounted.current) connect();
-      }, 3000);
+      }, 500);
     };
 
     ws.onerror = (err) => {
@@ -420,14 +353,9 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
       lastMessageTime, 
       activeProfile, 
       availableProfiles,
-      scenarioStops,
-      scenarioProgress,
       sendCommand,
       setProfile,
-      resetLocalState: () => {
-        stopMinDistRef.current.clear();
-        locallyDoneRef.current.clear();
-      },
+      resetLocalState: () => {},
     }}>
       {children}
     </TelemetryContext.Provider>

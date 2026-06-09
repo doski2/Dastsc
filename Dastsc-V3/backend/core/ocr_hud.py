@@ -35,15 +35,57 @@ except ImportError:
 
 AVAILABLE = MSS_OK and PIL_OK
 
-# ── Región de captura (2560×1440) ─────────────────────────────────────────────
-# El display aparece en la esquina inferior izquierda.
-# Ajustar si la resolución o la posición del HUD son diferentes.
-OCR_REGION = {
-    "left":   440,   # medido: 468 − margen pequeño
-    "top":    1115,  # medido: 1136 − margen pequeño
-    "width":  430,   # medido: 387 + margen pequeño
-    "height": 175,   # medido: 140 + margen pequeño
+# ── Región de captura (referencia 2560×1440) ──────────────────────────────────
+# El display de próxima parada aparece en la esquina inferior izquierda.
+# La región se calibró en 2560×1440; la expresamos como FRACCIONES de la
+# resolución de referencia para poder escalarla a cualquier resolución de juego.
+_REF_W, _REF_H = 2560, 1440
+_REGION_FRACTIONS = {
+    "left":   440 / _REF_W,   # 0.1719
+    "top":    1115 / _REF_H,  # 0.7743
+    "width":  430 / _REF_W,   # 0.1680
+    "height": 175 / _REF_H,   # 0.1215
 }
+
+# Región por defecto (referencia); se recalcula con la resolución real detectada.
+OCR_REGION = {"left": 440, "top": 1115, "width": 430, "height": 175}
+
+
+def _detect_region() -> Dict[str, int]:
+    """
+    Calcula la región OCR escalando las fracciones calibradas a la resolución
+    real del monitor PRIMARIO (el que está en la posición 0,0 de Windows, donde
+    normalmente corre el juego). Soporta setups multi-monitor: mss enumera los
+    monitores en orden arbitrario, así que NO usamos monitors[1] ciegamente sino
+    que buscamos el que está en el origen. Si no se detecta, usa la referencia 1440p.
+    """
+    if not MSS_OK:
+        return dict(OCR_REGION)
+    try:
+        with _mss.mss() as sct:
+            physical = sct.monitors[1:]  # monitors[0] es el conjunto virtual
+            if not physical:
+                raise RuntimeError("No se detectaron monitores")
+            # El juego corre en el monitor 2K (2560×1440). Como las fracciones están
+            # calibradas para esa resolución, priorizamos el monitor que coincida
+            # exactamente con la referencia; si no, el de mayor área (el más grande).
+            exact = next(
+                (m for m in physical if m["width"] == _REF_W and m["height"] == _REF_H),
+                None,
+            )
+            target = exact or max(physical, key=lambda m: m["width"] * m["height"])
+            sw, sh = target["width"], target["height"]
+            base_left, base_top = target.get("left", 0), target.get("top", 0)
+        region = {
+            "left":   base_left + int(_REGION_FRACTIONS["left"] * sw),
+            "top":    base_top + int(_REGION_FRACTIONS["top"] * sh),
+            "width":  int(_REGION_FRACTIONS["width"] * sw),
+            "height": int(_REGION_FRACTIONS["height"] * sh),
+        }
+        return region
+    except Exception as exc:
+        print(f"[OCR] No se pudo detectar resolución, usando referencia 1440p: {exc}")
+        return {"left": 440, "top": 1115, "width": 430, "height": 175}
 
 # Ruta a Tesseract — dejar vacío para usar el PATH del sistema
 TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
@@ -68,6 +110,10 @@ def _setup_tesseract() -> None:
 
 
 _setup_tesseract()
+
+# Recalcular la región de captura según la resolución real del monitor principal.
+OCR_REGION = _detect_region()
+print(f"[OCR] Región de captura calibrada: {OCR_REGION}")
 
 
 def capture_next_stop() -> Optional[Dict]:
@@ -99,28 +145,45 @@ def capture_next_stop() -> Optional[Dict]:
         # que funciona bien tanto para texto oscuro-sobre-claro como al revés.
         gray = img.convert("L")
         auto = ImageOps.autocontrast(gray, cutoff=2)
-        # Umbral: píxeles < 140 → negro (texto), ≥ 140 → blanco (fondo)
-        # Tabla de lookup (256 entradas) — más rápido y compatible con Pillow typing
+        w, h = auto.size
+
+        # ── Doble pasada OCR ─────────────────────────────────────────────────
+        # El HUD tiene dos zonas: la superior (reloj/nombre) con buen contraste,
+        # y la inferior (distancia/ETA) en gris claro de BAJO contraste que el
+        # umbral binario fijo pierde. Hacemos dos pasadas y fusionamos el texto:
+        #   1) Binarizado (umbral 140) — ideal para la zona de alto contraste.
+        #   2) Escala de grises autocontrastada — conserva el texto tenue
+        #      (línea de distancia) que la binarización elimina.
+        # --psm 11: texto disperso, lee cada línea independientemente.
+        def _ocr(image) -> str:
+            scaled = image.resize((w * 2, h * 2), Image.Resampling.LANCZOS).convert("L")
+            return pytesseract.image_to_string(scaled, lang="spa+eng", config="--psm 11")
+
         lut = [0] * 140 + [255] * 116
-        thresh = auto.point(lut)
-        # Escalar 2× para que Tesseract trabaje mejor con fuentes pequeñas
-        w, h = thresh.size
-        scaled = thresh.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
+        text_bin = _ocr(auto.point(lut))   # pasada binarizada
+        text_gray = _ocr(auto)             # pasada en grises (texto tenue)
 
-        # Guardar la imagen procesada como L (no "1") para compatibilidad
-        scaled = scaled.convert("L")
-
-        # ── OCR ──────────────────────────────────────────────────────────────
-        # --psm 11: texto disperso — no asume layout uniforme, lee cada línea
-        # independientemente. Más robusto con HUDs de fondo gradiente.
-        # Sin whitelist: dejamos que Tesseract use su modelo completo para
-        # evitar que suprima líneas con caracteres de baja confianza.
-        text = pytesseract.image_to_string(
-            scaled,
-            lang="spa+eng",
-            config="--psm 11",
+        # ── Tercera pasada: banda inferior (distancia/ETA) ───────────────────
+        # La línea inferior es texto BLANCO sobre gris. Tesseract espera texto
+        # oscuro sobre claro, por eso las pasadas anteriores la pierden. Receta
+        # calibrada empíricamente: autocontraste local → umbral alto (200) que
+        # aísla solo el texto blanco → invertir a texto negro sobre blanco →
+        # escalar 4× → psm 6. Lee de forma fiable "@ HH:MM in X millas (ETA ...)".
+        bottom = gray.crop((0, int(h * 0.62), w, h))
+        bottom_ac = ImageOps.autocontrast(bottom, cutoff=0)
+        bottom_bin = bottom_ac.point([0] * 200 + [255] * 56)  # >200 = texto
+        bottom_inv = ImageOps.invert(bottom_bin)
+        bw, bh = bottom_inv.size
+        bottom_scaled = bottom_inv.resize(
+            (bw * 4, bh * 4), Image.Resampling.LANCZOS
+        ).convert("L")
+        text_bottom = pytesseract.image_to_string(
+            bottom_scaled, lang="spa+eng", config="--psm 6"
         )
-        return _parse(text)
+
+        # Fusionar las tres pasadas: cada una aporta líneas que las otras pierden.
+        combined = text_bin + "\n" + text_gray + "\n" + text_bottom
+        return _parse(combined)
 
     except Exception as exc:
         print(f"[OCR] Error de captura: {exc}")

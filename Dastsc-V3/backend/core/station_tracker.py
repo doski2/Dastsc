@@ -202,7 +202,8 @@ class StationTracker:
             key = (_normalize_name(from_name), _normalize_name(to_name))
             if key in self._learned:
                 return self._learned[key]
-        return _profile_distance_m(self._profile, from_name, to_name)
+        dist = _profile_distance_m(self._profile, from_name, to_name)
+        return dist
 
     def update(
         self,

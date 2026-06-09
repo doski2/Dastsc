@@ -260,7 +260,11 @@ export const Speedometer: React.FC = () => {
                     {raw.UpcomingLimits.map((l, i) => (
                         <div key={i} className={`flex flex-col ${l.speed < raw.SpeedLimit ? "text-orange-400" : "text-cyan-400/60"}`}>
                             <span className="text-sm font-black font-mono leading-none">{Math.round(l.speed)}</span>
-                            <span className="text-[8px] font-mono opacity-60">{(l.distance / 1000).toFixed(1)}km</span>
+                            <span className="text-[8px] font-mono opacity-60">
+                                {raw.SpeedUnit === 'MPH' 
+                                    ? `${(l.distance * 0.000621371).toFixed(2)}mi` 
+                                    : (l.distance < 1000 ? `${Math.round(l.distance)}m` : `${(l.distance / 1000).toFixed(1)}km`)}
+                            </span>
                         </div>
                     ))}
                 </div>

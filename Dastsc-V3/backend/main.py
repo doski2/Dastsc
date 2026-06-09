@@ -6,7 +6,14 @@ import asyncio
 import json
 import math
 import os
+import sys
 import time
+
+# Fix del event loop de Windows a NIVEL DE MÓDULO: con reload=True, uvicorn lanza
+# un subproceso worker que importa este módulo pero NO ejecuta __main__, así que
+# la policy debe fijarse aquí para que también aplique en el worker recargado.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
@@ -130,11 +137,18 @@ class TelemetryManager:
     async def broadcast(self, message: dict):
         safe = _sanitize(message)
         self.last_payload.update(safe)
+        
+        # Enviar de forma asíncrona y no bloqueante para cada cliente
         for connection in self.active_connections:
-            try:
-                await connection.send_json(safe)
-            except Exception:
-                pass
+            asyncio.create_task(self._safe_send(connection, safe))
+
+    async def _safe_send(self, ws: WebSocket, data: dict):
+        try:
+            await ws.send_json(data)
+        except Exception:
+            # Si falla el envío, no hacemos nada aquí; el websocket_endpoint
+            # se encargará de la desconexión si el socket está roto.
+            pass
 
 
 manager = TelemetryManager()
@@ -160,11 +174,26 @@ async def telemetry_reader():
     ocr_last_result: dict = {}
     ocr_last_capture_time: float = 0.0
     ocr_door_was_open: bool = False
-    last_tracker_idx: int = -1  # para detectar avance de parada y limpiar OCR
-    # Anchor OCR: cuando el juego da la distancia exacta, la usamos como base
-    # y decrementamos con el odómetro entre capturas para mayor precisión.
-    ocr_anchor_dist: float = -1.0     # distancia OCR en el momento de captura (m)
-    ocr_anchor_odo: float = 0.0       # odómetro del tracker en el momento de captura
+    ocr_is_capturing: bool = False # Flag to avoid multiple concurrent captures
+    last_tracker_idx: int = -1
+    ocr_anchor_dist: float = -1.0
+    ocr_anchor_odo: float = 0.0
+    last_scenario_sent_time = 0.0
+
+    async def run_ocr_capture(odo_at_capture: float):
+        nonlocal ocr_last_result, ocr_anchor_dist, ocr_anchor_odo, ocr_is_capturing
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
+            if result:
+                ocr_last_result = result
+                if result.get("distance_m") is not None:
+                    ocr_anchor_dist = result["distance_m"]
+                    ocr_anchor_odo = odo_at_capture
+        except Exception as e:
+            print(f"[OCR] Error: {e}")
+        finally:
+            ocr_is_capturing = False
 
     while True:
         try:
@@ -183,7 +212,7 @@ async def telemetry_reader():
                     # Solo re-parsear si el fichero cambió o si aún no tenemos datos.
                     # Evita parsear Scenario.xml (2.4 MB) en cada ciclo cuando no hay cambios.
                     # Se ejecuta en un hilo para no bloquear el event loop (~300ms de I/O).
-                    if new_path != last_scenario_path or new_mtime != last_scenario_mtime or not scenario_data:
+                    if (new_path != last_scenario_path or new_mtime > last_scenario_mtime or not scenario_data):
                         last_scenario_path = new_path
                         last_scenario_mtime = new_mtime
                         _rv_snap = last_rv or None
@@ -242,40 +271,25 @@ async def telemetry_reader():
                             # ── OCR: captura del display de próxima parada ─────────────────────
                             # Trigger 1: cierre de puertas (TSC: puertas solo operables con tren parado)
                             # Trigger 2: polling cada 5-10s según la distancia actual
-                            if ocr_hud.is_available():
+                            if ocr_hud.is_available() and not ocr_is_capturing:
                                 ocr_interval = 30.0  # sin datos — esperar más
                                 if ocr_last_result.get("distance_m") is not None:
                                     d = ocr_last_result["distance_m"]
                                     ocr_interval = 5.0 if d < 1000 else 10.0
 
-                                should_capture = (
-                                    door_just_closed
-                                    or (now - ocr_last_capture_time) >= ocr_interval
-                                )
-
-                                if should_capture:
+                                if (door_just_closed or (now - ocr_last_capture_time) >= ocr_interval):
                                     ocr_last_capture_time = now
-                                    loop = asyncio.get_event_loop()
-                                    ocr_result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
-                                    if ocr_result:
-                                        ocr_last_result = ocr_result
-                                        if ocr_result.get("distance_m") is not None:
-                                            # Establecer nuevo anchor: la distancia del juego
-                                            # es la fuente más precisa disponible.
-                                            ocr_anchor_dist = ocr_result["distance_m"]
-                                            ocr_anchor_odo = _station_tracker._odometer_m
-                                            data["StationDistance"] = ocr_anchor_dist
-                                        if ocr_result.get("station_name"):
-                                            data["StationNameOCR"] = ocr_result["station_name"]
-                                            # Si la captura fue por cierre de puertas, guardar
-                                            # el nombre para confirmar ACTIVE en el tracker.
-                                            if door_just_closed:
-                                                _ocr_name_on_close = ocr_result["station_name"]
-                                        if ocr_result.get("eta"):
-                                            data["StationETA"] = ocr_result["eta"]
-                                        if ocr_result.get("scheduled_time"):
-                                            data["StationScheduled"] = ocr_result["scheduled_time"]
+                                    ocr_is_capturing = True
+                                    asyncio.create_task(run_ocr_capture(_station_tracker._odometer_m))
 
+                            # Aplicar resultados del OCR si existen (pueden venir de capturas anteriores)
+                            if ocr_last_result:
+                                if ocr_last_result.get("station_name"):
+                                    data["StationNameOCR"] = ocr_last_result["station_name"]
+                                if ocr_last_result.get("eta"):
+                                    data["StationETA"] = ocr_last_result["eta"]
+                                if ocr_last_result.get("scheduled_time"):
+                                    data["StationScheduled"] = ocr_last_result["scheduled_time"]
                             # ──────────────────────────────────────────────────────────────────
 
                             if data.get("RV"):
@@ -308,15 +322,12 @@ async def telemetry_reader():
                                         stop["status"] = "ACTIVE"
                                         if computed_station_dist >= 0:
                                             stop["distance"] = round(computed_station_dist, 1)
-                                # Cuando el tracker avanza de parada: limpiar cache OCR
-                                if last_tracker_idx >= 0 and tracker_idx != last_tracker_idx:
-                                    ocr_last_result = {}
-                                    ocr_last_capture_time = 0.0  # forzar recaptura inmediata
-                                    ocr_anchor_dist = -1.0       # invalidar anchor de parada anterior
+                                # Cuando el tracker avanza de parada: invalidar anchor de distancia
+                                # pero conservar nombres/ETA hasta que el OCR los sobreescriba.
+                                if last_tracker_idx >= 0 and tracker_idx > last_tracker_idx:
+                                    ocr_anchor_dist = -1.0
                                     ocr_anchor_odo = 0.0
-                                    data["StationNameOCR"] = ""
-                                    data["StationETA"] = ""
-                                    data["StationScheduled"] = ""
+                                    ocr_last_capture_time = 0.0  # Forzar captura inmediata del nuevo objetivo
                                 last_tracker_idx = tracker_idx
 
                             # ── Override OCR al cerrar puertas ────────────────────────────────
@@ -347,21 +358,27 @@ async def telemetry_reader():
                             payload = {
                                 "type": "TELEMETRY",
                                 **data,
-                                "active_profile": manager.current_profile,
-                                "active_profile_id": manager.current_profile.get("id")
-                                if manager.current_profile
-                                else None,
-                                "scenario": scenario_data,
                                 "timestamp": time.time(),
                             }
 
+                            # Solo enviar el escenario completo si ha cambiado o ha pasado 1s
+                            # Esto reduce el tráfico de red de ~50KB/frame a ~1KB/frame.
+                            if scenario_data and (now - last_scenario_sent_time > 1.0):
+                                payload["scenario"] = scenario_data
+                                last_scenario_sent_time = now
+
                             sync_counter += 1
                             if sync_counter % 250 == 0:  # Cada 5 segundos aprox.
-                                payload["available_profiles"] = (
-                                    manager.profile_manager.get_all_profiles()
-                                )
+                                # Enviar un pequeño keep-alive si no hay telemetría activa
+                                # (aunque aquí hay telemetría porque estamos dentro del loop mtime)
+                                pass
 
                             await manager.broadcast(payload)
+                else:
+                    # Si el archivo no ha cambiado (ej. juego pausado), enviar keep-alive cada 2s
+                    if sync_counter % 200 == 0:
+                        await manager.broadcast({"type": "HEARTBEAT", "timestamp": now})
+                    sync_counter += 1
 
             # Sondeo a 100Hz (0.01s) para latencia ultra-baja una vez detectado el cambio
             await asyncio.sleep(0.01)
@@ -557,58 +574,51 @@ async def get_brake_stats(profile: str = ""):
 
 @app.websocket("/ws/telemetry")
 async def websocket_endpoint(websocket: WebSocket):
+    client_host = websocket.client.host if websocket.client else "unknown"
+    print(f"WS: New connection from {client_host}")
     await manager.connect(websocket)
     try:
         while True:
             try:
+                # Esperar comandos del cliente (opcional)
                 cmd = await websocket.receive_json()
-            except WebSocketDisconnect:
-                # Cliente desconectado limpiamente — salir del bucle
-                break
-            except RuntimeError:
-                # Socket ya cerrado (p.ej. "Cannot call receive once a disconnect message has been received")
-                break
-            except Exception as e:
-                # Mensaje no válido (no es JSON), ignorar y continuar
-                print(f"Error procesando comando: {e}")
-                continue
-
-            if cmd.get("type") == "SELECT_PROFILE":
-                profile_id = cmd.get("profile_id")
-                print(f"DEBUG V3: Solicitud de perfil -> {profile_id}")
-                if manager.profile_manager.select_manual_profile(profile_id):
-                    manager.current_profile = manager.profile_manager.manual_profile
-                    perfil_nombre = (
-                        manager.current_profile.get("name")
-                        if manager.current_profile
-                        else "None"
-                    )
-                    perfil_id = (
-                        manager.current_profile.get("id")
-                        if manager.current_profile
-                        else "None"
-                    )
-                    print(f"DEBUG V3: Perfil activo cambiado a -> {perfil_nombre}")
-
-                    await manager.broadcast(
-                        {
+                if cmd.get("type") == "SELECT_PROFILE":
+                    profile_id = cmd.get("profile_id")
+                    print(f"WS: Request profile -> {profile_id}")
+                    if manager.profile_manager.select_manual_profile(profile_id):
+                        manager.current_profile = manager.profile_manager.manual_profile
+                        perfil_id = manager.current_profile.get("id") if manager.current_profile else "None"
+                        await manager.broadcast({
                             "type": "PROFILE_CHANGED",
                             "active_profile": manager.current_profile,
                             "active_profile_id": perfil_id,
-                        }
-                    )
-    except WebSocketDisconnect:
-        pass
+                        })
+            except WebSocketDisconnect:
+                print(f"WS: Client {client_host} disconnected (clean)")
+                break
+            except Exception as e:
+                # Error en receive_json (ej. no es JSON), ignorar
+                continue
+    except Exception as e:
+        print(f"WS: Error in connection {client_host}: {e}")
     finally:
+        print(f"WS: Closing connection for {client_host}")
         manager.disconnect(websocket)
 
 
 if __name__ == "__main__":
-    import sys
-    # SelectorEventLoop no tiene el bug de _call_connection_lost en Windows.
-    # loop="asyncio" en uvicorn.run() es la segunda línea de defensa por si
-    # uvicorn reemplaza el policy con su propio loop internamente.
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, loop="asyncio")
+    # reload=True requiere pasar la app como string de importación ("main:app")
+    # para que el reloader pueda reimportar el módulo en el worker. Así los cambios
+    # en el backend (incl. ocr_hud) se recargan sin reiniciar manualmente.
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0", 
+        port=8000, 
+        reload=True,
+        reload_dirs=["."],
+        loop="asyncio",
+        ws_ping_interval=20,
+        ws_ping_timeout=20,
+        timeout_keep_alive=30
+    )

@@ -1,14 +1,66 @@
 {
-    "name": "ICET",
+    "name": "ICE T (Expert/LZB)",
     "source_file": "ICET.txt",
     "fingerprint": {
-        "required_controls": []
+        "required_controls": [
+            "Regulator",
+            "TrainBrakeControl",
+            "AFB",
+            "LZBActive",
+            "DoorsOpenCloseLeft"
+        ]
     },
     "mappings": {
-        "reverser": "Reverser"
+        "throttle": "Regulator",
+        "brake": "TrainBrakeControl",
+        "reverser": "Reverser",
+        "afb": "AFB",
+        "afb_target": "VSoll",
+        "brake_pipe": "BrakePipePressureBAR",
+        "brake_cylinder": "TrainBrakeCylinderPressureBAR",
+        "main_reservoir": "MainReservoirPressureBAR",
+        "ammeter": "Ammeter",
+        "effort": "TractiveEffort",
+        "emergency_brake": "EmergencyBrake",
+        "vigil_alarm": "VigilAlarm",
+        "aws_reset": "AWSReset",
+        "lzb_active": "LZBActive",
+        "lzb_distance": "RawTargetDistance",
+        "lzb_target": "RawSpeedTarget",
+        "doors_left": "DoorsOpenCloseLeft",
+        "doors_right": "DoorsOpenCloseRight",
+        "pantograph": "PantographControl"
+    },
+    "specs": {
+        "max_speed": 230,
+        "max_ammeter": 1000,
+        "max_effort": 1000,
+        "max_brake_cyl": 10.0,
+        "max_main_res": 12.0,
+        "notches_throttle_brake": [
+            {"value": -1.0, "label": "EMG"},
+            {"value": -0.7, "label": "S7"},
+            {"value": -0.6, "label": "S6"},
+            {"value": -0.5, "label": "S5"},
+            {"value": -0.4, "label": "S4"},
+            {"value": -0.3, "label": "S3"},
+            {"value": -0.2, "label": "S2"},
+            {"value": -0.1, "label": "S1"},
+            {"value": 0.0, "label": "NEU"},
+            {"value": 0.2, "label": "P1"},
+            {"value": 0.4, "label": "P2"},
+            {"value": 0.6, "label": "P3"},
+            {"value": 0.8, "label": "P4"},
+            {"value": 1.0, "label": "PMAX"}
+        ]
+    },
+    "physics_config": {
+        "max_braking_decel": 1.2,
+        "brake_fill_time_s": 4,
+        "dynamic_brake_ratio": 0.9
     },
     "visuals": {
-        "unit": "MPH",
-        "color": "#3498db"
+        "unit": "KPH",
+        "color": "#c0392b"
     }
 }

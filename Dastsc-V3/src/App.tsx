@@ -6,8 +6,6 @@ import { TrackProfile } from './v3/components/display/TrackProfile'
 import { Speedometer } from './v3/components/display/Speedometer'
 import { BrakingCurve } from './v3/components/display/BrakingCurve'
 import { ProfileSelector } from './v3/components/display/ProfileSelector'
-import { ScenarioHud } from './v3/components/display/ScenarioHud'
-import { scenarioService, ScenarioStop } from './v3/services/ScenarioService'
 
 function PhysicsRow({ label, value, unit, color = "text-white/70" }: { label: string, value: number, unit: string, color?: string }) {
   return (
@@ -32,42 +30,7 @@ function DataPoint({ label, value }: { label: string, value: string | number }) 
 
 function App() {
   const [activeTab, setActiveTab] = useState('PILOT')
-  const { data, isConnected, activeProfile, scenarioStops } = useTelemetry()
-  const [stops, setStops] = useState<ScenarioStop[]>([])
-
-  // stops en tiempo real: WebSocket tiene prioridad (actualiza cada frame),
-  // REST poll cada 5s sirve de semilla inicial y para cambios de escenario manual.
-  const displayStops = scenarioStops.length > 0 ? scenarioStops : stops;
-
-  const fetchStops = async () => {
-    const liveStops = await scenarioService.getLiveTimetable();
-    setStops(liveStops);
-  };
-
-  // Semilla inicial + refresco cada 5s (fallback si WebSocket no trae stops con distancias)
-  useEffect(() => {
-    if (!isConnected) return;
-    fetchStops();
-    const interval = setInterval(fetchStops, 5000);
-    return () => clearInterval(interval);
-  }, [isConnected]);  // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Forzar refresh REST cuando el WebSocket devuelve stops sin distancias válidas
-  // (ocurre en los primeros frames antes de que el GPS esté calibrado)
-  const prevAllNegRef = React.useRef(false);
-  useEffect(() => {
-    if (scenarioStops.length === 0) return;
-    const allNegative = scenarioStops.every(s => (s.distance_m ?? -1) < 0);
-    if (allNegative && !prevAllNegRef.current) {
-      // Primera vez que llegan todos -1: esperar 2s y refrescar REST
-      const t = setTimeout(fetchStops, 2000);
-      prevAllNegRef.current = true;
-      return () => clearTimeout(t);
-    }
-    if (!allNegative) {
-      prevAllNegRef.current = false;
-    }
-  }, [scenarioStops]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const { data, isConnected, activeProfile } = useTelemetry()
 
   const formatDistance = (m: number) => {
     if (data.SpeedUnit === 'MPH') {
@@ -119,7 +82,7 @@ function App() {
               >
                 {/* Sección superior: Perfil de vía */}
                 <div className="h-[220px] relative">
-                  <TrackProfile stops={displayStops} />
+                  <TrackProfile />
                   
                   {/* Info Bar (Del nuevo boceto) */}
                   <div className="absolute bottom-0 left-0 right-0 h-10 bg-black/60 border-y border-white/5 backdrop-blur-md flex items-center px-6 justify-between">
@@ -186,8 +149,6 @@ function App() {
 
                   {/* Columna 3: Métricas secundarias */}
                   <div className="flex flex-col gap-4 overflow-hidden">
-                    <ScenarioHud stops={displayStops} onScenarioChanged={fetchStops} />
-                    
                     <div className="p-4 bg-white/5 border border-white/5 rounded-sm shrink-0">
                       <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest mb-4 font-mono">Adaptive Telemetry Hub</h3>
                       <div className="space-y-4">
