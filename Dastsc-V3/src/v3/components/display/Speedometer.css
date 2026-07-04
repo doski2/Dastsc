@@ -1,5 +1,8 @@
-/* Speedometer.css - Estilos para el velocímetro */
+/* Speedometer.css — estilos del HUD central */
 
-.tail-progress-bar {
+.speedometer-tail-bar {
+  height: 100%;
   width: var(--tail-progress, 0%);
+  background-color: rgb(245 158 11);
+  transition: width 300ms ease;
 }

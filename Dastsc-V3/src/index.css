@@ -1,16 +1,23 @@
 @import "tailwindcss";
 
 @theme {
-  --font-mono: "JetBrains Mono", "Fira Code", monospace;
-}
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 
-@layer utilities {
+  --color-nexus-surface: #050505;
+  --color-nexus-raised: #0a0a0a;
+  --color-nexus-fg: #d0d0d0;
+  --color-nexus-fg-soft: #e0e0e0;
+
+  --animate-scan: scan 4s linear infinite;
+
   @keyframes scan {
-    from { transform: translateY(-100%); }
-    to { transform: translateY(100%); }
-  }
-  .animate-scan {
-    animation: scan 4s linear infinite;
+    from {
+      transform: translateY(-100%);
+    }
+    to {
+      transform: translateY(100%);
+    }
   }
 }
 
@@ -18,27 +25,37 @@
   color-scheme: dark;
 }
 
-body {
-  margin: 0;
-  background-color: #050505;
-  color: #e0e0e0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  overflow: hidden;
+@layer base {
+  body {
+    margin: 0;
+    background-color: var(--color-nexus-surface);
+    color: var(--color-nexus-fg-soft);
+    font-family: var(--font-sans);
+    overflow: hidden;
+    user-select: none;
+  }
 }
 
-/* Estilos personalizados para una estética técnica sobria */
-.muted-glow {
-  box-shadow: 0 0 15px rgba(0, 255, 255, 0.1);
-}
+@layer utilities {
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.15) transparent;
+  }
 
-.glass-panel {
-  background: rgba(20, 20, 20, 0.8);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
 
-.grid-background {
-  background-image: linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px);
-  background-size: 40px 40px;
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgb(255 255 255 / 0.12);
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgb(255 255 255 / 0.2);
+  }
 }

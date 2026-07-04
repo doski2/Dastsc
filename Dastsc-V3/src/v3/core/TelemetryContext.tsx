@@ -1,36 +1,59 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { DataNormalizer } from './DataNormalizer';
+import {
+  extractRawTelemetry,
+  isTelemetryMessage,
+  mergeTelemetryUpdate,
+  ProfileSummary,
+  profileIdsEqual,
+  resolveIncomingProfile,
+  TELEMETRY_WS_URL,
+  toSimulatorRawInput,
+  WS_RECONNECT_MS,
+  type WsMessage,
+} from './telemetryHubUtils';
+import type { NormalizerProfile } from './dataNormalizerUtils';
+
+export type { ProfileSummary };
 
 export interface TelemetryData {
-  Speed: number;            // m/s (internal)
-  SpeedDisplay: number;     // MPH or KPH per profile
+  Speed: number;
+  SpeedDisplay: number;
   SpeedUnit: 'MPH' | 'km/h';
   ProjectedSpeed: number;
   Acceleration: number;
   GForce: number;
   LateralG: number;
-  SpeedLimit: number;       // effective limit (m/s)
+  SpeedLimit: number;
   TrackLimit: number;
   SignalLimit: number;
   FrontalSpeedLimit: number;
   Gradient: number;
-  RawGradient: number; // valor original del juego (positivo=bajada en cab1)
+  RawGradient: number;
   DistToNextSignal: number;
   NextSignalAspect: string;
   NextSpeedLimit: number;
   DistToNextSpeedLimit: number;
   NextLimit2Speed: number;
   DistToNextLimit2: number;
-  UpcomingLimits: { speed: number, distance: number }[];
+  UpcomingLimits: { speed: number; distance: number }[];
   StationDistance: number;
   StationName: string;
   StationLength: number;
-  StationNameOCR: string;    // nombre detectado por OCR del HUD del juego
-  StationETA: string;        // ETA calculada por el juego (HH:MM:SS)
-  StationScheduled: string;  // hora programada del juego (HH:MM:SS)
+  StationNameOCR: string;
+  StationETA: string;
+  StationScheduled: string;
   Throttle: number;
   TrainBrake: number;
-  CombinedControl: number;  // -1 to 1 (Brake to Power)
+  CombinedControl: number;
   Reverser: number;
   BrakeCylinderPressure: number;
   BrakePipePressure: number;
@@ -41,17 +64,17 @@ export interface TelemetryData {
   AmperageUnit: string;
   Ammeter: number;
   TractiveEffort: number;
-  TractionPercent: number;  // -100 to 100
+  TractionPercent: number;
   BrakingEffort: number;
   BrakingPercent: number;
   TrainLength: number;
   TrainMass: number;
   ConsistType: number;
-  TrainType: number;        // 0:Freight 1:Passenger 2:Postal 3:Light
-  ActiveCab: number;        // 1=Front 2=Back
+  TrainType: number;
+  ActiveCab: number;
   ProjectedBrakingDistance: number;
-  TripDistance: number;     // total meters in session
-  TailDistanceRemaining: number; // 0 = safe to accelerate
+  TripDistance: number;
+  TailDistanceRemaining: number;
   TailSecondsRemaining: number;
   TailIsActive: boolean;
   LocoName: string;
@@ -82,32 +105,14 @@ interface TelemetryContextType {
   data: TelemetryData;
   isConnected: boolean;
   lastMessageTime: number;
-  activeProfile: any;
-  availableProfiles: any[];
+  activeProfile: ProfileSummary | null;
+  availableProfiles: ProfileSummary[];
   sendCommand: (cmd: string, val: number) => void;
-  setProfile: (profileName: string) => void;
+  setProfile: (profileId: string) => void;
   resetLocalState: () => void;
 }
 
-export interface SpeedingIncident {
-  start_time: number;
-  hour: number;
-  minute: number;
-  max_velocity_ms: number;
-  distance_m: number;
-  milepost: string;
-  speed_limit: number;
-}
-
-export interface ScenarioProgress {
-  simulation_time?: string;
-  distance_meters?: number;
-  unit_number?: string;
-  operational_errors?: number;
-  speeding_incidents?: SpeedingIncident[];
-}
-
-const DefaultData: TelemetryData = {
+export const DEFAULT_TELEMETRY_DATA: TelemetryData = {
   Speed: 0,
   SpeedDisplay: 0,
   SpeedUnit: 'MPH',
@@ -187,36 +192,100 @@ const DefaultData: TelemetryData = {
 const TelemetryContext = createContext<TelemetryContextType | undefined>(undefined);
 
 export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
-  const [data, setData] = useState<TelemetryData>(DefaultData);
-  const prevDataRef = useRef<TelemetryData>(DefaultData);
+  const [data, setData] = useState<TelemetryData>(DEFAULT_TELEMETRY_DATA);
+  const prevDataRef = useRef<TelemetryData>(DEFAULT_TELEMETRY_DATA);
   const [isConnected, setIsConnected] = useState(false);
-  const [activeProfile, setActiveProfile] = useState<any>(null);
-  const [availableProfiles, setAvailableProfiles] = useState<any[]>([]);
+  const [activeProfile, setActiveProfile] = useState<ProfileSummary | null>(null);
+  const [availableProfiles, setAvailableProfiles] = useState<ProfileSummary[]>([]);
   const [lastMessageTime, setLastMessageTime] = useState(0);
-  
-  const activeProfileRef = useRef<any>(null);
-  const availableProfilesRef = useRef<any[]>([]);
+
+  const activeProfileRef = useRef<ProfileSummary | null>(null);
+  const availableProfilesRef = useRef<ProfileSummary[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<any>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMounted = useRef(true);
   const normalizerRef = useRef(new DataNormalizer());
 
-  // Sincronizar refs con el estado para que el closure del socket los vea
-  useEffect(() => {
-    activeProfileRef.current = activeProfile;
-  }, [activeProfile]);
+  const applyProfiles = useCallback((profiles: ProfileSummary[]) => {
+    setAvailableProfiles(profiles);
+    availableProfilesRef.current = profiles;
+  }, []);
 
-  useEffect(() => {
-    availableProfilesRef.current = availableProfiles;
-  }, [availableProfiles]);
+  const applyActiveProfile = useCallback((profile: ProfileSummary | null) => {
+    setActiveProfile(profile);
+    activeProfileRef.current = profile;
+  }, []);
+
+  const syncActiveProfile = useCallback((message: WsMessage) => {
+    if (message.active_profile === undefined && message.active_profile_id === undefined) {
+      return;
+    }
+
+    const incomingId = message.active_profile_id ?? message.active_profile?.id ?? null;
+    const currentId = activeProfileRef.current?.id ?? null;
+    if (profileIdsEqual(incomingId, currentId) && message.active_profile === undefined) {
+      return;
+    }
+
+    const resolved = resolveIncomingProfile(message, availableProfilesRef.current);
+    if (!profileIdsEqual(incomingId, currentId)) {
+      applyActiveProfile(resolved);
+    }
+  }, [applyActiveProfile]);
+
+  const handleMessage = useCallback((event: MessageEvent) => {
+    if (!isMounted.current) return;
+
+    try {
+      const message = JSON.parse(event.data) as WsMessage;
+      if (!message?.type) return;
+
+      if (Array.isArray(message.available_profiles)) {
+        applyProfiles(message.available_profiles);
+      }
+
+      if (message.type === 'INIT' || message.type === 'PROFILE_CHANGED') {
+        if (Array.isArray(message.available_profiles)) {
+          applyProfiles(message.available_profiles);
+        }
+        applyActiveProfile(resolveIncomingProfile(message, availableProfilesRef.current));
+        return;
+      }
+
+      syncActiveProfile(message);
+
+      if (!isTelemetryMessage(message)) return;
+
+      const raw = extractRawTelemetry(message);
+      if (!raw) return;
+
+      const now = Date.now();
+      const normalized = normalizerRef.current.normalize(
+        toSimulatorRawInput(raw),
+        prevDataRef.current,
+        activeProfileRef.current as NormalizerProfile | null,
+      );
+      const next = mergeTelemetryUpdate(raw, normalized, prevDataRef.current, now);
+      prevDataRef.current = next;
+      setData(next);
+      setLastMessageTime(now);
+    } catch (err) {
+      console.error('[Telemetry] Parse error:', err);
+    }
+  }, [applyActiveProfile, applyProfiles, syncActiveProfile]);
 
   const connect = useCallback(() => {
     if (!isMounted.current) return;
-    if (socketRef.current?.readyState === WebSocket.OPEN || socketRef.current?.readyState === WebSocket.CONNECTING) return;
+    if (
+      socketRef.current?.readyState === WebSocket.OPEN ||
+      socketRef.current?.readyState === WebSocket.CONNECTING
+    ) {
+      return;
+    }
 
     if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-    console.log('Nexus v3 Hub: Connecting...');
-    const ws = new WebSocket('ws://localhost:8000/ws/telemetry');
+
+    const ws = new WebSocket(TELEMETRY_WS_URL);
     socketRef.current = ws;
 
     ws.onopen = () => {
@@ -224,92 +293,25 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
         ws.close();
         return;
       }
-      console.log('Nexus v3 Hub Connected');
       setIsConnected(true);
     };
 
-    ws.onmessage = (event) => {
-      if (!isMounted.current) return;
-      try {
-        const message = JSON.parse(event.data);
-        if (!message) return;
-        const now = Date.now();
-        
-        // 1. Actualización de Perfiles Disponibles (Siempre que vengan)
-        if (message.available_profiles && Array.isArray(message.available_profiles)) {
-          setAvailableProfiles(message.available_profiles);
-          availableProfilesRef.current = message.available_profiles;
-        }
-
-        // 2. Sincronización del Perfil Activo
-        if (message.active_profile !== undefined || message.active_profile_id !== undefined) {
-          let incomingProfile = message.active_profile;
-          const incomingId = message.active_profile_id || message.active_profile?.id || null;
-          const currentId = activeProfileRef.current?.id || null;
-
-          // Si el mensaje solo trae el ID, buscar en la lista local
-          if (!incomingProfile && incomingId && Array.isArray(availableProfilesRef.current)) {
-            incomingProfile = availableProfilesRef.current.find(p => p.id === incomingId);
-          }
-
-          if (incomingId !== currentId) {
-            console.log("Hub: Profile Sync [%s -> %s]", currentId, incomingId, incomingProfile?.name);
-            setActiveProfile(incomingProfile || null);
-            activeProfileRef.current = incomingProfile || null;
-          }
-        }
-
-        // 3. Procesamiento de Telemetría
-        if (message.type === 'DATA' || message.type === 'TELEMETRY') {
-          const raw = message.type === 'DATA' ? message.data : message;
-          if (!raw) return;
-
-          const currentProfile = activeProfileRef.current;
-          const normalized = normalizerRef.current.normalize(raw, prevDataRef.current, currentProfile);
-          const next: TelemetryData = {
-            ...prevDataRef.current,
-            ...normalized,
-            LocoName: raw.LocoName || normalized.LocoName || prevDataRef.current.LocoName,
-            location: raw.location || raw.Location || normalized.location || prevDataRef.current.location,
-            Timestamp: now,
-          };
-          prevDataRef.current = next;
-          setData(next);
-          setLastMessageTime(now);
-        } else if (message.type === 'INIT') {
-          if (message.available_profiles && Array.isArray(message.available_profiles)) {
-            setAvailableProfiles(message.available_profiles);
-            availableProfilesRef.current = message.available_profiles;
-          }
-          setActiveProfile(message.active_profile || null);
-          activeProfileRef.current = message.active_profile || null;
-        }
-      } catch (err) {
-        console.error('Telemetry parse error:', err);
-      }
-    };
+    ws.onmessage = handleMessage;
 
     ws.onclose = (event) => {
-      // Si el componente está desmontado (como en StrictMode), cerramos silenciosamente
       if (!isMounted.current) return;
-
       setIsConnected(false);
-      console.log(`Hub: Connection closed (${event.code}). Reconnecting in 500ms...`);
-      
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = setTimeout(() => {
         if (isMounted.current) connect();
-      }, 500);
+      }, WS_RECONNECT_MS);
+      void event;
     };
 
-    ws.onerror = (err) => {
-      // Solo logeamos el error si no es un cierre intencionado por desmontaje
-      if (isMounted.current) {
-        console.error('Hub WebSocket Error:', err);
-      }
-      ws.close();
+    ws.onerror = () => {
+      if (isMounted.current) ws.close();
     };
-  }, []);
+  }, [handleMessage]);
 
   const sendCommand = useCallback((cmd: string, val: number) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -319,44 +321,55 @@ export const TelemetryProvider = ({ children }: { children: ReactNode }) => {
 
   const setProfile = useCallback((profileId: string) => {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
-      console.log('Hub: Sending SELECT_PROFILE ->', profileId);
-      socketRef.current.send(JSON.stringify({ 
-        type: 'SELECT_PROFILE', 
-        profile_id: profileId 
+      socketRef.current.send(JSON.stringify({
+        type: 'SELECT_PROFILE',
+        profile_id: profileId,
       }));
-    } else {
-      console.warn('Hub: Cannot select profile, socket closed');
     }
   }, []);
 
+  const resetLocalState = useCallback(() => {
+    normalizerRef.current.reset();
+    prevDataRef.current = DEFAULT_TELEMETRY_DATA;
+    setData(DEFAULT_TELEMETRY_DATA);
+    setLastMessageTime(0);
+  }, []);
+
+  useEffect(() => {
+    activeProfileRef.current = activeProfile;
+  }, [activeProfile]);
+
+  useEffect(() => {
+    availableProfilesRef.current = availableProfiles;
+  }, [availableProfiles]);
+
   useEffect(() => {
     isMounted.current = true;
-    // Defer 1 tick to avoid StrictMode double-mount WebSocket race condition
     const initTimeout = setTimeout(() => {
       if (isMounted.current) connect();
     }, 0);
+
     return () => {
       isMounted.current = false;
       clearTimeout(initTimeout);
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-      if (socketRef.current) {
-        socketRef.current.close();
-        socketRef.current = null;
-      }
+      socketRef.current?.close();
+      socketRef.current = null;
     };
   }, [connect]);
 
   return (
-    <TelemetryContext.Provider value={{ 
-      data, 
-      isConnected, 
-      lastMessageTime, 
-      activeProfile, 
+    <TelemetryContext.Provider value={{
+      data,
+      isConnected,
+      lastMessageTime,
+      activeProfile,
       availableProfiles,
       sendCommand,
       setProfile,
-      resetLocalState: () => {},
-    }}>
+      resetLocalState,
+    }}
+    >
       {children}
     </TelemetryContext.Provider>
   );

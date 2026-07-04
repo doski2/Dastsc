@@ -1,13 +1,4 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import App from './App.tsx'
-import { TelemetryProvider } from './v3/core/TelemetryContext'
-import './index.css'
+import './index.css';
+import { mountApp } from './v3/bootstrap/mountApp';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <TelemetryProvider>
-      <App />
-    </TelemetryProvider>
-  </StrictMode>,
-)
+mountApp();

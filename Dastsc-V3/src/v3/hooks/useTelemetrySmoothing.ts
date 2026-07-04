@@ -1,54 +1,44 @@
-import { useTelemetry } from '../core/TelemetryContext';
-import { useSmoothValue } from './useSmoothValue';
+import { useMemo } from 'react';
+import { useTelemetry, type ProfileSummary, type TelemetryData } from '../core/TelemetryContext';
+import { useMultiSmoothValue } from './useSmoothValue';
+import {
+  buildSmoothFactors,
+  buildSmoothTargets,
+  resolveSmoothingFactors,
+  SMOOTH_TELEMETRY_KEYS,
+  type SmoothTelemetry,
+} from './telemetrySmoothingUtils';
+
+export type { SmoothTelemetry } from './telemetrySmoothingUtils';
+
+export interface TelemetrySmoothingResult {
+  raw: TelemetryData;
+  isManeuvering: boolean;
+  smooth: SmoothTelemetry;
+  isConnected: boolean;
+  activeProfile: ProfileSummary | null;
+}
 
 /**
- * Hook de alto nivel que extrae y suaviza los valores de telemetría principales.
- * Este es el punto de consumo principal para los componentes de la interfaz que necesitan movimiento a 60 FPS.
+ * Extrae y suaviza los valores de telemetría principales (un rAF para todos los canales).
  */
-export function useTelemetrySmoothing() {
+export function useTelemetrySmoothing(): TelemetrySmoothingResult {
   const { data, isConnected, activeProfile } = useTelemetry();
+  const { isManeuvering, speedFactor, distFactor } = resolveSmoothingFactors(data.Speed);
 
-  // MODO MANIOBRA: Si la velocidad es < 2 m/s (aprox 7 km/h), aumentamos la reactividad
-  const isManeuvering = data.Speed < 2;
-  const speedFactor = isManeuvering ? 0.7 : 0.45; // Aumentado significativamente para reducir lag visual
-  const distFactor = isManeuvering ? 0.8 : 0.6; // Distancias más reactivas
-  
-  const smoothSpeed = useSmoothValue(data.Speed, speedFactor);
-  const smoothSpeedDisplay = useSmoothValue(data.SpeedDisplay, speedFactor);
-  const smoothBrakeCylinder = useSmoothValue(data.BrakeCylinderPressure, 0.25); // Presión más rápida
-  const smoothBrakePipe = useSmoothValue(data.BrakePipePressure, 0.25);
-  const smoothMainRes = useSmoothValue(data.MainResPressure, 0.15);
-  const smoothAmperage = useSmoothValue(data.Amperage, 0.3); // Amperaje mucho más ágil
+  const factors = useMemo(
+    () => buildSmoothFactors(speedFactor, distFactor),
+    [speedFactor, distFactor],
+  );
 
-  const smoothSignalDist = useSmoothValue(data.DistToNextSignal, distFactor);
-  const smoothNextLimitDist = useSmoothValue(data.DistToNextSpeedLimit, distFactor);
-  const smoothGradient = useSmoothValue(data.Gradient, 0.1);
-  const smoothStationDist = useSmoothValue(data.StationDistance, distFactor);
-  const smoothLateralG = useSmoothValue(data.LateralG, 0.1);
-  const smoothGForce = useSmoothValue(data.GForce, 0.1);
-  const smoothTailSeconds = useSmoothValue(data.TailSecondsRemaining, 0.7); 
-  const smoothTailDistance = useSmoothValue(data.TailDistanceRemaining, 0.7); 
-  
+  const targets = buildSmoothTargets(data);
+  const smooth = useMultiSmoothValue(SMOOTH_TELEMETRY_KEYS, targets, factors) as SmoothTelemetry;
+
   return {
     raw: data,
     isManeuvering,
-    smooth: {
-      speed: smoothSpeed,
-      speedDisplay: smoothSpeedDisplay,
-      brakeCylinder: smoothBrakeCylinder,
-      brakePipe: smoothBrakePipe,
-      mainRes: smoothMainRes,
-      amperage: smoothAmperage,
-      signalDistance: smoothSignalDist,
-      nextLimitDistance: smoothNextLimitDist,
-      gradient: smoothGradient,
-      stationDistance: smoothStationDist,
-      lateralG: smoothLateralG,
-      gForce: smoothGForce,
-      tailSeconds: smoothTailSeconds,
-      tailDistance: smoothTailDistance
-    },
+    smooth,
     isConnected,
-    activeProfile
+    activeProfile,
   };
 }
