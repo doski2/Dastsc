@@ -8,12 +8,20 @@ de frenado con datos reales en lugar de físicas genéricas.
 """
 import json
 import os
-import time
 from typing import Any, Dict, List, Optional
 
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 _LOG_FILE = os.path.join(_DATA_DIR, "brake_events.json")
-_MAX_EVENTS = 500  # límite para no crecer indefinidamente
+_MAX_EVENTS = 500
+_MIN_DECEL_MS2 = 0.10
+_MAX_DURATION_S = 300.0
+
+
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _load() -> List[Dict[str, Any]]:
@@ -21,7 +29,8 @@ def _load() -> List[Dict[str, Any]]:
         return []
     try:
         with open(_LOG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        return data if isinstance(data, list) else []
     except (json.JSONDecodeError, OSError):
         return []
 
@@ -32,28 +41,37 @@ def _save(events: List[Dict[str, Any]]) -> None:
         json.dump(events, f, ensure_ascii=False, indent=2)
 
 
-_MAX_DURATION_S = 300   # eventos más largos son bugs del detector (tracker atascado)
-
 def _is_valid(event: Dict[str, Any]) -> bool:
-    """Descarta eventos que no aportan información útil para el autopilot."""
+    """Descarta eventos sin muesca identificada, demasiado largos o con decel irrisoria."""
     if event.get("notch", "?") == "?":
         return False
-    if float(event.get("duration_s", 0)) > _MAX_DURATION_S:
+    if _as_float(event.get("duration_s")) > _MAX_DURATION_S:
         return False
-    if float(event.get("avg_decel_ms2", 0)) < 0.10:
+    if _as_float(event.get("avg_decel_ms2")) < _MIN_DECEL_MS2:
         return False
     return True
 
 
-def append_event(event: Dict[str, Any]) -> None:
-    """Añade un evento al log si pasa validación. Mantiene como máximo _MAX_EVENTS entradas."""
+def append_event(event: Dict[str, Any]) -> bool:
+    """Añade un evento al log si pasa validación. Devuelve True si se guardó."""
     if not _is_valid(event):
-        return
+        return False
     events = _load()
     events.append(event)
     if len(events) > _MAX_EVENTS:
         events = events[-_MAX_EVENTS:]
     _save(events)
+    return True
+
+
+def purge_invalid() -> int:
+    """Elimina del disco eventos inválidos. Devuelve cuántos se quitaron."""
+    events = _load()
+    clean = [e for e in events if _is_valid(e)]
+    removed = len(events) - len(clean)
+    if removed:
+        _save(clean)
+    return removed
 
 
 def get_events(limit: int = 100, profile: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -67,7 +85,7 @@ def get_events(limit: int = 100, profile: Optional[str] = None) -> List[Dict[str
 def get_stats(profile: Optional[str] = None) -> Dict[str, Any]:
     """
     Calcula estadísticas agregadas por muesca para calibración futura.
-    Devuelve para cada muesca conocida: avg_decel, max_decel, sample_count.
+    Devuelve para cada muesca: avg_decel, max_decel, min_decel, samples.
     """
     events = get_events(limit=_MAX_EVENTS, profile=profile)
     if not events:
@@ -76,9 +94,8 @@ def get_stats(profile: Optional[str] = None) -> Dict[str, Any]:
     by_notch: Dict[str, List[float]] = {}
     for e in events:
         notch = e.get("notch", "?")
-        decel = e.get("avg_decel_ms2", 0)
-        # Ignorar entradas sin notch identificado o con deceleración irrisoria (ruido)
-        if notch and notch != "?" and decel >= 0.1:
+        decel = _as_float(e.get("avg_decel_ms2"))
+        if notch and notch != "?" and decel >= _MIN_DECEL_MS2:
             by_notch.setdefault(notch, []).append(decel)
 
     stats_by_notch = {

@@ -6,18 +6,16 @@ de vía, hora programada, ETA) en el HUD inferior izquierdo. Esta información e
 imposible de obtener via el plugin Lua en contexto global, pero el motor del juego
 ya la calcula. OCR sobre esa región es la fuente más precisa disponible.
 
-Dependencias (instalar con install_ocr_deps.bat):
+Dependencias:
   pip install mss pytesseract pillow
   + Tesseract binary (https://github.com/UB-Mannheim/tesseract/wiki)
-
-La región de captura está calibrada para 2560×1440 (ajustar OCR_REGION si cambia).
 """
 
 from __future__ import annotations
 
-import re
 import os
-from typing import Optional, Dict
+import re
+from typing import Dict, Optional
 
 # ── Comprobación de dependencias opcionales ───────────────────────────────────
 try:
@@ -36,73 +34,32 @@ except ImportError:
 AVAILABLE = MSS_OK and PIL_OK
 
 # ── Región de captura (referencia 2560×1440) ──────────────────────────────────
-# El display de próxima parada aparece en la esquina inferior izquierda.
-# La región se calibró en 2560×1440; la expresamos como FRACCIONES de la
-# resolución de referencia para poder escalarla a cualquier resolución de juego.
 _REF_W, _REF_H = 2560, 1440
 _REGION_FRACTIONS = {
-    "left":   440 / _REF_W,   # 0.1719
-    "top":    1115 / _REF_H,  # 0.7743
-    "width":  430 / _REF_W,   # 0.1680
-    "height": 175 / _REF_H,   # 0.1215
+    "left": 440 / _REF_W,
+    "top": 1115 / _REF_H,
+    "width": 430 / _REF_W,
+    "height": 175 / _REF_H,
 }
+_DEFAULT_REGION: Dict[str, int] = {"left": 440, "top": 1115, "width": 430, "height": 175}
 
-# Región por defecto (referencia); se recalcula con la resolución real detectada.
-OCR_REGION = {"left": 440, "top": 1115, "width": 430, "height": 175}
+# Se rellena en el primer uso (evita detectar monitores al importar el módulo).
+OCR_REGION: Dict[str, int] = dict(_DEFAULT_REGION)
+_region_initialized = False
 
-
-def _detect_region() -> Dict[str, int]:
-    """
-    Calcula la región OCR escalando las fracciones calibradas a la resolución
-    real del monitor PRIMARIO (el que está en la posición 0,0 de Windows, donde
-    normalmente corre el juego). Soporta setups multi-monitor: mss enumera los
-    monitores en orden arbitrario, así que NO usamos monitors[1] ciegamente sino
-    que buscamos el que está en el origen. Si no se detecta, usa la referencia 1440p.
-    """
-    if not MSS_OK:
-        return dict(OCR_REGION)
-    try:
-        with _mss.mss() as sct:
-            physical = sct.monitors[1:]  # monitors[0] es el conjunto virtual
-            if not physical:
-                raise RuntimeError("No se detectaron monitores")
-            # El juego corre en el monitor 2K (2560×1440). Como las fracciones están
-            # calibradas para esa resolución, priorizamos el monitor que coincida
-            # exactamente con la referencia; si no, el de mayor área (el más grande).
-            exact = next(
-                (m for m in physical if m["width"] == _REF_W and m["height"] == _REF_H),
-                None,
-            )
-            target = exact or max(physical, key=lambda m: m["width"] * m["height"])
-            sw, sh = target["width"], target["height"]
-            base_left, base_top = target.get("left", 0), target.get("top", 0)
-        region = {
-            "left":   base_left + int(_REGION_FRACTIONS["left"] * sw),
-            "top":    base_top + int(_REGION_FRACTIONS["top"] * sh),
-            "width":  int(_REGION_FRACTIONS["width"] * sw),
-            "height": int(_REGION_FRACTIONS["height"] * sh),
-        }
-        return region
-    except Exception as exc:
-        print(f"[OCR] No se pudo detectar resolución, usando referencia 1440p: {exc}")
-        return {"left": 440, "top": 1115, "width": 430, "height": 175}
-
-# Ruta a Tesseract — dejar vacío para usar el PATH del sistema
 TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ── Patrones de parseo ────────────────────────────────────────────────────────
-_RE_DIST      = re.compile(r'(\d+[.,]?\d*)\s*(millas?|miles?|km|m)\b', re.IGNORECASE)
-_RE_ETA       = re.compile(r'ETA[:\s]+(\d{1,2}:\d{2}(?::\d{2})?)', re.IGNORECASE)
-_RE_TIME      = re.compile(r'\b(\d{1,2}:\d{2}(?::\d{2})?)\b')
-_RE_SCHED     = re.compile(r'@\s*(\d{1,2}:\d{2}(?::\d{2})?)', re.IGNORECASE)
-# Línea que es SOLO una hora (p.ej. "08:16:06") → no es nombre de estación
-_RE_PURE_TIME = re.compile(r'^\d{1,2}:\d{2}(?::\d{2})?$')
-# Caracteres iniciales que no son letras ni dígitos (artefactos OCR del icono)
-_RE_LEADING_JUNK = re.compile(r'^[^A-Za-zÀ-ÿ0-9]+', re.UNICODE)
+_RE_DIST = re.compile(r"(\d+[.,]?\d*)\s*(millas?|miles?|km|m)\b", re.IGNORECASE)
+_RE_ETA = re.compile(r"ETA[:\s]+(\d{1,2}:\d{2}(?::\d{2})?)", re.IGNORECASE)
+_RE_SCHED = re.compile(r"@\s*(\d{1,2}:\d{2}(?::\d{2})?)", re.IGNORECASE)
+_RE_PURE_TIME = re.compile(r"^\d{1,2}:\d{2}(?::\d{2})?$")
+_RE_LEADING_JUNK = re.compile(r"^[^A-Za-zÀ-ÿ0-9]+", re.UNICODE)
+
+_MILES_TO_M = 1609.34
 
 
 def _setup_tesseract() -> None:
-    """Configura la ruta al binario de Tesseract si existe."""
     if not PIL_OK:
         return
     if os.path.exists(TESSERACT_CMD):
@@ -111,80 +68,107 @@ def _setup_tesseract() -> None:
 
 _setup_tesseract()
 
-# Recalcular la región de captura según la resolución real del monitor principal.
-OCR_REGION = _detect_region()
-print(f"[OCR] Región de captura calibrada: {OCR_REGION}")
+
+def _detect_region() -> Dict[str, int]:
+    """
+    Escala la región calibrada a la resolución del monitor de juego.
+    Prioriza el monitor 2560×1440; si no existe, usa el de mayor área.
+    """
+    if not MSS_OK:
+        return dict(_DEFAULT_REGION)
+    try:
+        with _mss.mss() as sct:
+            physical = sct.monitors[1:]
+            if not physical:
+                raise RuntimeError("No se detectaron monitores")
+            exact = next(
+                (m for m in physical if m["width"] == _REF_W and m["height"] == _REF_H),
+                None,
+            )
+            target = exact or max(physical, key=lambda m: m["width"] * m["height"])
+            sw, sh = target["width"], target["height"]
+            base_left, base_top = target.get("left", 0), target.get("top", 0)
+        return {
+            "left": base_left + int(_REGION_FRACTIONS["left"] * sw),
+            "top": base_top + int(_REGION_FRACTIONS["top"] * sh),
+            "width": int(_REGION_FRACTIONS["width"] * sw),
+            "height": int(_REGION_FRACTIONS["height"] * sh),
+        }
+    except Exception as exc:
+        print(f"[OCR] No se pudo detectar resolución, usando referencia 1440p: {exc}")
+        return dict(_DEFAULT_REGION)
+
+
+def get_ocr_region() -> Dict[str, int]:
+    """Devuelve la región OCR, detectándola en el primer acceso."""
+    global OCR_REGION, _region_initialized
+    if not _region_initialized:
+        OCR_REGION = _detect_region()
+        _region_initialized = True
+        print(f"[OCR] Región de captura calibrada: {OCR_REGION}")
+    return OCR_REGION
+
+
+def refresh_ocr_region() -> Dict[str, int]:
+    """Fuerza recalibración (p. ej. tras cambiar de monitor o resolución)."""
+    global OCR_REGION, _region_initialized
+    OCR_REGION = _detect_region()
+    _region_initialized = True
+    print(f"[OCR] Región recalibrada: {OCR_REGION}")
+    return OCR_REGION
+
+
+def _distance_to_meters(value: str, unit: str) -> float:
+    val = float(value.replace(",", "."))
+    unit_l = unit.lower()
+    if "milla" in unit_l or "mile" in unit_l:
+        return round(val * _MILES_TO_M, 1)
+    if unit_l == "km":
+        return round(val * 1000.0, 1)
+    return round(val, 1)
+
+
+def _ocr_image(image) -> str:
+    w, h = image.size
+    scaled = image.resize((w * 2, h * 2), Image.Resampling.LANCZOS).convert("L")
+    return pytesseract.image_to_string(scaled, lang="spa+eng", config="--psm 11")
+
+
+def _run_ocr_pipeline(img: Image.Image) -> str:
+    gray = img.convert("L")
+    auto = ImageOps.autocontrast(gray, cutoff=2)
+    w, h = auto.size
+
+    lut = [0] * 140 + [255] * 116
+    text_bin = _ocr_image(auto.point(lut))
+    text_gray = _ocr_image(auto)
+
+    bottom = gray.crop((0, int(h * 0.62), w, h))
+    bottom_ac = ImageOps.autocontrast(bottom, cutoff=0)
+    bottom_bin = bottom_ac.point([0] * 200 + [255] * 56)
+    bottom_inv = ImageOps.invert(bottom_bin)
+    bw, bh = bottom_inv.size
+    bottom_scaled = bottom_inv.resize((bw * 4, bh * 4), Image.Resampling.LANCZOS).convert("L")
+    text_bottom = pytesseract.image_to_string(bottom_scaled, lang="spa+eng", config="--psm 6")
+
+    return text_bin + "\n" + text_gray + "\n" + text_bottom
 
 
 def capture_next_stop() -> Optional[Dict]:
     """
-    Captura la región del HUD y devuelve un dict con los campos parseados,
-    o None si OCR no está disponible o no se detecta información útil.
+    Captura la región del HUD y devuelve campos parseados, o None si falla.
 
     Retorno:
-        {
-            "station_name": str | None,
-            "distance_m": float | None,     # distancia real de vía en metros
-            "scheduled_time": str | None,   # hora programada "HH:MM:SS"
-            "eta": str | None,              # ETA calculada por el juego "HH:MM:SS"
-            "raw_text": str,                # texto OCR en bruto (para debug)
-        }
+        station_name, distance_m, scheduled_time, eta, raw_text
     """
     if not AVAILABLE:
         return None
     try:
+        region = get_ocr_region()
         with _mss.mss() as sct:
-            shot = sct.grab(OCR_REGION)
+            shot = sct.grab(region)
             img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
-
-        # ── Preprocesamiento ─────────────────────────────────────────────────
-        # El HUD tiene un gradiente: zona superior oscura (icono + reloj) y zona
-        # inferior gris claro (nombre estación, distancia, ETA). Invertir la
-        # imagen completa deja la zona inferior con texto claro sobre gris
-        # oscuro → Tesseract no lo lee. Solución: autocontrast + umbral fijo,
-        # que funciona bien tanto para texto oscuro-sobre-claro como al revés.
-        gray = img.convert("L")
-        auto = ImageOps.autocontrast(gray, cutoff=2)
-        w, h = auto.size
-
-        # ── Doble pasada OCR ─────────────────────────────────────────────────
-        # El HUD tiene dos zonas: la superior (reloj/nombre) con buen contraste,
-        # y la inferior (distancia/ETA) en gris claro de BAJO contraste que el
-        # umbral binario fijo pierde. Hacemos dos pasadas y fusionamos el texto:
-        #   1) Binarizado (umbral 140) — ideal para la zona de alto contraste.
-        #   2) Escala de grises autocontrastada — conserva el texto tenue
-        #      (línea de distancia) que la binarización elimina.
-        # --psm 11: texto disperso, lee cada línea independientemente.
-        def _ocr(image) -> str:
-            scaled = image.resize((w * 2, h * 2), Image.Resampling.LANCZOS).convert("L")
-            return pytesseract.image_to_string(scaled, lang="spa+eng", config="--psm 11")
-
-        lut = [0] * 140 + [255] * 116
-        text_bin = _ocr(auto.point(lut))   # pasada binarizada
-        text_gray = _ocr(auto)             # pasada en grises (texto tenue)
-
-        # ── Tercera pasada: banda inferior (distancia/ETA) ───────────────────
-        # La línea inferior es texto BLANCO sobre gris. Tesseract espera texto
-        # oscuro sobre claro, por eso las pasadas anteriores la pierden. Receta
-        # calibrada empíricamente: autocontraste local → umbral alto (200) que
-        # aísla solo el texto blanco → invertir a texto negro sobre blanco →
-        # escalar 4× → psm 6. Lee de forma fiable "@ HH:MM in X millas (ETA ...)".
-        bottom = gray.crop((0, int(h * 0.62), w, h))
-        bottom_ac = ImageOps.autocontrast(bottom, cutoff=0)
-        bottom_bin = bottom_ac.point([0] * 200 + [255] * 56)  # >200 = texto
-        bottom_inv = ImageOps.invert(bottom_bin)
-        bw, bh = bottom_inv.size
-        bottom_scaled = bottom_inv.resize(
-            (bw * 4, bh * 4), Image.Resampling.LANCZOS
-        ).convert("L")
-        text_bottom = pytesseract.image_to_string(
-            bottom_scaled, lang="spa+eng", config="--psm 6"
-        )
-
-        # Fusionar las tres pasadas: cada una aporta líneas que las otras pierden.
-        combined = text_bin + "\n" + text_gray + "\n" + text_bottom
-        return _parse(combined)
-
+        return _parse(_run_ocr_pipeline(img))
     except Exception as exc:
         print(f"[OCR] Error de captura: {exc}")
         return None
@@ -205,45 +189,31 @@ def _parse(text: str) -> Optional[Dict]:
         return None
 
     for line in lines:
-        # ── Distancia ────────────────────────────────────────────────────────
         m = _RE_DIST.search(line)
         if m and result["distance_m"] is None:
-            val = float(m.group(1).replace(",", "."))
-            unit = m.group(2).lower()
-            if "milla" in unit or "mile" in unit:
-                result["distance_m"] = round(val * 1609.34, 1)
-            elif unit == "km":
-                result["distance_m"] = round(val * 1000.0, 1)
-            else:
-                result["distance_m"] = round(val, 1)
+            result["distance_m"] = _distance_to_meters(m.group(1), m.group(2))
 
-        # ── ETA ──────────────────────────────────────────────────────────────
         m_eta = _RE_ETA.search(line)
         if m_eta and result["eta"] is None:
             result["eta"] = m_eta.group(1)
 
-        # ── Hora programada (línea con @) ─────────────────────────────────────
         m_sched = _RE_SCHED.search(line)
         if m_sched and result["scheduled_time"] is None:
             result["scheduled_time"] = m_sched.group(1)
 
-    # ── Nombre de estación ────────────────────────────────────────────────────
-    # Primera línea que no sea hora pura, no contenga distancia, '@' ni 'ETA'
     for line in lines:
         if (
             not _RE_DIST.search(line)
             and "@" not in line
             and "eta" not in line.lower()
-            and not _RE_PURE_TIME.match(line)   # excluir el reloj "08:16:06"
+            and not _RE_PURE_TIME.match(line)
             and len(line) > 3
         ):
-            # Limpiar artefactos del icono caminante al inicio ("R ", "| ", etc.)
             clean = _RE_LEADING_JUNK.sub("", line).strip()
             if len(clean) > 3:
                 result["station_name"] = clean
             break
 
-    # Considerar válido solo si obtuvimos al menos nombre o distancia
     if result["station_name"] or result["distance_m"] is not None:
         return result
     return None

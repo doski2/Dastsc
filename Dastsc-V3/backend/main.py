@@ -259,10 +259,11 @@ async def ocr_debug():
     try:
         import mss as _mss
         from PIL import Image
-        from core.ocr_hud import OCR_REGION
+        from core.ocr_hud import get_ocr_region
 
+        region = get_ocr_region()
         with _mss.mss() as sct:
-            shot = sct.grab(OCR_REGION)
+            shot = sct.grab(region)
             img = Image.frombytes("RGB", shot.size, shot.bgra, "raw", "BGRX")
 
         # Guardar imagen original en disco para inspección
@@ -288,7 +289,7 @@ async def ocr_debug():
             "ok": True,
             "saved_to": debug_path,
             "processed_to": proc_path,
-            "region": OCR_REGION,
+            "region": region,
             "parsed": result,
         }
     except Exception as exc:
@@ -304,8 +305,8 @@ async def post_brake_event(request: Request):
         raw_body = await request.body()
         body = json.loads(raw_body.decode("utf-8"))
         body["timestamp"] = body.get("timestamp") or time.time()
-        brake_log.append_event(body)
-        return {"ok": True}
+        saved = brake_log.append_event(body)
+        return {"ok": saved, "rejected": not saved}
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
