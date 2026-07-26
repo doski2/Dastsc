@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./nexus-kernel" },
+    { "path": "./nexus-agent" },
+    { "path": "./Dastsc-V4" }
+  ]
+}

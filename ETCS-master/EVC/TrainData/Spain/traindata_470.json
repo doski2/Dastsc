@@ -1,0 +1,58 @@
+{
+"1UT_2C" : {
+    "length": 55,
+    "speed": 140,
+    "cant_deficiency": 150,
+    "t_traction_cutoff": 0.3,
+    "airtight": 0,
+    "brake_percentage": 165,
+    "axle_load_category": "B2",
+    "loading_gauge": "G1",
+    "traction_systems": [
+        {"name": "DC3kV", "nid_ctraction": 15},
+            {"name": "DC3kV", "nid_ctraction": 16}
+    ]
+},
+"2UT_2C" : {
+    "length": 110,
+    "speed": 140,
+    "cant_deficiency": 150,
+    "t_traction_cutoff": 0.3,
+    "brake_percentage": 165,
+    "airtight": 0,
+    "axle_load_category": "B2",
+    "loading_gauge": "G1",
+    "traction_systems": [
+        {"name": "DC3kV", "nid_ctraction": 15},
+            {"name": "DC3kV", "nid_ctraction": 16}
+    ]
+},
+"1UT_3C" : {
+    "length": 82,
+    "speed": 140,
+    "cant_deficiency": 150,
+    "t_traction_cutoff": 0.3,
+    "brake_percentage": 165,
+    "airtight": 0,
+    "axle_load_category": "B2",
+    "loading_gauge": "G1",
+    "traction_systems": [
+        {"name": "DC3kV", "nid_ctraction": 15},
+            {"name": "DC3kV", "nid_ctraction": 16}
+    ]
+},
+"2UT_3C" : {
+    "length": 164,
+    "speed": 140,
+    "cant_deficiency": 150,
+    "brake_percentage": 165,
+    "t_traction_cutoff": 0.3,
+    "airtight": 0,
+    "axle_load_category": "B2",
+    "loading_gauge": "G1",
+    "traction_systems": [
+        {"name": "DC3kV", "nid_ctraction": 15},
+            {"name": "DC3kV", "nid_ctraction": 16}
+    ]
+}
+}

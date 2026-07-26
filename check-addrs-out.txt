@@ -1,0 +1,8 @@
+HUD esperado: 5.18 mi = 8336 m
+
+5.38_scan_m 0x87776C  raw=8663.0996  if_m=8663.1  if_mi=5.383
+5.38_scan_mi 0x122A10  raw=5.3789  if_m=5.4  if_mi=0.003
+5.18_scan_m 0x8588A4  raw=8348.0029  if_m=8348.0  if_mi=5.187
+5.18_scan_mi 0x926E4C  raw=5.1884  if_m=5.2  if_mi=0.003
+5.18_scan_mi2 0x93CF9C  raw=5.1895  if_m=5.2  if_mi=0.003
+5.18_scan_m2 0x8C4AFC  raw=8333.1963  if_m=8333.2  if_mi=5.178

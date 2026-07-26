@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-nexus-surface: #050505;
+  --color-nexus-raised: #0c0c0c;
+  --color-nexus-accent: #22d3ee;
+}
+
+@layer base {
+  body {
+    margin: 0;
+    background: var(--color-nexus-surface);
+    color: #d4d4d4;
+    font-family: var(--font-sans);
+    overflow: hidden;
+    user-select: none;
+  }
+}

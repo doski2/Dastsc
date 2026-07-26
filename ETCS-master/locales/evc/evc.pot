@@ -1,0 +1,543 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-03-16 11:31+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: ../EVC/DMI/text_messages.cpp:116
+msgid "Level crossing not protected"
+msgstr ""
+
+#: ../EVC/DMI/text_messages.cpp:117
+msgid "Acknowledgement"
+msgstr ""
+
+#: ../EVC/DMI/dmi.cpp:149 ../EVC/DMI/dmi.cpp:179
+msgid " confirmed"
+msgstr ""
+
+#: ../EVC/DMI/dmi.cpp:158 ../EVC/DMI/windows.cpp:107 ../EVC/DMI/windows.cpp:128
+#: ../EVC/DMI/windows.cpp:156 ../EVC/DMI/windows.cpp:1007
+msgid "Level 0"
+msgstr ""
+
+#: ../EVC/DMI/dmi.cpp:161 ../EVC/DMI/windows.cpp:110 ../EVC/DMI/windows.cpp:131
+#: ../EVC/DMI/windows.cpp:158 ../EVC/DMI/windows.cpp:1009
+msgid "Level 1"
+msgstr ""
+
+#: ../EVC/DMI/dmi.cpp:164 ../EVC/DMI/windows.cpp:113 ../EVC/DMI/windows.cpp:134
+#: ../EVC/DMI/windows.cpp:160 ../EVC/DMI/windows.cpp:1011
+msgid "Level 2"
+msgstr ""
+
+#: ../EVC/DMI/dmi.cpp:168 ../EVC/DMI/windows.cpp:116 ../EVC/DMI/windows.cpp:137
+#: ../EVC/DMI/windows.cpp:162 ../EVC/DMI/windows.cpp:1013
+msgid "Level 3"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:98 ../EVC/DMI/windows.cpp:361
+#: ../EVC/DMI/windows.cpp:1288
+msgid "Driver ID"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:170 ../EVC/DMI/windows.cpp:1003
+msgid "Level"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:176 ../EVC/DMI/windows.cpp:363
+#: ../EVC/DMI/windows.cpp:1035
+msgid "Train running number"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:183 ../EVC/DMI/windows.cpp:386
+#: ../EVC/DMI/windows.cpp:1302 ../EVC/DMI/windows.cpp:1465
+msgid "RBC ID"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:184 ../EVC/DMI/windows.cpp:387
+#: ../EVC/DMI/windows.cpp:1303
+msgid "RBC phone number"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:188 ../EVC/DMI/windows.cpp:1301
+#: ../EVC/DMI/windows.cpp:1464
+msgid "RBC data"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:198 ../EVC/DMI/windows.cpp:384
+#: ../EVC/DMI/windows.cpp:1312
+msgid "Radio network ID"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:214 ../EVC/DMI/windows.cpp:274
+#: ../EVC/DMI/windows.cpp:1060 ../EVC/DMI/windows.cpp:1449
+msgid "Train data"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:214 ../EVC/DMI/windows.cpp:366
+#: ../EVC/DMI/windows.cpp:1269
+msgid "Train type"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:225 ../EVC/DMI/windows.cpp:1065
+#: ../EVC/DMI/windows.cpp:1186
+msgid "PASS 1"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:225 ../EVC/DMI/windows.cpp:1067
+#: ../EVC/DMI/windows.cpp:1190
+msgid "PASS 2"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:225 ../EVC/DMI/windows.cpp:1069
+#: ../EVC/DMI/windows.cpp:1194
+msgid "PASS 3"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:226 ../EVC/DMI/windows.cpp:1071
+#: ../EVC/DMI/windows.cpp:1198
+msgid "TILT 1"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:226 ../EVC/DMI/windows.cpp:1073
+#: ../EVC/DMI/windows.cpp:1202
+msgid "TILT 2"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:226 ../EVC/DMI/windows.cpp:1075
+#: ../EVC/DMI/windows.cpp:1206
+msgid "TILT 3"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:227 ../EVC/DMI/windows.cpp:1077
+#: ../EVC/DMI/windows.cpp:1210
+msgid "TILT 4"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:227 ../EVC/DMI/windows.cpp:1079
+#: ../EVC/DMI/windows.cpp:1214
+msgid "TILT 5"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:227 ../EVC/DMI/windows.cpp:1081
+#: ../EVC/DMI/windows.cpp:1218
+msgid "TILT 6"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:228 ../EVC/DMI/windows.cpp:1083
+#: ../EVC/DMI/windows.cpp:1222
+msgid "TILT 7"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:228 ../EVC/DMI/windows.cpp:1085
+#: ../EVC/DMI/windows.cpp:1226
+msgid "FP 1"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:228
+msgid "FP 2"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:229 ../EVC/DMI/windows.cpp:1089
+#: ../EVC/DMI/windows.cpp:1234
+msgid "FP 3"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:229 ../EVC/DMI/windows.cpp:1091
+#: ../EVC/DMI/windows.cpp:1238
+msgid "FP 4"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:229 ../EVC/DMI/windows.cpp:1093
+#: ../EVC/DMI/windows.cpp:1242
+msgid "FG 1"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:230 ../EVC/DMI/windows.cpp:1095
+#: ../EVC/DMI/windows.cpp:1246
+msgid "FG 2"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:230 ../EVC/DMI/windows.cpp:1097
+#: ../EVC/DMI/windows.cpp:1250
+msgid "FG 3"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:230 ../EVC/DMI/windows.cpp:1099
+#: ../EVC/DMI/windows.cpp:1254
+msgid "FG 4"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:238 ../EVC/DMI/windows.cpp:367
+#: ../EVC/DMI/windows.cpp:1063 ../EVC/DMI/windows.cpp:1183
+msgid "Train category"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:241 ../EVC/DMI/windows.cpp:368
+#: ../EVC/DMI/windows.cpp:1062 ../EVC/DMI/windows.cpp:1134
+#: ../EVC/DMI/windows.cpp:1450
+msgid "Length (m)"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:242 ../EVC/DMI/windows.cpp:369
+#: ../EVC/DMI/windows.cpp:1181 ../EVC/DMI/windows.cpp:1454
+msgid "Brake percentage"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:243 ../EVC/DMI/windows.cpp:1179
+#: ../EVC/DMI/windows.cpp:1458
+msgid "Max speed (km/h)"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1149
+msgid "A"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1151
+msgid "HS17"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1153
+msgid "B1"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1155
+msgid "B2"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1157
+msgid "C2"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1159
+msgid "C3"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1161
+msgid "C4"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1163
+msgid "D2"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1165
+msgid "D3"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1167
+msgid "D4"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1169
+msgid "D4XL"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1171
+msgid "E4"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:246 ../EVC/DMI/windows.cpp:372
+#: ../EVC/DMI/windows.cpp:1173
+msgid "E5"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:254 ../EVC/DMI/windows.cpp:373
+#: ../EVC/DMI/windows.cpp:1148
+msgid "Axle load category"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:258 ../EVC/DMI/windows.cpp:375
+#: ../EVC/DMI/windows.cpp:1177
+msgid "Yes"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:258 ../EVC/DMI/windows.cpp:375
+msgid "No"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:259 ../EVC/DMI/windows.cpp:375
+#: ../EVC/DMI/windows.cpp:1176
+msgid "Airtight"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:263 ../EVC/DMI/windows.cpp:377
+#: ../EVC/DMI/windows.cpp:1137
+msgid "G1"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:263 ../EVC/DMI/windows.cpp:377
+#: ../EVC/DMI/windows.cpp:1139
+msgid "GA"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:263 ../EVC/DMI/windows.cpp:377
+#: ../EVC/DMI/windows.cpp:1141
+msgid "GB"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:263 ../EVC/DMI/windows.cpp:377
+#: ../EVC/DMI/windows.cpp:1143
+msgid "GC"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:263 ../EVC/DMI/windows.cpp:377
+msgid "Out of GC"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:271 ../EVC/DMI/windows.cpp:378
+#: ../EVC/DMI/windows.cpp:1136
+msgid "Loading gauge"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:301 ../EVC/DMI/windows.cpp:1412
+#: ../EVC/DMI/windows.cpp:1418 ../EVC/DMI/windows.cpp:1422
+msgid " data"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:310 ../EVC/DMI/windows.cpp:1350
+msgid "Adhesion"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:310 ../EVC/DMI/windows.cpp:1351
+msgid "Slippery rail"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:310
+msgid "Non slippery rail"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:317 ../EVC/DMI/windows.cpp:1343
+#: ../EVC/DMI/windows.cpp:1473
+msgid "SR speed (km/h)"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:318 ../EVC/DMI/windows.cpp:1345
+#: ../EVC/DMI/windows.cpp:1470
+msgid "SR distance (m)"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:320 ../EVC/DMI/windows.cpp:1341
+#: ../EVC/DMI/windows.cpp:1469
+msgid "SR speed/distance"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:326 ../EVC/DMI/windows.cpp:1337
+msgid "Language"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:332 ../EVC/DMI/windows.cpp:1353
+msgid "Set VBC"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:332 ../EVC/DMI/windows.cpp:338
+#: ../EVC/DMI/windows.cpp:1383 ../EVC/DMI/windows.cpp:1384
+#: ../EVC/DMI/windows.cpp:1400
+msgid "VBC code"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:338 ../EVC/DMI/windows.cpp:1362
+msgid "Remove VBC"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:370
+msgid "Maximum speed (km/h)"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:396
+msgid "Data view"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:402
+msgid "System version"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:402
+msgid "Operated system version"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:493 ../EVC/DMI/windows.cpp:601
+msgid "Radio network registration failed"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:504
+msgid "Train is rejected"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:766
+msgid "Shunting request failed"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1026
+msgid "Level selected"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1045
+msgid "Train running number entered"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1063 ../EVC/DMI/windows.cpp:1183
+msgid "TrainCategory"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1087 ../EVC/DMI/windows.cpp:1230
+msgid "FP 2"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1112 ../EVC/DMI/windows.cpp:1116
+msgid "Validate train data"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1136
+msgid "LoadingGauge"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1148
+msgid "AxleLoadCategory"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1273
+msgid "Train data entered"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1299
+msgid "Driver ID entered"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1358 ../EVC/DMI/windows.cpp:1371
+msgid "Validate set VBC"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1367 ../EVC/DMI/windows.cpp:1388
+msgid "Validate remove VBC"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1404
+msgid "Brightness"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1406
+msgid "Volume"
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1418 ../EVC/DMI/windows.cpp:1422
+msgid "Validate "
+msgstr ""
+
+#: ../EVC/DMI/windows.cpp:1615 ../EVC/Procedures/train_trip.cpp:40
+msgid "SH refused"
+msgstr ""
+
+#: ../EVC/Euroradio/session.cpp:138 ../EVC/Procedures/train_trip.cpp:43
+msgid "Trackside not compatible"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:26
+msgid "Unauthorized passing of EoA/LoA"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:30 ../EVC/TrainSubsystems/brake.cpp:31
+msgid "Balise read error"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:34
+msgid "No MA received at level transition"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:37 ../EVC/TrainSubsystems/brake.cpp:66
+msgid "Communication error"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:46
+msgid "SR distance exceeded"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:50
+msgid "SH stop order"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:54
+msgid "SR stop order"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:57
+msgid "Emergency stop"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:60
+msgid "No track description"
+msgstr ""
+
+#: ../EVC/Procedures/train_trip.cpp:71
+msgid " brake demand"
+msgstr ""
+
+#: ../EVC/Procedures/mode_transition.cpp:333
+msgid "Entering FS"
+msgstr ""
+
+#: ../EVC/Procedures/mode_transition.cpp:345
+msgid "Entering OS"
+msgstr ""
+
+#: ../EVC/STM/stm.cpp:411
+msgid " failed"
+msgstr ""
+
+#: ../EVC/STM/stm.cpp:527
+msgid " not available"
+msgstr ""
+
+#: ../EVC/TrackConditions/route_suitability.cpp:78
+msgid "Route suitability - loading gauge"
+msgstr ""
+
+#: ../EVC/TrackConditions/route_suitability.cpp:81
+msgid "Route suitability - axle load category"
+msgstr ""
+
+#: ../EVC/TrackConditions/route_suitability.cpp:84
+msgid "Route suitability - traction system"
+msgstr ""
+
+#: ../EVC/TrainSubsystems/brake.cpp:52
+msgid "Runaway movement"
+msgstr ""
+
+#: ../EVC/TrainSubsystems/brake.cpp:88
+msgid "Train data changed"
+msgstr ""
+
+#: ../EVC/TrainSubsystems/brake.cpp:109
+msgid "PT distance exceeded"
+msgstr ""
+
+#: ../EVC/TrainSubsystems/brake.cpp:129
+msgid "RV distance exceeded"
+msgstr ""

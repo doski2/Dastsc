@@ -1,0 +1,30 @@
+{
+"1UT" : {
+        "length": 78,
+        "speed": 160,
+        "cant_deficiency": 150,
+        "t_traction_cutoff": 0.3,
+        "airtight": 0,
+        "brake_percentage": 158,
+        "axle_load_category": "B2",
+        "loading_gauge": "G1",
+        "traction_systems": [
+            {"name": "DC3kV", "nid_ctraction": 15},
+            {"name": "DC3kV", "nid_ctraction": 16}
+        ]
+    },
+"2UT" : {
+        "length": 156,
+        "speed": 160,
+        "cant_deficiency": 150,
+        "t_traction_cutoff": 0.3,
+        "airtight": 0,
+        "brake_percentage": 158,
+        "axle_load_category": "B2",
+        "loading_gauge": "G1",
+        "traction_systems": [
+            {"name": "DC3kV", "nid_ctraction": 15},
+            {"name": "DC3kV", "nid_ctraction": 16}
+        ]
+    }
+}
