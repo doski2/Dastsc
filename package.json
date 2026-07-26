@@ -14,6 +14,7 @@
     "build:v3": "npm run build -w dastsc-nexus-v3",
     "build:v4": "npm run build -w dastsc-nexus-v4",
     "test:kernel": "npm run test -w @nexus/kernel",
+    "test:agent": "npm run test -w @nexus/agent",
     "test:backend": "python -m unittest discover -s Dastsc-V3/backend/tests -v"
   }
 }

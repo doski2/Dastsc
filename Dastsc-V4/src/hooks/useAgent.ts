@@ -13,13 +13,16 @@ import {
   type ProfileSummary,
   type WsMessage,
 } from '@nexus/kernel';
+import { toBrakePlanProfile, type TrainProfileFields } from '../lib/profileBrake';
+import { useBrakeStats } from './useBrakeStats';
+import { useTrainProfile } from './useTrainProfile';
 
 export interface UseAgentResult {
   snapshot: TelemetrySnapshot;
   agent: AgentTick;
   isConnected: boolean;
   useLive: boolean;
-  activeProfile: ProfileSummary | null;
+  activeProfile: ProfileSummary | TrainProfileFields | null;
   availableProfiles: ProfileSummary[];
 }
 
@@ -30,10 +33,13 @@ export function useAgent(mode: PolicyMode = 'SUGGEST'): UseAgentResult {
   );
   const [isConnected, setIsConnected] = useState(false);
   const [useLive, setUseLive] = useState(false);
-  const [activeProfile, setActiveProfile] = useState<ProfileSummary | null>(null);
+  const [activeProfile, setActiveProfile] = useState<ProfileSummary | TrainProfileFields | null>(null);
   const [availableProfiles, setAvailableProfiles] = useState<ProfileSummary[]>([]);
 
-  const activeProfileRef = useRef<ProfileSummary | null>(null);
+  const trainProfile = useTrainProfile(activeProfile);
+  const brakeStats = useBrakeStats(trainProfile);
+
+  const activeProfileRef = useRef<ProfileSummary | TrainProfileFields | null>(null);
   const profilesRef = useRef<ProfileSummary[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -61,9 +67,10 @@ export function useAgent(mode: PolicyMode = 'SUGGEST'): UseAgentResult {
 
         if (message.type === 'INIT' || message.type === 'PROFILE_CHANGED') {
           const resolved = resolveIncomingProfile(message, profilesRef.current);
-          setActiveProfile(resolved);
-          activeProfileRef.current = resolved;
-          hubRef.current.setProfile(resolved as NormalizerProfile | null);
+          const incoming = message.active_profile as TrainProfileFields | undefined;
+          setActiveProfile(incoming ?? resolved);
+          activeProfileRef.current = incoming ?? resolved;
+          hubRef.current.setProfile((incoming ?? resolved) as NormalizerProfile | null);
           if (message.isConnected !== undefined) {
             setIsConnected(Boolean(message.isConnected));
           }
@@ -144,7 +151,13 @@ export function useAgent(mode: PolicyMode = 'SUGGEST'): UseAgentResult {
     };
   }, []);
 
-  const agent = useMemo(() => tickAgent(snapshot, mode), [snapshot, mode]);
+  const agent = useMemo(
+    () => tickAgent(snapshot, mode, {
+      profile: toBrakePlanProfile(trainProfile),
+      brakeStats,
+    }),
+    [snapshot, mode, trainProfile, brakeStats],
+  );
 
   return {
     snapshot,

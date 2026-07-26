@@ -44,6 +44,7 @@ export function createMockSnapshot(overrides: Partial<TelemetrySnapshot> = {}): 
     train: {
       lengthM: 120,
       massT: 180,
+      consistType: 1,
       profileId: 'class323_expert',
       name: 'Class 323',
     },

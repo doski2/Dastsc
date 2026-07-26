@@ -12,7 +12,15 @@ El archivo debe guardarse en `/profiles/[nombre_del_tren].json`.
 
 ## 2. Parámetros Críticos (Cómo obtenerlos)
 
-Para cada tren nuevo, abre el archivo `debug.txt` del simulador y busca:
+Para cada tren nuevo, genera un volcado propio (sin herramientas de terceros):
+
+```bash
+```
+
+Requisito: TSC en cabina + `RailDriver64.dll`. El formato es compatible con el antiguo
+`debug.txt` de interfaces joystick de terceros (`Name`, `Min`, `Max`, `value`).
+
+También puedes abrir un `debug.txt` externo si ya lo tienes y buscar:
 
 ### A. Límites de Presión (`specs`)
 

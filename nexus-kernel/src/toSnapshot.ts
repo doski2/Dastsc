@@ -56,6 +56,7 @@ export function toTelemetrySnapshot(
     train: {
       lengthM: data.TrainLength,
       massT: data.TrainMass,
+      consistType: data.TrainType,
       profileId,
       name: data.LocoName,
     },

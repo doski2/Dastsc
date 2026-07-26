@@ -90,11 +90,37 @@ class ProfileManager:
         return True
 
     def get_profile_for_loco(self, loco_name: str) -> Optional[Profile]:
-        """Autodetección por id de locomotora; fallback al primer perfil cargado."""
+        """Autodetección simple por id/nombre (legacy)."""
         if not loco_name:
             return self.profiles[0] if self.profiles else None
         target = loco_name.strip().lower()
         for profile in self.profiles:
             if str(profile["id"]).lower() == target:
                 return profile
+            if str(profile.get("name", "")).lower() == target:
+                return profile
         return self.profiles[0] if self.profiles else None
+
+    def resolve_active_profile(
+        self,
+        loco_names: Optional[List[str]] = None,
+        controller_names: Optional[List[str]] = None,
+        limits_by_name: Optional[Dict[str, Dict[str, float]]] = None,
+    ) -> Optional[Profile]:
+        from core.profile_auto import enrich_profile, resolve_auto_profile, resolve_profile_chain
+
+        if self.manual_profile is not None:
+            resolved = resolve_profile_chain(self.manual_profile, self.get_by_id)
+            return enrich_profile(
+                resolved,
+                limits_by_name=limits_by_name,
+                loco_names=loco_names,
+            )
+
+        loco_names = loco_names or []
+        controller_names = controller_names or []
+        picked = resolve_auto_profile(self.profiles, loco_names, controller_names)
+        if picked is None:
+            return None
+        resolved = resolve_profile_chain(picked, self.get_by_id)
+        return enrich_profile(resolved, limits_by_name=limits_by_name, loco_names=loco_names)

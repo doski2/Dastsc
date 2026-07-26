@@ -1,5 +1,16 @@
 {
     "name": "Class 323 DMS(B) CrossCity",
+    "aliases": [
+        "Class 323",
+        "Class323",
+        "323",
+        "323211",
+        "RV:323211",
+        "RV:323",
+        "DMS 323",
+        "CrossCity",
+        "Birmingham Cross City"
+    ],
     "fingerprint": {
         "required_controls": [
             "ThrottleAndBrake",

@@ -49,6 +49,7 @@ export interface TelemetrySnapshot {
   train: {
     lengthM: number;
     massT: number;
+    consistType: number;
     profileId: string | null;
     name: string;
   };

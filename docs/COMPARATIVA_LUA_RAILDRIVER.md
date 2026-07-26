@@ -83,6 +83,39 @@ Dependen de cada locomotora (`GetControllerList()`). Candidatos típicos en UK E
 **No leer de la DLL** lo que ya está en GetData con el mismo fin: velocidad, presiones BC/BP/MR,
 gradiente, hora, posición.
 
+### 4.2.1 ¿Lua y DLL a la vez para mandar comandos?
+
+**Sí, los dos canales pueden estar activos en la misma sesión**, pero el `CommandBus` debe elegir
+**un solo canal por acción** — nunca mandar el mismo control por Lua y DLL en el mismo tick.
+
+| Pregunta                  | Respuesta                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| ¿Solo DLL para comandos?  | **No.** Lua (`SendCommand`) es el **default** (P3). DLL (P4) es **complemento**. |
+| ¿Pueden coexistir?        | **Sí.** Ej.: Lua mueve freno; DLL pulsa un botón ETCS que Lua no reenvía.        |
+| ¿Mismo mando por los dos? | **No.** Compiten por la misma palanca → valor impredecible o “lucha”.            |
+
+**Qué nos influye al elegir canal:**
+
+| Factor                    | Lua `SendCommand`                                  | DLL `SetControllerValue`                                 |
+| ------------------------- | -------------------------------------------------- | -------------------------------------------------------- |
+| **Controles disponibles** | Solo los que el script Lua reenvía en `SendData()` | Cualquier entrada de `GetControllerList()`               |
+| **Nombres vs índices**    | Semánticos (`Regulator`, `TrainBrakeControl`)      | Índice entero; **cambia por locomotora**                 |
+| **Perfil JSON**           | Opcional (alias de nombres)                        | **Obligatorio** para mapear índice↔mando                 |
+| **Latencia**              | Archivo → ~1 tick de juego                         | Llamada directa (más rápida)                             |
+| **Sin DLL instalada**     | ✅ Funciona                                        | ❌ No funciona                                           |
+| **Menú / pausa**          | Escribe pero el tren no responde igual             | 0 controles — no mandar                                  |
+| **Trenes UK EMU (323)**   | Suficiente para tracción/freno/AWS/puertas         | Solo si hace falta cabina extra (ETCS, etc.)             |
+| **Auditoría / whitelist** | Un archivo, fácil de revisar                       | Log por índice + valor + perfil                          |
+| **Hardware RailDriver**   | No interfiere                                      | `SetRailDriverConnected` enlaza volante físico si existe |
+
+**Regla práctica para la IA:**
+
+```text
+```
+
+Ambos acaban en `SetControlValue` **dentro del simulador**; la diferencia es **cómo llega** el
+orden (archivo + plugin global vs API de cabina) y **qué mandos** puedes alcanzar.
+
 ### 4.3 Requisitos operativos
 
 - Tren activo en cabina (en menú/pausa → 0 controles).

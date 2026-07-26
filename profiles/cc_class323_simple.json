@@ -1,5 +1,15 @@
 {
     "name": "CC Class323 Simple",
+    "extends": "class323",
+    "aliases": [
+        "Class 323",
+        "Class323",
+        "323",
+        "323211",
+        "RV:323211",
+        "RV:323",
+        "CC Class323"
+    ],
     "source_file": "CC_Class323_Simple.txt",
     "fingerprint": {
         "required_controls": [

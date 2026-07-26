@@ -6,7 +6,9 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "types": ["vitest/globals"]
   },
   "include": ["src/**/*.ts"]
 }

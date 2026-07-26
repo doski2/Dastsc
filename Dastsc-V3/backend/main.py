@@ -18,6 +18,7 @@ if sys.platform == "win32":
 
 from core.parser import parse_telemetry_line
 from core.profiles import ProfileManager
+from core.raildriver import get_raildriver_client
 import core.ocr_hud as ocr_hud
 import core.brake_log as brake_log
 
@@ -32,7 +33,9 @@ _GETDATA_ALT_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\RailWorks\Ge
 _CORS_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
+    "http://localhost:5175",
     "http://127.0.0.1:5173",
+    "http://127.0.0.1:5175",
 ]
 
 _POLL_INTERVAL_S = 0.01
@@ -42,6 +45,7 @@ _OCR_INTERVAL_DEFAULT_S = 30.0
 _OCR_INTERVAL_NEAR_S = 5.0
 _OCR_INTERVAL_MID_S = 10.0
 _OCR_NEAR_DISTANCE_M = 1000.0
+_PROFILE_SYNC_INTERVAL_S = 2.0
 
 
 def _sanitize(obj: Any) -> Any:
@@ -132,6 +136,8 @@ class TelemetryManager:
         self.profile_manager = ProfileManager(self.active_profiles_path)
         self.current_profile: Optional[Dict[str, Any]] = None
         self.last_payload: Dict[str, Any] = {}
+        self._profile_sync_key: str = ""
+        self._last_profile_sync_at: float = 0.0
 
     async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
@@ -171,11 +177,49 @@ class TelemetryManager:
         if not self.profile_manager.select_manual_profile(profile_id):
             return
         self.current_profile = self.profile_manager.manual_profile
+        await self._broadcast_profile_change()
+
+    async def _broadcast_profile_change(self) -> None:
         await self.broadcast({
             "type": "PROFILE_CHANGED",
             "active_profile": self.current_profile,
             "active_profile_id": self.current_profile.get("id") if self.current_profile else None,
         })
+
+    async def sync_auto_profile(self, lua_loco_name: str = "") -> None:
+        now = time.time()
+        if now - self._last_profile_sync_at < _PROFILE_SYNC_INTERVAL_S:
+            return
+        self._last_profile_sync_at = now
+
+        rd = get_raildriver_client()
+        snapshot = rd.snapshot() if rd.available else None
+        loco_names = snapshot.loco_names if snapshot else []
+        if not loco_names and lua_loco_name:
+            loco_names = [lua_loco_name]
+
+        controller_names = snapshot.controller_names if snapshot else []
+        limits = snapshot.limits_by_name() if snapshot else None
+        sync_key = "|".join(loco_names + controller_names[:8])
+        if sync_key == self._profile_sync_key and self.current_profile is not None:
+            return
+
+        resolved = self.profile_manager.resolve_active_profile(
+            loco_names=loco_names,
+            controller_names=controller_names,
+            limits_by_name=limits,
+        )
+        if resolved is None:
+            return
+
+        profile_id = resolved.get("id")
+        current_id = self.current_profile.get("id") if self.current_profile else None
+        if profile_id == current_id and sync_key == self._profile_sync_key:
+            return
+
+        self._profile_sync_key = sync_key
+        self.current_profile = resolved
+        await self._broadcast_profile_change()
 
 
 manager = TelemetryManager()
@@ -253,6 +297,8 @@ async def telemetry_reader() -> None:
 
                         _apply_ocr_to_telemetry(data, ocr_last_result)
 
+                        await manager.sync_auto_profile(str(data.get("LocoName") or ""))
+
                         await manager.broadcast({
                             "type": "TELEMETRY",
                             **data,
@@ -322,6 +368,14 @@ async def post_brake_event(request: Request):
         return {"ok": saved, "rejected": not saved}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+@app.get("/api/profiles/{profile_id}")
+async def get_profile(profile_id: str):
+    profile = manager.profile_manager.get_by_id(profile_id)
+    if profile is None:
+        return {"error": "not_found"}
+    return profile
 
 
 @app.get("/api/brake/events")

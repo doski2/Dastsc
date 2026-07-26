@@ -162,8 +162,9 @@ export function getTargetInfo(
   }
 }
 
-export function gravityAcceleration(gradientPercent: number): number {
-  return 9.80665 * (gradientPercent / 100);
+/** Gradient en ‰ (convención TSC / kernel), no en %. */
+export function gravityAcceleration(gradientPermille: number): number {
+  return 9.80665 * (gradientPermille / 1000);
 }
 
 export function computeRecommendedBrake(
