@@ -1,7 +1,9 @@
 export type {
   AgentAction,
+  AgentBrakeContext,
   AgentTick,
   BrakePlanStep,
+  BrakeTargetKind,
   HorizonEvent,
   HorizonKind,
   PolicyMode,

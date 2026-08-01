@@ -5,6 +5,8 @@ export const APPLY_NOW_MARGIN_M = 150;
 export const MIN_LEARNED_SAMPLES = 3;
 export const DEFAULT_MAX_BRAKE_DECEL = 0.8;
 export const G_MSS = 9.80665;
+/** Peso de la media en decel de planificación (resto = max aprendido). */
+export const PLANNING_DECEL_AVG_WEIGHT = 0.65;
 
 /**
  * Componente de aceleración efectiva por pendiente.

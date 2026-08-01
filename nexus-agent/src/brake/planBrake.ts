@@ -1,8 +1,9 @@
-import type { BrakePlanStep } from '@nexus/kernel';
+import type { AgentBrakeContext, BrakePlanStep } from '@nexus/kernel';
 import {
   APPLY_NOW_MARGIN_M,
   DEFAULT_MAX_BRAKE_DECEL,
   MIN_LEARNED_SAMPLES,
+  PLANNING_DECEL_AVG_WEIGHT,
   displaySpeedToMs,
   gravityAcceleration,
   lagFactor,
@@ -13,13 +14,30 @@ import type {
   BrakePlanProfile,
   BrakePlanStepDetail,
   BrakeStatsByNotch,
+  BrakeStatsEntry,
   BrakeTargetKind,
   PlanBrakeInput,
   SnapshotBrakeContext,
 } from './types';
 
-export function reactionMarginM(speedMs: number, fillTimeSecs: number): number {
+export function reactionMarginM(
+  speedMs: number,
+  fillTimeSecs: number,
+  reactionTimeOverride?: number,
+): number {
+  if (reactionTimeOverride != null && reactionTimeOverride > 0) {
+    return speedMs * reactionTimeOverride;
+  }
   return speedMs * Math.min(4.0, 1.5 + fillTimeSecs);
+}
+
+/** Decel para planificar: blend avg/max — la media de sesiones suele ser conservadora. */
+export function planningDecelFromStats(entry: BrakeStatsEntry): number {
+  const { avg_decel: avg, max_decel: max } = entry;
+  if (max != null && max > avg) {
+    return avg * PLANNING_DECEL_AVG_WEIGHT + max * (1 - PLANNING_DECEL_AVG_WEIGHT);
+  }
+  return avg;
 }
 
 export function decelForNotch(
@@ -33,7 +51,7 @@ export function decelForNotch(
 ): number {
   const learned = brakeStats[notchLabel];
   if (learned && learned.samples >= MIN_LEARNED_SAMPLES) {
-    return learned.avg_decel;
+    return planningDecelFromStats(learned);
   }
   const grav = gravityAcceleration(gradientPermille);
   return (baseDecel * fraction) / (massFactor(massT) * lagFactor(consistType)) + grav;
@@ -115,7 +133,11 @@ export function planBrake(input: PlanBrakeInput, targetKind: BrakeTargetKind): B
 
   const baseDecel = profile?.physics_config?.max_braking_decel ?? DEFAULT_MAX_BRAKE_DECEL;
   const fillTimeSecs = profile?.physics_config?.brake_fill_time_s ?? 2.5;
-  const reaction = reactionMarginM(speedMs, fillTimeSecs);
+  const reaction = reactionMarginM(
+    speedMs,
+    fillTimeSecs,
+    profile?.physics_config?.reaction_time_s,
+  );
   const phases = buildServicePhases(profile);
 
   const steps: BrakePlanStepDetail[] = phases.map(phase => {
@@ -162,7 +184,21 @@ export function toKernelBrakeSteps(plan: BrakePlan): BrakePlanStep[] {
     notch: step.notch,
     phase: step.phase,
     distanceM: step.distanceM,
+    distStart: step.distStart,
+    metersUntilActionM: step.metersUntilActionM,
+    usingLearned: step.usingLearned,
+    applyNow: step.applyNow,
   }));
+}
+
+export function toAgentBrakeContext(plan: BrakePlan, gradientPermille: number): AgentBrakeContext {
+  return {
+    targetKind: plan.targetKind === 'SIGNAL' ? 'SPEED_LIMIT' : plan.targetKind,
+    distanceToTargetM: plan.distanceToTargetM,
+    reactionMarginM: plan.reactionMarginM,
+    gradientPermille,
+    activeNotch: plan.activeStep?.notch ?? null,
+  };
 }
 
 export function planBrakeForLimit(

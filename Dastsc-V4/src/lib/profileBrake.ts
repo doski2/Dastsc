@@ -29,14 +29,28 @@ export function toBrakePlanProfile(profile: TrainProfileFields | null | undefine
   };
 }
 
+export function toCommandProfile(profile: TrainProfileFields | null | undefined) {
+  if (!profile) return null;
+  return {
+    physics_config: profile.physics_config,
+    specs: profile.specs,
+    mappings: profile.mappings,
+  };
+}
+
 export function profileId(profile: TrainProfileFields | null | undefined): string {
   return profile?.id ?? profile?.name ?? '';
 }
 
+export function brakeApiUrl(path: string, profile?: string | null): string {
+  const base = `${API_BASE}${path}`;
+  if (!profile) return base;
+  const sep = path.includes('?') ? '&' : '?';
+  return `${base}${sep}profile=${encodeURIComponent(profile)}`;
+}
+
 export function brakeStatsUrl(profileIdValue: string | null): string {
-  const base = `${API_BASE}/api/brake/stats`;
-  if (!profileIdValue) return base;
-  return `${base}?profile=${encodeURIComponent(profileIdValue)}`;
+  return brakeApiUrl('/api/brake/stats', profileIdValue);
 }
 
 export function profileDetailUrl(profileIdValue: string): string {

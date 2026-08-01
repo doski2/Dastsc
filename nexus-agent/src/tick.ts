@@ -1,10 +1,10 @@
-import type { AgentTick, BrakePlanStep, PolicyMode, TelemetrySnapshot, Urgency } from '@nexus/kernel';
+import type { AgentAction, AgentBrakeContext, AgentTick, BrakePlanStep, PolicyMode, TelemetrySnapshot, Urgency } from '@nexus/kernel';
 import { formatDistance, formatSpeed } from '@nexus/kernel';
 import { APPLY_NOW_MARGIN_M } from './brake/physics';
-import { planBrakeForLimit, planBrakeForStation, toKernelBrakeSteps } from './brake/planBrake';
+import { planBrakeForLimit, planBrakeForStation, toAgentBrakeContext, toKernelBrakeSteps } from './brake/planBrake';
 import type { BrakePlan, BrakePlanProfile, SnapshotBrakeContext } from './brake/types';
+import { resolveSuggestedAction } from './command/commandBus';
 import { buildHorizon } from './horizon';
-
 const DEFAULT_MODE: PolicyMode = 'SUGGEST';
 
 const DEFAULT_BRAKE_PROFILE: BrakePlanProfile = {
@@ -52,6 +52,40 @@ function formatBrakeAction(
   };
 }
 
+function resolveActiveBrakePlan(
+  snapshot: TelemetrySnapshot,
+  brakeCtx: SnapshotBrakeContext,
+): { plan: BrakePlan | null; brakePlan?: BrakePlanStep[]; brakeContext?: AgentBrakeContext } {
+  const ctx = {
+    profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
+    brakeStats: brakeCtx.brakeStats,
+  };
+
+  const limit = snapshot.limits.next;
+  if (limit && limit.distanceM > 0 && limit.distanceM < 800) {
+    const plan = planBrakeForLimit(snapshot, ctx);
+    if (plan?.activeStep) {
+      return {
+        plan,
+        brakePlan: toKernelBrakeSteps(plan),
+        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
+      };
+    }
+  }
+
+  if (snapshot.station.distanceM > 0 && snapshot.station.distanceM < 1500) {
+    const plan = planBrakeForStation(snapshot, ctx);
+    if (plan?.activeStep) {
+      return {
+        plan,
+        brakePlan: toKernelBrakeSteps(plan),
+        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
+      };
+    }
+  }
+
+  return { plan: null };
+}
 function pickHeadline(
   snapshot: TelemetrySnapshot,
   horizon: ReturnType<typeof buildHorizon>,
@@ -62,6 +96,7 @@ function pickHeadline(
   urgency: Urgency;
   marginM: number;
   brakePlan?: BrakePlanStep[];
+  brakeContext?: AgentBrakeContext;
 } {
   const safety = horizon.find(e => e.kind === 'SAFETY');
   if (safety) {
@@ -87,6 +122,7 @@ function pickHeadline(
         ...action,
         marginM: plan.activeStep.metersUntilActionM || marginM,
         brakePlan: toKernelBrakeSteps(plan),
+        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
       };
     }
     return {
@@ -114,6 +150,7 @@ function pickHeadline(
         urgency: action.urgency,
         marginM: plan.activeStep.metersUntilActionM || marginM,
         brakePlan: toKernelBrakeSteps(plan),
+        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
       };
     }
     return {
@@ -126,7 +163,7 @@ function pickHeadline(
 
   return {
     headline: 'Circulación supervisada',
-    detail: `Velocidad ${formatSpeed(snapshot.speedDisplay)} ${snapshot.speedUnit} · límite ${Math.round(snapshot.limits.effective)}`,
+    detail: `Velocidad ${formatSpeed(snapshot.speedDisplay)} ${snapshot.speedUnit} · límite actual ${Math.round(snapshot.limits.effective)}`,
     urgency: 'info',
     marginM: limit?.distanceM ?? 9999,
   };
@@ -138,18 +175,36 @@ export function tickAgent(
   brakeCtx: SnapshotBrakeContext = {},
 ): AgentTick {
   const horizon = buildHorizon(snapshot);
-  const { headline, detail, urgency, marginM, brakePlan } = pickHeadline(snapshot, horizon, brakeCtx);
+  const brakePresentation = resolveActiveBrakePlan(snapshot, brakeCtx);
+  const picked = pickHeadline(snapshot, horizon, brakeCtx);
+  const hasSafetyEvent = horizon.some(e => e.kind === 'SAFETY');
+  const suggestedAction = resolveSuggestedAction(
+    mode,
+    brakePresentation.plan,
+    brakeCtx.commandProfile,
+    snapshot,
+    hasSafetyEvent,
+  );
+
+  let blockedReason: string | undefined;
+  if (!snapshot.connected) {
+    blockedReason = 'Sin enlace con backend';
+  } else if (mode === 'AUTO' && hasSafetyEvent) {
+    blockedReason = 'AUTO suspendido — evento SAFETY';
+  }
 
   return {
     t: snapshot.t,
     mode,
-    headline,
-    detail,
-    urgency,
-    marginM,
-    marginS: estimateMarginS(marginM, snapshot.speedMs),
+    headline: picked.headline,
+    detail: picked.detail,
+    urgency: picked.urgency,
+    marginM: picked.marginM,
+    marginS: estimateMarginS(picked.marginM, snapshot.speedMs),
     horizon,
-    brakePlan,
-    blockedReason: !snapshot.connected ? 'Sin enlace con backend' : undefined,
+    brakePlan: brakePresentation.brakePlan ?? picked.brakePlan,
+    brakeContext: brakePresentation.brakeContext ?? picked.brakeContext,
+    suggestedAction,
+    blockedReason,
   };
 }

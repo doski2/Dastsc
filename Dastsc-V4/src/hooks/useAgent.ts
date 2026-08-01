@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { BrakeStatsByNotch } from '@nexus/agent';
 import { tickAgent } from '@nexus/agent';
 import type { AgentTick, PolicyMode, TelemetrySnapshot } from '@nexus/kernel';
 import {
@@ -13,9 +14,19 @@ import {
   type ProfileSummary,
   type WsMessage,
 } from '@nexus/kernel';
-import { toBrakePlanProfile, type TrainProfileFields } from '../lib/profileBrake';
+import {
+  loadPolicyMode,
+  loadProfileSelection,
+  savePolicyMode,
+  saveProfileSelection,
+} from '../lib/agentSettings';
+import type { AgentAction } from '@nexus/kernel';
+import { isFullTrainProfile, toBrakePlanProfile, toCommandProfile, type TrainProfileFields } from '../lib/profileBrake';
+import { useBrakeLearning } from './useBrakeLearning';
 import { useBrakeStats } from './useBrakeStats';
 import { useTrainProfile } from './useTrainProfile';
+import type { CommandAck } from '../lib/commandTypes';
+import { useAutoCommand } from './useAutoCommand';
 
 export interface UseAgentResult {
   snapshot: TelemetrySnapshot;
@@ -24,9 +35,24 @@ export interface UseAgentResult {
   useLive: boolean;
   activeProfile: ProfileSummary | TrainProfileFields | null;
   availableProfiles: ProfileSummary[];
+  brakeStats: BrakeStatsByNotch;
+  policyMode: PolicyMode;
+  profileSelection: string;
+  setPolicyMode: (mode: PolicyMode) => void;
+  selectProfile: (profileId: string) => void;
+  sendCommand: (action: AgentAction) => void;
+  lastCommandAck: CommandAck | null;
 }
 
-export function useAgent(mode: PolicyMode = 'SUGGEST'): UseAgentResult {
+function sendProfileCommand(ws: WebSocket | null, profileId: string): void {
+  if (ws?.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({
+    type: 'SELECT_PROFILE',
+    profile_id: profileId,
+  }));
+}
+
+export function useAgent(): UseAgentResult {
   const hubRef = useRef(new TelemetryHub());
   const [snapshot, setSnapshot] = useState<TelemetrySnapshot>(() =>
     createMockSnapshot({ connected: false }),
@@ -35,15 +61,51 @@ export function useAgent(mode: PolicyMode = 'SUGGEST'): UseAgentResult {
   const [useLive, setUseLive] = useState(false);
   const [activeProfile, setActiveProfile] = useState<ProfileSummary | TrainProfileFields | null>(null);
   const [availableProfiles, setAvailableProfiles] = useState<ProfileSummary[]>([]);
+  const [policyMode, setPolicyModeState] = useState<PolicyMode>(loadPolicyMode);
+  const [profileSelection, setProfileSelection] = useState(loadProfileSelection);
+  const [lastCommandAck, setLastCommandAck] = useState<CommandAck | null>(null);
 
   const trainProfile = useTrainProfile(activeProfile);
-  const brakeStats = useBrakeStats(trainProfile);
+  const { brakeStats, refreshBrakeStats } = useBrakeStats(trainProfile);
+
+  const brakeLearningEnabled =
+    useLive && isConnected && isFullTrainProfile(trainProfile);
+  useBrakeLearning(snapshot, trainProfile, brakeLearningEnabled, refreshBrakeStats);
 
   const activeProfileRef = useRef<ProfileSummary | TrainProfileFields | null>(null);
   const profilesRef = useRef<ProfileSummary[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMounted = useRef(true);
+  const profileSelectionRef = useRef(profileSelection);
+
+  useEffect(() => {
+    profileSelectionRef.current = profileSelection;
+  }, [profileSelection]);
+
+  const setPolicyMode = useCallback((mode: PolicyMode) => {
+    setPolicyModeState(mode);
+    savePolicyMode(mode);
+  }, []);
+
+  const selectProfile = useCallback((profileId: string) => {
+    const selection = profileId.toUpperCase() === 'AUTO' ? 'AUTO' : profileId;
+    setProfileSelection(selection);
+    saveProfileSelection(selection);
+    sendProfileCommand(socketRef.current, selection);
+  }, []);
+
+  const sendCommand = useCallback((action: AgentAction) => {
+    if (socketRef.current?.readyState !== WebSocket.OPEN) {
+      setLastCommandAck({ ok: false, error: 'websocket_closed' });
+      return;
+    }
+    socketRef.current.send(JSON.stringify({
+      type: 'COMMAND',
+      command: action.command,
+      value: action.value,
+    }));
+  }, []);
 
   useEffect(() => {
     activeProfileRef.current = activeProfile;
@@ -59,6 +121,17 @@ export function useAgent(mode: PolicyMode = 'SUGGEST'): UseAgentResult {
       try {
         const message = JSON.parse(event.data) as WsMessage;
         if (!message?.type) return;
+
+        if (message.type === 'COMMAND_ACK') {
+          setLastCommandAck({
+            ok: Boolean(message.ok),
+            command: typeof message.command === 'string' ? message.command : undefined,
+            value: typeof message.value === 'number' ? message.value : undefined,
+            error: typeof message.error === 'string' ? message.error : undefined,
+            line: typeof message.line === 'string' ? message.line : undefined,
+          });
+          return;
+        }
 
         if (Array.isArray(message.available_profiles)) {
           profilesRef.current = message.available_profiles;
@@ -124,6 +197,10 @@ export function useAgent(mode: PolicyMode = 'SUGGEST'): UseAgentResult {
           return;
         }
         setIsConnected(true);
+        const selection = profileSelectionRef.current;
+        if (selection && selection.toUpperCase() !== 'AUTO') {
+          sendProfileCommand(ws, selection);
+        }
       };
 
       ws.onmessage = handleMessage;
@@ -152,12 +229,28 @@ export function useAgent(mode: PolicyMode = 'SUGGEST'): UseAgentResult {
   }, []);
 
   const agent = useMemo(
-    () => tickAgent(snapshot, mode, {
+    () => tickAgent(snapshot, policyMode, {
       profile: toBrakePlanProfile(trainProfile),
+      commandProfile: toCommandProfile(trainProfile),
       brakeStats,
     }),
-    [snapshot, mode, trainProfile, brakeStats],
+    [snapshot, policyMode, trainProfile, brakeStats],
   );
+
+  const fallbackFromAuto = useCallback(() => {
+    setPolicyModeState('SUGGEST');
+    savePolicyMode('SUGGEST');
+  }, []);
+
+  useAutoCommand({
+    policyMode,
+    connected: isConnected && (useLive || snapshot.connected),
+    useLive,
+    agent,
+    sendCommand,
+    lastAck: lastCommandAck,
+    onFallback: fallbackFromAuto,
+  });
 
   return {
     snapshot,
@@ -166,5 +259,12 @@ export function useAgent(mode: PolicyMode = 'SUGGEST'): UseAgentResult {
     useLive,
     activeProfile,
     availableProfiles,
+    brakeStats,
+    policyMode,
+    profileSelection,
+    setPolicyMode,
+    selectProfile,
+    sendCommand,
+    lastCommandAck,
   };
 }

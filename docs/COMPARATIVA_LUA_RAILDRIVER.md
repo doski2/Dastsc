@@ -11,13 +11,13 @@ Referencia para decidir qué canal usa Nexus/Dastsc y cómo plantear **mandos de
 
 ## 1. Resumen ejecutivo
 
-|                           | **Lua (plugin global)**                | **RailDriver64.dll**                          |
-| ------------------------- | -------------------------------------- | --------------------------------------------- |
-| **Canal**                 | `GetData.txt` / `SendCommand.txt`      | API C (`ctypes`)                              |
-| **Alcance**               | Simulador + tren activo                | Solo cabina de la loco activa                 |
-| **Dashboard (lectura)**   | ✅ **Fuente principal** — todo el HUD  | ❌ No duplicar telemetría                     |
-| **Escritura IA (futuro)** | Mandos genéricos (`SendCommand`)       | Mandos finos de cabina (`SetControllerValue`) |
-| **Identificación tren**   | `LocoName` (fallback)                  | ✅ `GetLocoName()` (canónico para perfil)     |
+|                           | **Lua (plugin global)**                                | **RailDriver64.dll**                          |
+| ------------------------- | ------------------------------------------------------ | --------------------------------------------- |
+| **Canal**                 | `GetData.txt` / `SendCommand.txt`                      | API C (`ctypes`)                              |
+| **Alcance**               | Simulador + tren activo                                | Solo cabina de la loco activa                 |
+| **Dashboard (lectura)**   | ✅ **Fuente principal** — todo el HUD                  | ❌ No duplicar telemetría                     |
+| **Escritura IA (futuro)** | Mandos genéricos (`SendCommand`) — ARM/AUTO frenado ✅ | Mandos finos de cabina (`SetControllerValue`) |
+| **Identificación tren**   | `LocoName` (fallback)                                  | ✅ `GetLocoName()` (canónico para perfil)     |
 
 **Regla:** Lua = mundo y física del tren. DLL = nombre de loco + mandos de cabina + actuación IA
 avanzada.
@@ -58,27 +58,27 @@ integran en Nexus** — la telemetría equivalente (o mejor) ya viene por Lua.
 
 ### 4.1 Funciones que sí usamos (o usaremos)
 
-| Función                         | Modo        | Para qué                                                       |
-| ------------------------------- | ----------- | -------------------------------------------------------------- |
-| `SetRailDriverConnected(True)`  | Setup       | Activar enlace antes de leer/escribir                          |
-| `GetLocoName()`                 | Lectura     | **Autodetectar perfil** (`profiles/*.json`) al cambiar de tren |
-| `GetControllerList()`           | Lectura     | Listar mandos de la cabina activa (nombres separados por `::`) |
-| `GetControllerValue(id, 0)`     | Lectura     | Valor actual de un mando de cabina                             |
-| `GetControllerValue(id, 1/2)`   | Lectura     | Min/máx del mando — escalar bien al mandar (no todo es 0–1)    |
-| `SetControllerValue(id, valor)` | Escritura 🔜| **IA copiloto:** muescas, ETCS, mandos que Lua no reenvía      |
+| Función                         | Modo         | Para qué                                                       |
+| ------------------------------- | ------------ | -------------------------------------------------------------- |
+| `SetRailDriverConnected(True)`  | Setup        | Activar enlace antes de leer/escribir                          |
+| `GetLocoName()`                 | Lectura      | **Autodetectar perfil** (`profiles/*.json`) al cambiar de tren |
+| `GetControllerList()`           | Lectura      | Listar mandos de la cabina activa (nombres separados por `::`) |
+| `GetControllerValue(id, 0)`     | Lectura      | Valor actual de un mando de cabina                             |
+| `GetControllerValue(id, 1/2)`   | Lectura      | Min/máx del mando — escalar bien al mandar (no todo es 0–1)    |
+| `SetControllerValue(id, valor)` | Escritura 🔜 | **IA copiloto:** muescas, ETCS, mandos que Lua no reenvía      |
 
 ### 4.2 Qué controles de cabina nos interesan
 
 Dependen de cada locomotora (`GetControllerList()`). Candidatos típicos en UK EMU (ej. Class 323):
 
-| Control (nombre en DLL)          | Lectura                | Escritura IA   | Notas                                               |
-| -------------------------------- | ---------------------- | -------------- | --------------------------------------------------- |
-| `ThrottleAndBrake` / `Regulator` | Solo si no basta Lua   | 🔜             | Preferir `SendCommand` para tracción/freno genérico |
-| `TrainBrakeControl`              | Idem                   | 🔜             | Idem                                                |
-| `Reverser`                       | Idem                   | 🔜             | Whitelist estricta                                  |
-| `AWSReset`                       | Opcional               | 🔜             | Ack AWS si SendCommand no alcanza                   |
-| Pantallas ETCS / DMI             | Si existen en la loco  | 🔜             | Solo trenes equipados; requiere perfil JSON         |
-| Luces, pantógrafo, arena         | Si no están en GetData | 🔜             | Baja prioridad                                      |
+| Control (nombre en DLL)          | Lectura                | Escritura IA    | Notas                                                |
+| -------------------------------- | ---------------------- | --------------- | ---------------------------------------------------- |
+| `ThrottleAndBrake` / `Regulator` | Solo si no basta Lua   | 🔜              | Preferir `SendCommand` para tracción/freno genérico  |
+| `TrainBrakeControl`              | Idem                   | 🔜              | Idem                                                 |
+| `Reverser`                       | Idem                   | 🔜              | Whitelist estricta                                   |
+| `AWSReset`                       | Opcional               | 🔜              | Ack AWS si SendCommand no alcanza                    |
+| Pantallas ETCS / DMI             | Si existen en la loco  | 🔜              | Solo trenes equipados; requiere perfil JSON          |
+| Luces, pantógrafo, arena         | Si no están en GetData | 🔜              | Baja prioridad                                       |
 
 **No leer de la DLL** lo que ya está en GetData con el mismo fin: velocidad, presiones BC/BP/MR,
 gradiente, hora, posición.
@@ -157,7 +157,7 @@ orden (archivo + plugin global vs API de cabina) y **qué mandos** puedes alcanz
 | **Uso**         | Cabina avanzada cuando SendCommand no alcanza                |
 | **POC lectura** | [`raildriver-poc.py`](../raildriver-poc.py)                  |
 
-### 6.3 CommandBus (propuesto)
+### 6.3 CommandBus (implementado)
 
 ```text
 ```
@@ -165,21 +165,22 @@ orden (archivo + plugin global vs API de cabina) y **qué mandos** puedes alcanz
 **Reglas:**
 
 1. Modo ARM: IA solo actúa tras confirmación del usuario.
-2. Whitelist: sin emergencia ni reverser sin policy explícita.
-3. Sin perfil DLL → siempre SendCommand Lua.
-4. Tras cada comando, verificar respuesta en GetData (`BC`, `Speed`).
+2. Modo AUTO: `useAutoCommand` envía con rate limit; fallback a SUGGEST si falla ack.
+3. Whitelist: sin emergencia ni reverser sin policy explícita.
+4. Sin perfil DLL → siempre SendCommand Lua.
+5. Tras cada comando, verificar respuesta en GetData (`BC`, `Speed`).
 
 ---
 
 ## 7. Roadmap de integración
 
-| Prioridad   | Canal         | Acción                                                      |
-| ----------- | ------------- | ----------------------------------------------------------- |
-| P0          | Lua           | Mantener todo GetData (dashboard completo)                  |
-| P1          | DLL lectura   | `GetLocoName()` → selección automática de perfil            |
-| P2          | DLL lectura   | Dump `GetControllerList()` por loco → ampliar perfiles JSON |
-| P3          | Lua escritura | `SendCommand.txt` en CommandBus                             |
-| P4          | DLL escritura | `SetControllerValue` para mandos no cubiertos por Lua       |
+| Prioridad   | Canal         | Acción                                                      |               |
+| ----------- | ------------- | ----------------------------------------------------------- | ------------- |
+| P0          | Lua           | Mantener todo GetData (dashboard completo)                  |               |
+| P1          | DLL lectura   | `GetLocoName()` → selección automática de perfil            |               |
+| P2          | DLL lectura   | Dump `GetControllerList()` por loco → ampliar perfiles JSON |               |
+| P3          | Lua escritura | `SendCommand.txt` en CommandBus                             | ✅ ARM + AUTO |
+| P4          | DLL escritura | `SetControllerValue` para mandos no cubiertos por Lua       |               |
 
 ---
 

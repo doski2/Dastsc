@@ -72,6 +72,21 @@ export interface BrakePlanStep {
   notch: string;
   distanceM: number;
   phase: string;
+  /** Señal de control: ~0 → aplicar ahora. Solo en tick agente V4. */
+  distStart?: number;
+  metersUntilActionM?: number;
+  usingLearned?: boolean;
+  applyNow?: boolean;
+}
+
+export type BrakeTargetKind = 'STATION' | 'SPEED_LIMIT';
+
+export interface AgentBrakeContext {
+  targetKind: BrakeTargetKind;
+  distanceToTargetM: number;
+  reactionMarginM: number;
+  gradientPermille: number;
+  activeNotch: string | null;
 }
 
 export interface AgentAction {
@@ -90,6 +105,7 @@ export interface AgentTick {
   marginS: number;
   horizon: HorizonEvent[];
   brakePlan?: BrakePlanStep[];
+  brakeContext?: AgentBrakeContext;
   suggestedAction?: AgentAction;
   blockedReason?: string;
 }

@@ -19,7 +19,7 @@ export function MiniHud({ speed, speedUnit, limit, tailActive }: MiniHudProps) {
         </div>
       </div>
       <div className="rounded border border-white/5 bg-nexus-raised p-4 text-center">
-        <div className="text-[10px] uppercase text-white/30 font-mono mb-1">Límite</div>
+        <div className="text-[10px] uppercase text-white/30 font-mono mb-1">Límite actual</div>
         <div className="text-2xl font-mono font-bold text-yellow-400/90 tabular-nums">
           {Math.round(limit)}
           <span className="text-xs text-white/40 ml-1">{speedUnit}</span>

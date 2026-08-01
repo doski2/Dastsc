@@ -1,5 +1,6 @@
 import type { TelemetrySnapshot } from './types';
 import type { TelemetryData } from './telemetryTypes';
+import { resolveSafetyAlerts } from './safetyUtils';
 
 export function toTelemetrySnapshot(
   data: TelemetryData,
@@ -49,8 +50,7 @@ export function toTelemetrySnapshot(
       seconds: data.TailSecondsRemaining,
     },
     safety: {
-      aws: data.AWS > 0 || data.AWSWarning > 0,
-      dsd: data.DSD > 0 || data.VigilAlarm > 0,
+      ...resolveSafetyAlerts(data),
       dra: data.DRA,
     },
     train: {

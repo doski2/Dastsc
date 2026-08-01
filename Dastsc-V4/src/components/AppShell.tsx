@@ -1,15 +1,27 @@
 import type { ReactNode } from 'react';
 import type { PolicyMode } from '@nexus/kernel';
 
+export type AppView = 'agent' | 'config';
+
 interface AppShellProps {
   trainName: string;
   profileId: string | null;
   mode: PolicyMode;
   connected: boolean;
+  activeView: AppView;
+  onViewChange: (view: AppView) => void;
   children: ReactNode;
 }
 
-export function AppShell({ trainName, profileId, mode, connected, children }: AppShellProps) {
+export function AppShell({
+  trainName,
+  profileId,
+  mode,
+  connected,
+  activeView,
+  onViewChange,
+  children,
+}: AppShellProps) {
   return (
     <div className="h-screen flex flex-col bg-nexus-surface text-sm">
       <header className="h-12 flex items-center justify-between px-6 border-b border-white/5 bg-nexus-raised shrink-0">
@@ -25,12 +37,18 @@ export function AppShell({ trainName, profileId, mode, connected, children }: Ap
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col gap-6 p-8 max-w-3xl mx-auto w-full justify-center">
+      <main className="flex-1 flex flex-col gap-6 p-8 max-w-3xl mx-auto w-full overflow-y-auto justify-start">
         {children}
       </main>
 
-      <footer className="h-14 border-t border-white/5 flex items-center justify-center gap-8 text-[11px] font-mono uppercase tracking-wider">
-        <span className="text-cyan-400/90">Agent</span>
+      <footer className="h-14 border-t border-white/5 flex items-center justify-center gap-8 text-[11px] font-mono uppercase tracking-wider shrink-0">
+        <button
+          type="button"
+          onClick={() => onViewChange('agent')}
+          className={activeView === 'agent' ? 'text-cyan-400/90' : 'text-white/20 hover:text-white/50 transition-colors'}
+        >
+          Agent
+        </button>
         <a
           href="http://localhost:5173"
           target="_blank"
@@ -39,7 +57,13 @@ export function AppShell({ trainName, profileId, mode, connected, children }: Ap
         >
           Pilot (V3)
         </a>
-        <span className="text-white/20">Config</span>
+        <button
+          type="button"
+          onClick={() => onViewChange('config')}
+          className={activeView === 'config' ? 'text-cyan-400/90' : 'text-white/20 hover:text-white/50 transition-colors'}
+        >
+          Config
+        </button>
       </footer>
     </div>
   );

@@ -47,6 +47,10 @@ describe('reactionMarginM', () => {
     expect(reactionMarginM(30, 5)).toBe(30 * 4);
     expect(reactionMarginM(10, 1)).toBe(10 * 2.5);
   });
+
+  it('uses profile reaction_time_s override when set', () => {
+    expect(reactionMarginM(30, 5, 3)).toBe(90);
+  });
 });
 
 describe('brakingDistanceM', () => {
@@ -76,6 +80,13 @@ describe('decelForNotch', () => {
       B2: { avg_decel: 0.72, samples: 5 },
     });
     expect(learned).toBe(0.72);
+  });
+
+  it('blends avg and max decel for planning when max is available', () => {
+    const learned = decelForNotch(0.5, 'B2', 1.0, 180, 1, 0, {
+      B2: { avg_decel: 0.70, max_decel: 0.862, samples: 8 },
+    });
+    expect(learned).toBeCloseTo(0.70 * 0.65 + 0.862 * 0.35, 4);
   });
 });
 

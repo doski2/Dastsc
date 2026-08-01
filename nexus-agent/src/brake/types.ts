@@ -7,6 +7,8 @@ export interface BrakePlanProfile {
   physics_config?: {
     max_braking_decel?: number;
     brake_fill_time_s?: number;
+    /** Si está definido, margen = velocidad × este valor (s). Sustituye 1.5 + fill_time. */
+    reaction_time_s?: number;
   };
   specs?: {
     notches_throttle_brake?: BrakeNotch[];
@@ -16,6 +18,7 @@ export interface BrakePlanProfile {
 export interface BrakeStatsEntry {
   avg_decel: number;
   samples: number;
+  max_decel?: number;
 }
 
 export type BrakeStatsByNotch = Record<string, BrakeStatsEntry>;
@@ -53,10 +56,17 @@ export interface BrakePlanStepDetail {
   applyNow: boolean;
 }
 
+export interface CommandProfile {
+  mappings?: Record<string, string>;
+  physics_config?: BrakePlanProfile['physics_config'];
+  specs?: BrakePlanProfile['specs'];
+}
+
 export interface SnapshotBrakeContext {
   profile?: BrakePlanProfile | null;
   brakeStats?: BrakeStatsByNotch;
   consistType?: number;
+  commandProfile?: CommandProfile | null;
 }
 
 export interface BrakePlan {

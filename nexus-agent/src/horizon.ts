@@ -8,7 +8,7 @@ export function buildHorizon(snapshot: TelemetrySnapshot): HorizonEvent[] {
       id: 'limit-next',
       kind: 'SPEED_LIMIT',
       distanceM: snapshot.limits.next.distanceM,
-      label: `Límite ${Math.round(snapshot.limits.next.speed)} ${snapshot.speedUnit}`,
+      label: `Siguiente límite → ${Math.round(snapshot.limits.next.speed)} ${snapshot.speedUnit}`,
       targetSpeedDisplay: snapshot.limits.next.speed,
       requiredAction: 'REDUCE_SPEED',
       priority: 80,

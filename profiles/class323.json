@@ -78,6 +78,7 @@
         "max_braking_kn": 250,
         "max_braking_decel": 1.1,
         "dynamic_brake_ratio": 0.8,
-        "brake_fill_time_s": 5
+        "brake_fill_time_s": 2.5,
+        "reaction_time_s": 3.0
     }
 }

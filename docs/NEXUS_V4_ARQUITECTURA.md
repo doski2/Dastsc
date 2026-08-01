@@ -1,11 +1,12 @@
 # Nexus V4 — Arquitectura y diseño
 
-**Estado:** MVP en curso · julio 2026
+**Estado:** Fase 323 cerrada · ARM + AUTO frenado · agosto 2026
 **Relación con V3:** V3 = motor de telemetría + PILOT legacy (BrakingCurve, gauges). V4 = producto
 AI-first con agente protagonista.
 
-**Foco actual:** perfeccionar el flujo completo con **Class 323** como único perfil de referencia.
-El resto de trenes y perfiles queda documentado para fases posteriores.
+**Foco actual:** validar **modo AUTO** de frenado (323) en ruta real.
+**Siguiente gran fase (documentada, no implementada):** **tracción / aceleración** cuando el frenado
+esté completo en AUTO.
 
 ---
 
@@ -27,14 +28,14 @@ no un grid de widgets.
 
 ## 2. Personas y modos
 
-| Modo                  | Usuario                         | Comportamiento                                              |
-| --------------------- | ------------------------------- | ----------------------------------------------------------- |
-| **SUGGEST** (default) | Conductor humano                | Texto + horizonte + mini-HUD. Sin comandos al sim.          |
-| **ARM**               | Conductor avanzado              | Sugiere acción; un clic confirma envío a `SendCommand.txt`. |
-| **AUTO**              | Entrenamiento / rutas conocidas | Agente envía comandos con límites de seguridad estrictos.   |
+| Modo                  | Usuario                         | Comportamiento                                                      |
+| --------------------- | ------------------------------- | ------------------------------------------------------------------- |
+| **SUGGEST** (default) | Conductor humano                | Texto + horizonte + mini-HUD. Sin comandos al sim.                  |
+| **ARM**               | Conductor avanzado              | Sugiere acción; un clic confirma envío a `SendCommand.txt`. ✅      |
+| **AUTO**              | Entrenamiento / rutas conocidas | Frenado + OFF automático vía `SendCommand.txt`. Sin tracción v1. ✅ |
 
-La política (`SUGGEST` / `ARM` / `AUTO`) vivirá en el **perfil del tren**; hoy solo está cableado
-**SUGGEST** en UI.
+La política (`SUGGEST` / `ARM` / `AUTO`) se elige en **CONFIG V4** y persiste en `localStorage`.
+Perfil de tren: **AUTO** (detección DLL) recomendado; selección manual opcional.
 
 ---
 
@@ -64,8 +65,8 @@ Cola ordenada de lo que viene delante (máx. 5): señal, límite, estación, col
 
 ### 4.3 `AgentTick` (salida del agente → UI)
 
-`headline`, `detail`, `urgency`, `marginM` / `marginS`, `horizon[]`, `brakePlan?`, `mode`,
-`blockedReason?`.
+`headline`, `detail`, `urgency`, `marginM` / `marginS`, `horizon[]`, `brakePlan?`, `brakeContext?`,
+`suggestedAction?`, `mode`, `blockedReason?`.
 
 ---
 
@@ -76,18 +77,25 @@ Cola ordenada de lo que viene delante (máx. 5): señal, límite, estación, col
 ```text
 ```
 
-**En MVP actual:** headline con `planBrake` (muesca B1/B2/B3), horizonte, mini-HUD, enlace PILOT V3.
+**En V4 actual:** headline con `planBrake`, panel validación frenado, horizonte, mini-HUD, CONFIG,
+ARM con `ArmActionBar`, AUTO con `useAutoCommand`, enlace PILOT V3.
 
-**No en MVP:** gráficos pesados, ETCS skin, CONFIG UI, grid 3 columnas.
+**No en esta fase:** ETCS skin, grid 3 columnas, tracción automática.
 
 ### 5.2 **PILOT** — vista legacy (V3)
 
 `http://localhost:5173` — Speedometer + TrackProfile + BrakingCurve. Referencia visual mientras se
 afina el agente V4.
 
-### 5.3 **CONFIG** (más adelante)
+### 5.3 **CONFIG**
 
-Perfil manual, modo ARM/AUTO, unidades, diagnóstico WS.
+Pestaña **Config** en V4 (`localhost:5175`):
+
+| Bloque           | Función                                              |
+| ---------------- | ---------------------------------------------------- |
+| Modo agente      | SUGGEST / ARM / AUTO (frenado + OFF; sin tracción)   |
+| Sistema          | Telemetría LIVE, perfil AUTO/activo, tren DLL        |
+| Perfil de tren   | AUTO (recomendado) o manual → `SELECT_PROFILE` WS    |
 
 ---
 
@@ -97,13 +105,16 @@ Perfil manual, modo ARM/AUTO, unidades, diagnóstico WS.
 | --------------------- | ------ | --------------------------------------------------------- |
 | `buildHorizon()`      | ✅     | Señal, límite, estación, cola, AWS/DSD                    |
 | `planBrake()`         | ✅     | Port física V3; gradiente ‰ corregido; golden tests vs V3 |
-| `tickAgent()`         | ✅     | Headline con muesca; perfil + brakeStats desde backend    |
+| `tickAgent()`         | ✅     | Headline + `suggestedAction` en ARM/AUTO                  |
+| `commandBus`          | ✅     | Muesca + OFF; EMG bloqueado; AUTO suspende en SAFETY      |
+| `useAutoCommand`      | ✅     | V4: rate limit 2 s, fallback a SUGGEST si ack falla       |
+| `useBrakeLearning`    | ✅     | V4 → `POST /api/brake/event`                              |
 | `evaluateVigilance()` | ⏳     | Solo vía horizon SAFETY hoy                               |
-| `evaluateCruise()`    | ⏳     | —                                                         |
+| `evaluateCruise()`    | ⏳     | **Fase tracción** — ver §8.4                              |
+| `planThrottle()`      | ⏳     | **Fase tracción** — después de frenado completo           |
 | `mergeTicks()`        | ⏳     | Un solo tick por ahora                                    |
-| `CommandBus`          | ⏳     | ARM/AUTO; Lua `SendCommand` + DLL complemento             |
 
-**v1 = reglas + física + brake learning.** Sin LLM en el loop de telemetría.
+**v1 = reglas + física + brake learning + ARM.** Sin LLM en el loop de telemetría.
 
 ---
 
@@ -116,9 +127,9 @@ Perfil manual, modo ARM/AUTO, unidades, diagnóstico WS.
 
 ## 8. Perfiles de tren — estrategia
 
-### 8.1 Fase actual: solo Class 323
+### 8.1 Fase 323 — frenado (cerrada)
 
-Hasta validar frenado, headlines y aprendizaje en ruta real (p. ej. Birmingham Cross City):
+Validado en juego con Class 323 (Birmingham Cross City):
 
 | Qué usamos              | Archivo / mecanismo                                                 |
 | ----------------------- | ------------------------------------------------------------------- |
@@ -126,10 +137,17 @@ Hasta validar frenado, headlines y aprendizaje en ruta real (p. ej. Birmingham C
 | Variantes expert/simple | `extends: "class323"` en `xc_class323_expert`, `cc_class323_simple` |
 | Detección AUTO          | Backend: `GetLocoName()` + fingerprint DLL                          |
 | Decel por muesca        | `brake_events.json` → `/api/brake/stats`                            |
-| Física agente           | `planBrake` + `physics_config` del 323                              |
+| Física agente           | `planBrake` + `reaction_time_s: 3` + blend avg/max aprendido        |
+| Aprendizaje en juego    | `useBrakeLearning` en V4                                            |
+| Comandos ARM / AUTO     | `command_bus.py` → `SendCommand.txt` (Lua)                          |
 
-**Criterio para salir de “solo 323”:** headlines fiables en 3 escenarios (plano, subida, bajada) y
-≥3 muestras aprendidas por muesca en `brakeStats`.
+**Calibración 323 (`physics_config`):**
+
+- `reaction_time_s: 3.0` — margen de anticipación (antes 4 s efectivos)
+- Decel de planificación: `65%` media + `35%` máximo aprendido por muesca
+- `brake_fill_time_s: 2.5` — referencia documental; el margen real lo marca `reaction_time_s`
+
+- Ciclo frenado: aplicar muesca → llegar a límite → **soltar OFF** (`resolveReleaseAction`)
 
 ### 8.2 Plantilla gold (`class323.json`)
 
@@ -142,7 +160,46 @@ Bloques que todo perfil futuro debería tener (ver `docs/GUIA_PERFILES_V3.md`):
 - `physics_config` — decel, fill time, effort
 - `brakes` / `visuals`
 
-### 8.3 Más adelante — multi-tren
+### 8.3 Fase AUTO — frenado v1 (implementado)
+
+Los comandos ARM funcionan en ruta real. **AUTO v1** envía sin confirmación con salvaguardas:
+
+| Regla | Descripción                                         | Estado                         |
+| ----- | --------------------------------------------------- | ------------------------------ |
+| R1    | Solo mandos permitidos (sin EMG, sin reverser)      | ✅                             |
+| R2    | Rate limit 2 s; mismo `command:value` no se reenvía | ✅ `useAutoCommand`            |
+| R3    | Sin mandos si `horizon` tiene `SAFETY`              | ✅                             |
+| R4    | Vuelve a SUGGEST si `COMMAND_ACK` falla             | ✅                             |
+| R5    | Solo frenado B1–B3 + OFF; sin tracción              | ✅                             |
+| R6    | Log backend de comandos                             | ✅ `logging.info` en `main.py` |
+
+**Código:**
+
+- `nexus-agent/command/commandBus.ts` — `resolveSuggestedAction` (ARM + AUTO),
+
+  `resolveReleaseAction`
+
+- `Dastsc-V4/hooks/useAutoCommand.ts` — dispatch automático
+- `Dastsc-V4/PolicyModeSelector` — AUTO habilitado en CONFIG
+- Sin DLL escritura en AUTO v1 (solo Lua)
+
+### 8.4 Fase tracción / aceleración — después del frenado
+
+**No empezar hasta:** frenado 323 cerrado (incl. soltar OFF) + AUTO de frenado estable.
+
+Objetivo: cuando el tren va por debajo del límite y freno en OFF, sugerir o aplicar **P1–P4**
+(`ThrottleAndBrake` > 0) para mantener velocidad o recuperar margen antes del siguiente límite.
+
+| Módulo (futuro)     | Función                                                            |
+| ------------------- | ------------------------------------------------------------------ |
+| `planThrottle()`    | Muesca de tracción según déficit de velocidad y gradiente          |
+| `evaluateCruise()`  | Mantener banda alrededor del límite efectivo                       |
+| `throttle_learning` | Opcional: stats de aceleración por muesca (análogo a `brakeStats`) |
+
+**Dependencias:** `specs.notches_throttle_brake` del perfil, `physics_config` de esfuerzo/masa,
+mismo `CommandBus` (Lua primero).
+
+### 8.5 Más adelante — multi-tren
 
 | Tarea                        | Herramienta                                       | Prioridad |
 | ---------------------------- | ------------------------------------------------- | --------- |
@@ -150,7 +207,7 @@ Bloques que todo perfil futuro debería tener (ver `docs/GUIA_PERFILES_V3.md`):
 | Herencia sin duplicar        | `"extends": "class323"` o perfil base por familia | P2        |
 | Aliases RV automáticos       | Ampliar al detectar nombre nuevo                  | P3        |
 | Perfil en disco desde sesión | Export explícito (no auto-write en juego)         | P3        |
-| UI selector AUTO / manual    | CONFIG V4                                         | P3        |
+| UI selector AUTO / manual    | CONFIG V4                                         | ✅        |
 | Tablas decel ERA / XML TSC   | Calibración `max_braking_decel`                   | P4        |
 
 ---
@@ -168,14 +225,15 @@ Ver también `docs/COMPARATIVA_LUA_RAILDRIVER.md`, `docs/GUIA_TECNICA_IPC.md`.
 
 ## 10. Mapa de extracción V3 → V4
 
-| Origen V3                              | Destino                            | Estado                |
-| -------------------------------------- | ---------------------------------- | --------------------- |
-| `core/normalizers/*`                   | `nexus-kernel/normalizers/`        | ✅                    |
-| `DataNormalizer` + utils               | `nexus-kernel/`                    | ✅                    |
-| `brakingCurveUtils.computeBrakeParams` | `nexus-agent/brake/planBrake.ts`   | ✅ (+ fix gradiente ‰)|
-| `useBrakeStats`                        | `Dastsc-V4/hooks/useBrakeStats.ts` | ✅                    |
-| BrakingCurve UI                        | V3 PILOT                           | Sin port (referencia) |
-| `CommandBus` / ARM                     | —                                  | ⏳                    |
+| Origen V3                              | Destino                                    | Estado                 |
+| -------------------------------------- | ------------------------------------------ | ---------------------- |
+| `core/normalizers/*`                   | `nexus-kernel/normalizers/`                | ✅                     |
+| `DataNormalizer` + utils               | `nexus-kernel/`                            | ✅                     |
+| `brakingCurveUtils.computeBrakeParams` | `nexus-agent/brake/planBrake.ts`           | ✅ (+ fix gradiente ‰) |
+| `useBrakeLearning`                     | `Dastsc-V4/hooks/useBrakeLearning.ts`      | ✅                     |
+| `CommandBus` / ARM                     | `command_bus.py` + `command/commandBus.ts` | ✅ validado en juego   |
+| `CommandBus` / AUTO                    | `useAutoCommand.ts` + reglas R1–R5         | ✅ v1 frenado          |
+| `planThrottle` / tracción              | —                                          | ⏳ §8.4                |
 
 ---
 
@@ -185,6 +243,7 @@ Ver también `docs/COMPARATIVA_LUA_RAILDRIVER.md`, `docs/GUIA_TECNICA_IPC.md`.
 2. Headline de frenado con **muesca real** del 323 (no default genérico).
 3. Paridad física V3/V4 en `planBrake` (golden tests).
 4. PILOT V3 disponible para comparar curva vs agente.
+5. ARM envía mando real a TSC vía `SendCommand.txt` (validado Class 323).
 
 **Comandos:**
 
@@ -193,59 +252,57 @@ Ver también `docs/COMPARATIVA_LUA_RAILDRIVER.md`, `docs/GUIA_TECNICA_IPC.md`.
 
 ---
 
-## 12. Fuera de alcance (V4.0 / hasta perfeccionar 323)
+## 12. Fuera de alcance (ahora)
 
 - LLM en tiempo real
 - ETCS DMI skin completo
-- AUTO sin confirmación humana
+- Tracción / aceleración automática (ver §8.4 — después de frenado)
 - Perfiles completos para toda la flota `profiles/*.json`
-- Integración distancia estación vía XML de ruta (POC existe: `route-distance-poc.py`)
+- Integración distancia estación vía XML de ruta (POC: `route-distance-poc.py`)
 - Grid dinámico por blueprint JSON
+- Escritura DLL en AUTO v1 (solo Lua `SendCommand`)
 
 ---
 
 ## 13. Decisiones cerradas
 
-| #   | Decisión          | Valor                                      |
-| --- | ----------------- | ------------------------------------------ |
-| D1  | Monorepo          | npm workspaces en raíz                     |
-| D2  | Backend           | `Dastsc-V3/backend/` :8000                 |
-| D3  | V3 en paralelo    | Sí (`dev:v3` PILOT)                        |
-| D4  | Puertos           | V4 **5175**, V3 **5173**, backend **8000** |
-| D5  | Modo agente       | **SUGGEST**                                |
-| D6  | Perfil referencia | **`class323.json`** hasta validar MVP      |
-| D7  | Debug controles   | **`nexus-debug.py`** (RailDriver oficial)  |
-| D8  | Telemetría mundo  | **Lua** `GetData.txt` (no DLL 400–408)     |
+| #   | Decisión            | Valor                                                    |
+| --- | ------------------- | -------------------------------------------------------- |
+| D1  | Monorepo            | npm workspaces en raíz                                   |
+| D2  | Backend             | `Dastsc-V3/backend/` :8000                               |
+| D3  | V3 en paralelo      | Sí (`dev:v3` PILOT)                                      |
+| D4  | Puertos             | V4 **5175**, V3 **5173**, backend **8000**               |
+| D5  | Modo agente default | **SUGGEST**; **ARM** + **AUTO** frenado v1 operativos    |
+| D6  | Perfil referencia   | **`class323.json`** — gold hasta multi-tren              |
+| D9  | Canal de mando      | **Lua** `SendCommand.txt` primero; DLL escritura después |
+| D7  | Debug controles     | **`nexus-debug.py`** (RailDriver oficial)                |
+| D8  | Telemetría mundo    | **Lua** `GetData.txt` (no DLL 400–408)                   |
 
 ---
 
-## 14. Estado del scaffold (julio 2026)
+## 14. Estado del scaffold (agosto 2026)
 
-### Hecho
+### Hecho — fase 323
 
-- [x] `nexus-kernel` — normalizers, `TelemetryHub`, `toSnapshot`, tests
-- [x] `nexus-agent` — `buildHorizon`, `planBrake`, `tickAgent`, 18 tests (+ golden V3)
-- [x] `Dastsc-V4` — `useAgent`, WebSocket, `AgentHeadline`, `HorizonStrip`, `MiniHud`
-- [x] Perfil 323 en agente — `useTrainProfile`, `useBrakeStats`, perfil desde backend
-- [x] Backend — autoperfil DLL, `extends`, `GET /api/profiles/{id}`
+- [x] `nexus-kernel` — normalizers, `TelemetryHub`, `toSnapshot`, safety AWS, tests
+- [x] `nexus-agent` — `planBrake`, `tickAgent`, `commandBus`, 24 tests (+ golden V3)
+- [x] `Dastsc-V4` — Agent, validación frenado, CONFIG, `useBrakeLearning`, `ArmActionBar`
+- [x] Perfil 323 — autoperfil AUTO, `brakeStats`, calibración `reaction_time_s` + blend decel
+- [x] Backend — `command_bus.py`, `COMMAND` WS + `COMMAND_ACK`, `brake_log`
 - [x] `nexus-debug.py`, `Iniciar_Nexus_V4.bat`
-- [x] Corrección gradiente ‰ en física de frenado (V3 + V4)
+- [x] ARM validado en juego (Class 323, `ThrottleAndBrake`)
 
-### En curso (323)
+### En curso
 
-- [ ] Validación en juego: headline vs sensación real (plano / pendiente)
-- [ ] Acumular `brakeStats` por muesca en sesiones reales
-- [ ] Ajuste fino `physics_config` del 323 si hace falta
+- [ ] Validación AUTO v1 en ruta real (Class 323)
 
-### Más adelante
+### Roadmap
 
-- [ ] CONFIG UI (perfil manual, modo ARM)
-- [ ] `CommandBus` + `SendCommand` / DLL escritura
-- [ ] Segundo tren gold (p. ej. Class 375 vía `nexus-debug.py`)
-- [ ] Tag `v3-stable`
-- [ ] Mover backend a `Dastsc/backend/`
-- [ ] Actualizar §12 de este doc al cerrar fase 323
+- [ ] **Tracción / aceleración** — `planThrottle`, `evaluateCruise` (§8.4)
+- [ ] Segundo tren gold (Class 375)
+- [ ] Tag `v3-stable`, mover backend a `Dastsc/backend/`
+- [ ] DLL `SetControllerValue` para mandos no cubiertos por Lua
 
 ---
 
-*Documento vivo — última revisión alineada con foco Class 323.*
+*Documento vivo — última revisión: agosto 2026.*

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Any, Dict, List, Optional
 import asyncio
 import json
+import logging
 import math
 import os
 import sys
@@ -21,6 +22,7 @@ from core.profiles import ProfileManager
 from core.raildriver import get_raildriver_client
 import core.ocr_hud as ocr_hud
 import core.brake_log as brake_log
+import core.command_bus as command_bus
 
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_PROFILES_DIR = os.path.normpath(os.path.join(_BACKEND_DIR, "..", "..", "profiles"))
@@ -29,6 +31,7 @@ _GETDATA_PLUGIN_PATH = (
     r"C:\Program Files (x86)\Steam\steamapps\common\RailWorks\plugins\GetData.txt"
 )
 _GETDATA_ALT_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\RailWorks\GetData.txt"
+_SENDCOMMAND_FILENAME = "SendCommand.txt"
 
 _CORS_ORIGINS = [
     "http://localhost:5173",
@@ -86,6 +89,17 @@ def _resolve_getdata_path(
     if os.path.exists(alt_path):
         return alt_path
     return None
+
+
+def _resolve_send_command_path(
+    plugin_path: str = _GETDATA_PLUGIN_PATH,
+    alt_path: str = _GETDATA_ALT_PATH,
+) -> Optional[str]:
+    """Ruta de SendCommand.txt junto a GetData.txt del plugin TSC."""
+    getdata = _resolve_getdata_path(plugin_path, alt_path)
+    if not getdata:
+        return None
+    return os.path.join(os.path.dirname(getdata), _SENDCOMMAND_FILENAME)
 
 
 def _doors_open(door_l: float, door_r: float, threshold: float = _DOOR_OPEN_THRESHOLD) -> bool:
@@ -170,14 +184,35 @@ class TelemetryManager:
         except Exception:
             pass
 
-    async def handle_command(self, cmd: dict) -> None:
-        if cmd.get("type") != "SELECT_PROFILE":
-            return
-        profile_id = cmd.get("profile_id")
-        if not self.profile_manager.select_manual_profile(profile_id):
-            return
-        self.current_profile = self.profile_manager.manual_profile
-        await self._broadcast_profile_change()
+    async def handle_command(self, cmd: dict) -> dict:
+        cmd_type = cmd.get("type")
+        if cmd_type == "SELECT_PROFILE":
+            profile_id = cmd.get("profile_id")
+            if not self.profile_manager.select_manual_profile(profile_id):
+                return {"type": "COMMAND_ACK", "ok": False, "error": "profile_not_found"}
+            self.current_profile = self.profile_manager.manual_profile
+            await self._broadcast_profile_change()
+            return {"type": "COMMAND_ACK", "ok": True, "action": "profile_changed"}
+
+        if cmd_type == "COMMAND":
+            control = str(cmd.get("command") or "").strip()
+            try:
+                value = float(cmd.get("value", 0))
+            except (TypeError, ValueError):
+                return {"type": "COMMAND_ACK", "ok": False, "error": "invalid_value"}
+            result = command_bus.dispatch_command(
+                _resolve_send_command_path(),
+                control,
+                value,
+                self.current_profile,
+            )
+            if result.get("ok"):
+                logging.info("COMMAND sent %s=%s", control, result.get("value"))
+            else:
+                logging.warning("COMMAND rejected %s: %s", control, result.get("error"))
+            return {"type": "COMMAND_ACK", **result}
+
+        return {"type": "COMMAND_ACK", "ok": False, "error": "unknown_command_type"}
 
     async def _broadcast_profile_change(self) -> None:
         await self.broadcast({
@@ -396,7 +431,9 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             try:
                 cmd = await websocket.receive_json()
-                await manager.handle_command(cmd)
+                ack = await manager.handle_command(cmd)
+                if ack:
+                    await websocket.send_json(_sanitize(ack))
             except WebSocketDisconnect:
                 break
             except Exception:
