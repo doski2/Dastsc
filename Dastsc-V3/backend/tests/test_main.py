@@ -14,13 +14,14 @@ from fastapi.testclient import TestClient
 import main
 from main import (
     TelemetryManager,
-    _apply_ocr_to_telemetry,
+    _apply_ocr_metadata,
+    _apply_station_distance,
     _doors_open,
-    _ocr_capture_interval,
     _resolve_getdata_path,
     _resolve_profiles_dir,
     _sanitize,
 )
+from core.station_distance import StationDistanceTracker
 
 
 class TestMainHelpers(unittest.TestCase):
@@ -76,23 +77,32 @@ class TestMainHelpers(unittest.TestCase):
         self.assertTrue(_doors_open(0.6, 0.0))
         self.assertTrue(_doors_open(0.0, 0.6))
 
-    def test_ocr_capture_interval(self):
-        self.assertEqual(_ocr_capture_interval(None), 30.0)
-        self.assertEqual(_ocr_capture_interval(500.0), 5.0)
-        self.assertEqual(_ocr_capture_interval(1500.0), 10.0)
-
-    def test_apply_ocr_to_telemetry(self):
+    def test_apply_ocr_metadata_and_station_distance(self):
         data: dict = {}
-        _apply_ocr_to_telemetry(data, {
+        _apply_ocr_metadata(data, {
             "distance_m": 1234.56,
             "station_name": "Birmingham",
             "eta": "12:34",
             "scheduled_time": "12:30",
         })
-        self.assertEqual(data["StationDistance"], 1234.6)
+        self.assertNotIn("StationDistance", data)
         self.assertEqual(data["StationNameOCR"], "Birmingham")
         self.assertEqual(data["StationETA"], "12:34")
         self.assertEqual(data["StationScheduled"], "12:30")
+
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(1234.56, event="door_anchor", now=0.0)
+        _apply_station_distance(data, tracker)
+        self.assertEqual(data["StationDistance"], 1234.6)
+        self.assertEqual(data["StationAnchorM"], 1234.6)
+        now = 0.0
+        for _ in range(100):
+            now += 0.05
+            tracker.integrate(20.0, now)
+        _apply_station_distance(data, tracker)
+        self.assertLess(data["StationDistance"], 1234.6)
+        self.assertGreater(data["StationTraveledM"], 0)
 
 
 class TestTelemetryManager(unittest.TestCase):
@@ -113,7 +123,10 @@ class TestTelemetryManager(unittest.TestCase):
 
     async def _test_select_profile(self):
         await self.manager.handle_command({"type": "SELECT_PROFILE", "profile_id": "test"})
-        self.assertEqual(self.manager.current_profile["id"], "test")
+        profile = self.manager.current_profile
+        self.assertIsNotNone(profile)
+        assert profile is not None
+        self.assertEqual(profile["id"], "test")
         payload = self.manager._build_init_payload()
         self.assertEqual(payload["active_profile_id"], "test")
 

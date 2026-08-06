@@ -23,6 +23,8 @@ from core.raildriver import get_raildriver_client
 import core.ocr_hud as ocr_hud
 import core.brake_log as brake_log
 import core.command_bus as command_bus
+import core.station_distance as station_distance
+from core.cab_inference import CabInferenceState, enrich_cab_telemetry
 
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_PROFILES_DIR = os.path.normpath(os.path.join(_BACKEND_DIR, "..", "..", "profiles"))
@@ -44,10 +46,6 @@ _CORS_ORIGINS = [
 _POLL_INTERVAL_S = 0.01
 _HEARTBEAT_EVERY_N = 200  # a 100 Hz → keep-alive cada ~2 s si GetData no cambia
 _DOOR_OPEN_THRESHOLD = 0.5
-_OCR_INTERVAL_DEFAULT_S = 30.0
-_OCR_INTERVAL_NEAR_S = 5.0
-_OCR_INTERVAL_MID_S = 10.0
-_OCR_NEAR_DISTANCE_M = 1000.0
 _PROFILE_SYNC_INTERVAL_S = 2.0
 
 
@@ -106,24 +104,46 @@ def _doors_open(door_l: float, door_r: float, threshold: float = _DOOR_OPEN_THRE
     return door_l > threshold or door_r > threshold
 
 
-def _ocr_capture_interval(distance_m: Optional[float]) -> float:
-    if distance_m is None:
-        return _OCR_INTERVAL_DEFAULT_S
-    if distance_m < _OCR_NEAR_DISTANCE_M:
-        return _OCR_INTERVAL_NEAR_S
-    return _OCR_INTERVAL_MID_S
-
-
-def _apply_ocr_to_telemetry(data: Dict[str, Any], ocr_result: Dict[str, Any]) -> None:
-    """Enriquece el dict de telemetría con campos derivados del OCR."""
-    if ocr_result.get("distance_m") is not None:
-        data["StationDistance"] = round(float(ocr_result["distance_m"]), 1)
+def _apply_ocr_metadata(data: Dict[str, Any], ocr_result: Dict[str, Any]) -> None:
+    """Metadatos OCR (sin distancia — la distancia la calcula StationDistanceTracker)."""
     if ocr_result.get("station_name"):
         data["StationNameOCR"] = ocr_result["station_name"]
     if ocr_result.get("eta"):
         data["StationETA"] = ocr_result["eta"]
     if ocr_result.get("scheduled_time"):
         data["StationScheduled"] = ocr_result["scheduled_time"]
+
+
+# Referencia al tracker activo (telemetry_reader) para API de depuración.
+_active_station_tracker: Optional[station_distance.StationDistanceTracker] = None
+_cab_inference_state = CabInferenceState()
+
+
+def get_station_tracker() -> Optional[station_distance.StationDistanceTracker]:
+    return _active_station_tracker
+
+
+def _apply_station_distance(
+    data: Dict[str, Any],
+    tracker: station_distance.StationDistanceTracker,
+) -> None:
+    lua_dist = station_distance.normalize_lua_station_distance(
+        float(data.get("StationDistance") or -1),
+    )
+    tracked = tracker.distance_m()
+
+    if lua_dist is not None:
+        data["StationDistanceLuaM"] = lua_dist
+        data["StationDistance"] = float(lua_dist)
+        data["StationDistanceSource"] = "lua"
+    elif tracked is not None:
+        data["StationDistance"] = round(tracked, 1)
+        data["StationDistanceSource"] = "ocr_tracker"
+    else:
+        data["StationDistanceSource"] = "none"
+
+    for key, value in tracker.telemetry_fields().items():
+        data[key] = value
 
 
 def _win_reset_exception_handler(loop: asyncio.AbstractEventLoop) -> None:
@@ -283,23 +303,36 @@ app.add_middleware(
 
 
 async def telemetry_reader() -> None:
-    """Bucle de sondeo de GetData.txt y captura OCR periódica."""
+    """Bucle de sondeo de GetData.txt; OCR al cerrar puertas y corrección única cerca de estación."""
+    global _active_station_tracker
     sync_counter = 0
     last_mtime = 0.0
     ocr_last_result: Dict[str, Any] = {}
-    ocr_last_capture_time = 0.0
     ocr_door_was_open = False
     ocr_is_capturing = False
+    station_tracker = station_distance.StationDistanceTracker()
+    _active_station_tracker = station_tracker
 
-    async def run_ocr_capture() -> None:
+    async def run_ocr_capture(
+        event: station_distance.SampleEvent = "door_anchor",
+        capture_speed_ms: float = 0.0,
+        capture_time: float = 0.0,
+    ) -> None:
         nonlocal ocr_last_result, ocr_is_capturing
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
-            if result:
+            if result and result.get("distance_m") is not None:
                 ocr_last_result = result
+                station_tracker.anchor_from_ocr(
+                    float(result["distance_m"]),
+                    event=event,
+                    now=capture_time or time.time(),
+                    speed_ms=capture_speed_ms,
+                    ocr_raw_m=float(result["distance_m"]),
+                )
         except Exception as exc:
-            print(f"[OCR] Error: {exc}")
+            print(f"[OCR] Error ({event}): {exc}")
         finally:
             ocr_is_capturing = False
 
@@ -323,14 +356,32 @@ async def telemetry_reader() -> None:
                         door_just_closed = ocr_door_was_open and not doors_open_now
                         ocr_door_was_open = doors_open_now
 
-                        if ocr_hud.is_available() and not ocr_is_capturing:
-                            interval = _ocr_capture_interval(ocr_last_result.get("distance_m"))
-                            if door_just_closed or (now - ocr_last_capture_time) >= interval:
-                                ocr_last_capture_time = now
-                                ocr_is_capturing = True
-                                asyncio.create_task(run_ocr_capture())
+                        speed_ms = station_distance.speed_ms_from_telemetry(data)
+                        lua_station_raw = float(data.get("StationDistance") or -1)
+                        station_tracker.integrate(speed_ms, now)
+                        if lua_station_raw > 0:
+                            station_tracker.sync_lua_distance(
+                                lua_station_raw,
+                                now=now,
+                                speed_ms=speed_ms,
+                            )
+                        station_tracker.maybe_record_sample(now, speed_ms)
 
-                        _apply_ocr_to_telemetry(data, ocr_last_result)
+                        if ocr_hud.is_available() and not ocr_is_capturing:
+                            if door_just_closed:
+                                ocr_is_capturing = True
+                                asyncio.create_task(
+                                    run_ocr_capture("door_anchor", speed_ms, now),
+                                )
+                            elif station_tracker.should_request_near_correction():
+                                ocr_is_capturing = True
+                                asyncio.create_task(
+                                    run_ocr_capture("near_correction", speed_ms, now),
+                                )
+
+                        _apply_ocr_metadata(data, ocr_last_result)
+                        _apply_station_distance(data, station_tracker)
+                        enrich_cab_telemetry(data, _cab_inference_state)
 
                         await manager.sync_auto_profile(str(data.get("LocoName") or ""))
 
@@ -350,6 +401,15 @@ async def telemetry_reader() -> None:
         except Exception as exc:
             print(f"[Nexus] Error en telemetry_reader: {exc}")
             await asyncio.sleep(0.5)
+
+
+@app.get("/api/station/distance-debug")
+async def station_distance_debug():
+    """Muestras temporales de distancia a estación (ancla, ticks, corrección)."""
+    tracker = get_station_tracker()
+    if tracker is None:
+        return {"has_anchor": False, "samples": []}
+    return tracker.debug_payload()
 
 
 @app.get("/api/ocr/debug")

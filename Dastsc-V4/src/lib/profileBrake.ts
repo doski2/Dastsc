@@ -1,10 +1,13 @@
 import type { BrakePlanProfile } from '@nexus/agent';
+import type { ProfileCompleteness } from './profileCompleteness';
 
 const API_BASE = 'http://localhost:8000';
 
 export interface TrainProfileFields {
   id?: string;
   name?: string;
+  extends?: string;
+  brakes?: unknown;
   physics_config?: BrakePlanProfile['physics_config'];
   specs?: BrakePlanProfile['specs'];
   mappings?: Record<string, string>;
@@ -12,6 +15,7 @@ export interface TrainProfileFields {
   runtime?: {
     controller_limits?: Record<string, { min: number; max: number; current?: number }>;
     loco_names?: string[];
+    profile_completeness?: ProfileCompleteness;
   };
 }
 

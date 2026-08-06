@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { formatDistance, formatSpeed } from '../format';
+import { resolveCombinedControl, stickyStationDistance } from '../dataNormalizerUtils';
 import { TelemetryHub } from '../TelemetryHub';
+import type { TelemetryData } from '../telemetryTypes';
 
 /** Payload estilo parser.py / test_parser.py + campos típicos TSC. */
 const SAMPLE_RAW = {
@@ -36,7 +38,98 @@ describe('format', () => {
   });
 });
 
+describe('stickyStationDistance', () => {
+  it('subtracts trip delta between OCR readings', () => {
+    const prev = { StationDistance: 1000, TripDistance: 5000 } as TelemetryData;
+    const next = stickyStationDistance(
+      { StationDistance: -1, TripDistance: 5100 },
+      prev,
+    );
+    expect(next).toBe(900);
+  });
+
+  it('rejects OCR jumps that increase distance', () => {
+    const prev = { StationDistance: 800, TripDistance: 10000 } as TelemetryData;
+    const next = stickyStationDistance(
+      { StationDistance: 950, TripDistance: 10100 },
+      prev,
+    );
+    expect(next).toBe(700);
+  });
+});
+
+describe('resolveCombinedControl', () => {
+  it('uses ThrottleAndBrake when present', () => {
+    expect(resolveCombinedControl({ ThrottleAndBrake: -0.5 }, 0, 0)).toBe(-0.5);
+  });
+
+  it('ignores Combined:0 placeholder on split German layout', () => {
+    expect(resolveCombinedControl(
+      { Combined: 0, Regulator: 0.6, TrainBrakeControl: 0.3 },
+      0.6,
+      0.3,
+    )).toBeCloseTo(0.3);
+  });
+
+  it('computes negative combined when braking on split layout', () => {
+    expect(resolveCombinedControl(
+      { Combined: 0, Regulator: 0, TrainBrakeControl: 0.5 },
+      0,
+      0.5,
+    )).toBeCloseTo(-0.5);
+  });
+});
+
 describe('TelemetryHub', () => {
+  it('normalizes ICE T split brake telemetry', () => {
+    const hub = new TelemetryHub();
+    const snapshot = hub.ingestRaw(
+      {
+        Speed: 30,
+        SpeedoType: 2,
+        SimulationTime: 50,
+        CurrentSpeedLimit: 120,
+        SimpleThrottle: 0.4,
+        VirtualBrake: 0.3,
+        TrainBrake: 0.3,
+        Combined: 0,
+        Gradient: 0,
+      },
+      true,
+      'icet',
+    );
+
+    expect(snapshot.brake.combined).toBeCloseTo(0.1);
+  });
+
+  it('inverts ICE T driver gradient when profile requests flip', () => {
+    const hub = new TelemetryHub();
+    hub.setProfile({
+      physics_config: {
+        gradient_mode: 'driver',
+        gradient_sign_flip: true,
+      },
+    });
+    const snapshot = hub.ingestRaw(
+      {
+        Speed: 40,
+        SpeedoType: 2,
+        SimulationTime: 50,
+        CurrentSpeedLimit: 160,
+        GradientPct: 1.4,
+        Gradient: 14,
+        Reversal: 1,
+        ActiveCab: 1,
+        WheelSpeedMS: 0,
+      },
+      true,
+      'icet',
+    );
+
+    expect(snapshot.rawGradient).toBeCloseTo(14, 1);
+    expect(snapshot.gradient).toBeLessThan(0);
+  });
+
   it('normalizes GetData-style payload into TelemetrySnapshot', () => {
     const hub = new TelemetryHub();
     const snapshot = hub.ingestRaw(SAMPLE_RAW, true, 'class323_expert');
@@ -48,6 +141,41 @@ describe('TelemetryHub', () => {
     expect(snapshot.station.nameOcr).toBe('Ashford');
     expect(snapshot.connected).toBe(true);
     expect(snapshot.train.profileId).toBe('class323_expert');
+    expect(snapshot.rawGradient).toBe(2);
+    expect(snapshot.activeCab).toBe(1);
+  });
+
+  it('inverts gradient sign for cab 2 forward', () => {
+    const hub = new TelemetryHub();
+    const snapshot = hub.ingestRaw(
+      { ...SAMPLE_RAW, ActiveCab: 2, Reversal: 1, Gradient: 3 },
+      true,
+      'class323_expert',
+    );
+    expect(snapshot.rawGradient).toBe(3);
+    expect(snapshot.gradient).toBe(-3);
+    expect(snapshot.activeCab).toBe(2);
+  });
+
+  it('inverts gradient for cab 1 reverse without changing cab number', () => {
+    const hub = new TelemetryHub();
+    const snapshot = hub.ingestRaw(
+      { ...SAMPLE_RAW, ActiveCab: 1, Reversal: -1, Gradient: 4 },
+      true,
+      'class323_expert',
+    );
+    expect(snapshot.activeCab).toBe(1);
+    expect(snapshot.gradient).toBe(-4);
+  });
+
+  it('keeps gradient sign for cab 2 reverse', () => {
+    const hub = new TelemetryHub();
+    const snapshot = hub.ingestRaw(
+      { ...SAMPLE_RAW, ActiveCab: 2, Reversal: -1, Gradient: -5 },
+      true,
+      'class323_expert',
+    );
+    expect(snapshot.gradient).toBe(-5);
   });
 
   it('ingests TELEMETRY websocket messages', () => {

@@ -42,6 +42,22 @@ class TestCommandBus(unittest.TestCase):
         self.assertFalse(result["ok"])
         self.assertEqual(result["error"], "command_not_allowed")
 
+    def test_dispatch_split_brake_cuts_throttle(self):
+        profile = {
+            "mappings": {
+                "throttle": "SimpleThrottle",
+                "brake": "VirtualBrake",
+                "train_brake": "TrainBrakeControl",
+            },
+        }
+        result = command_bus.dispatch_command(self.path, "VirtualBrake", 0.5, profile)
+        self.assertTrue(result["ok"])
+        with open(self.path, encoding="utf-8") as f:
+            content = f.read().strip().splitlines()
+        self.assertEqual(content[0], "SimpleThrottle:0.0000")
+        self.assertEqual(content[1], "VirtualBrake:0.5000")
+        self.assertEqual(content[2], "TrainBrakeControl:0.5000")
+
     def test_clamp_value(self):
         line = command_bus.format_send_command_line("ThrottleAndBrake", -9)
         self.assertEqual(line, "ThrottleAndBrake:-1.0000")

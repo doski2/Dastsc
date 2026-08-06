@@ -9,6 +9,8 @@ export interface BrakePlanProfile {
     brake_fill_time_s?: number;
     /** Si está definido, margen = velocidad × este valor (s). Sustituye 1.5 + fill_time. */
     reaction_time_s?: number;
+    /** Margen de reacción en parada de estación (s). Más bajo = frena más tarde. */
+    station_reaction_time_s?: number;
   };
   specs?: {
     notches_throttle_brake?: BrakeNotch[];

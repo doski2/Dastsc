@@ -1,18 +1,34 @@
 {
     "name": "ICE T (Expert/LZB)",
+    "aliases": [
+        "411",
+        "411.0",
+        "DTG",
+        "ICE T",
+        "ICE T CabCar",
+        "ICET",
+        "LR",
+        "LeipzigRiesa",
+        "[LR] ICE T CabCar 411.0"
+    ],
     "source_file": "ICET.txt",
     "fingerprint": {
         "required_controls": [
-            "Regulator",
+            "VirtualBrake",
+            "SimpleThrottle",
             "TrainBrakeControl",
             "AFB",
             "LZBActive",
-            "DoorsOpenCloseLeft"
+            "VigilAlarm",
+            "PantographControl",
+            "EmergencyBrake",
+            "Reverser"
         ]
     },
     "mappings": {
-        "throttle": "Regulator",
-        "brake": "TrainBrakeControl",
+        "throttle": "SimpleThrottle",
+        "brake": "VirtualBrake",
+        "train_brake": "TrainBrakeControl",
         "reverser": "Reverser",
         "afb": "AFB",
         "afb_target": "VSoll",
@@ -33,34 +49,87 @@
     },
     "specs": {
         "max_speed": 230,
-        "max_ammeter": 1000,
+        "max_ammeter": 1000.0,
         "max_effort": 1000,
         "max_brake_cyl": 10.0,
         "max_main_res": 12.0,
         "notches_throttle_brake": [
-            {"value": -1.0, "label": "EMG"},
-            {"value": -0.7, "label": "S7"},
-            {"value": -0.6, "label": "S6"},
-            {"value": -0.5, "label": "S5"},
-            {"value": -0.4, "label": "S4"},
-            {"value": -0.3, "label": "S3"},
-            {"value": -0.2, "label": "S2"},
-            {"value": -0.1, "label": "S1"},
-            {"value": 0.0, "label": "NEU"},
-            {"value": 0.2, "label": "P1"},
-            {"value": 0.4, "label": "P2"},
-            {"value": 0.6, "label": "P3"},
-            {"value": 0.8, "label": "P4"},
-            {"value": 1.0, "label": "PMAX"}
+            {
+                "value": -1.0,
+                "label": "EMG"
+            },
+            {
+                "value": -0.7,
+                "label": "S7"
+            },
+            {
+                "value": -0.6,
+                "label": "S6"
+            },
+            {
+                "value": -0.5,
+                "label": "S5"
+            },
+            {
+                "value": -0.4,
+                "label": "S4"
+            },
+            {
+                "value": -0.3,
+                "label": "S3"
+            },
+            {
+                "value": -0.2,
+                "label": "S2"
+            },
+            {
+                "value": -0.1,
+                "label": "S1"
+            },
+            {
+                "value": 0.0,
+                "label": "NEU"
+            },
+            {
+                "value": 0.2,
+                "label": "P1"
+            },
+            {
+                "value": 0.4,
+                "label": "P2"
+            },
+            {
+                "value": 0.6,
+                "label": "P3"
+            },
+            {
+                "value": 0.8,
+                "label": "P4"
+            },
+            {
+                "value": 1.0,
+                "label": "PMAX"
+            }
         ]
     },
     "physics_config": {
         "max_braking_decel": 1.2,
         "brake_fill_time_s": 4,
-        "dynamic_brake_ratio": 0.9
+        "dynamic_brake_ratio": 0.9,
+        "station_reaction_time_s": 1.0,
+        "gradient_mode": "driver",
+        "gradient_sign_flip": true
     },
     "visuals": {
         "unit": "KPH",
         "color": "#c0392b"
+    },
+    "brakes": {
+        "type": "SPLIT",
+        "throttle": "SimpleThrottle",
+        "brake": "VirtualBrake",
+        "train_brake": "TrainBrakeControl",
+        "system": "AIR_GERMAN",
+        "has_dynamic": true
     }
 }

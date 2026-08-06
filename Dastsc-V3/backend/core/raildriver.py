@@ -51,6 +51,8 @@ class RailDriverClient:
         self.dll_path = dll_path or DEFAULT_DLL
         self._dll = None
         self._connected = False
+        self._name_to_index: Dict[str, int] = {}
+        self._list_key = ""
 
     @property
     def available(self) -> bool:
@@ -70,30 +72,66 @@ class RailDriverClient:
             self._dll.GetControllerValue.argtypes = [ctypes.c_int, ctypes.c_int]
             self._dll.GetControllerValue.restype = ctypes.c_float
         if not self._connected:
-            self._dll.SetRailDriverConnected(True)
+            dll = self._dll
+            if dll is None:
+                return False
+            dll.SetRailDriverConnected(True)
             self._connected = True
         return True
 
-    def snapshot(self) -> Optional[RailDriverSnapshot]:
+    def _dll_handle(self) -> Optional[ctypes.CDLL]:
         if not self.connect():
             return None
+        return self._dll
 
-        loco_raw = self._decode(self._dll.GetLocoName())
-        loco_names = [part.strip() for part in loco_raw.split(".:.") if part.strip()] if loco_raw else []
+    def _ensure_indices(self) -> bool:
+        dll = self._dll_handle()
+        if dll is None:
+            return False
+        ctrl_raw = self._decode(dll.GetControllerList())
+        if ctrl_raw != self._list_key:
+            self._list_key = ctrl_raw
+            names = ctrl_raw.split("::") if ctrl_raw else []
+            self._name_to_index = {name: index for index, name in enumerate(names) if name}
+        return bool(self._name_to_index)
 
-        ctrl_raw = self._decode(self._dll.GetControllerList())
-        names = ctrl_raw.split("::") if ctrl_raw else []
+    def get_value(self, name: str) -> Optional[float]:
+        dll = self._dll_handle()
+        if dll is None or not self._ensure_indices():
+            return None
+        index = self._name_to_index.get(name)
+        if index is None:
+            return None
+        return float(dll.GetControllerValue(index, VALUE_CURRENT))
+
+    def get_loco_names(self) -> List[str]:
+        dll = self._dll_handle()
+        if dll is None:
+            return []
+        loco_raw = self._decode(dll.GetLocoName())
+        if not loco_raw:
+            return []
+        return [part.strip() for part in loco_raw.split(".:.") if part.strip()]
+
+    def snapshot(self) -> Optional[RailDriverSnapshot]:
+        dll = self._dll_handle()
+        if dll is None:
+            return None
+
+        loco_names = self.get_loco_names()
+
+        if not self._ensure_indices():
+            return RailDriverSnapshot(loco_names=loco_names, controllers=[])
+
         controllers: List[ControllerInfo] = []
-        for index, name in enumerate(names):
-            if not name:
-                continue
+        for index, name in sorted((idx, nm) for nm, idx in self._name_to_index.items()):
             controllers.append(
                 ControllerInfo(
                     index=index,
                     name=name,
-                    current=float(self._dll.GetControllerValue(index, VALUE_CURRENT)),
-                    min_value=float(self._dll.GetControllerValue(index, VALUE_MIN)),
-                    max_value=float(self._dll.GetControllerValue(index, VALUE_MAX)),
+                    current=float(dll.GetControllerValue(index, VALUE_CURRENT)),
+                    min_value=float(dll.GetControllerValue(index, VALUE_MIN)),
+                    max_value=float(dll.GetControllerValue(index, VALUE_MAX)),
                 ),
             )
 

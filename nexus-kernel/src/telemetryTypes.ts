@@ -21,6 +21,10 @@ export interface TelemetryData {
   DistToNextLimit2: number;
   UpcomingLimits: { speed: number; distance: number }[];
   StationDistance: number;
+  StationAnchorM?: number;
+  StationTraveledM?: number;
+  StationDriftM?: number;
+  StationNearCorrected?: number;
   StationName: string;
   StationLength: number;
   StationNameOCR: string;

@@ -13,6 +13,10 @@ import {
   computeTotalBrakingEffort,
   formatTimeOfDay,
   inferActiveCab,
+  resolveGradientSign,
+  resolveGradientSignForProfile,
+  routeGradientPermille,
+  updateLatchedCab,
   MAX_DT_SIM_S,
   MIN_DT_SIM_S,
   MIN_SPEED_FOR_CAB_INFER_MS,
@@ -36,6 +40,7 @@ interface NormalizerState {
   lastSimTime: number;
   lastRealTime: number;
   activeCab: number;
+  latchedCab: number;
   emaAccelMS2: number;
 }
 
@@ -48,6 +53,7 @@ export class DataNormalizer {
     lastSimTime: 0,
     lastRealTime: 0,
     activeCab: 1,
+    latchedCab: 0,
     emaAccelMS2: 0,
   };
 
@@ -88,10 +94,30 @@ export class DataNormalizer {
     const computedGForce = this.state.emaAccelMS2 / G_CONSTANT;
 
     const reversal = asNumber(raw.Reversal ?? raw.Reverser);
-    const inferredCab = inferActiveCab(this.state.activeCab, reversal, phys.speedMS);
-    const cabSign = inferredCab === 2 ? -1 : 1;
-    const gameRawGrad = asNumber(raw.Gradient);
-    const currentGrad = cabSign * gameRawGrad;
+    this.state.latchedCab = updateLatchedCab(
+      this.state.latchedCab,
+      reversal,
+      phys.speedMS,
+      raw.WheelSpeedMS,
+      raw.TrackMPH,
+    );
+    const inferredCab = inferActiveCab(
+      this.state.activeCab,
+      reversal,
+      phys.speedMS,
+      raw.WheelSpeedMS,
+      raw.TrackMPH,
+      this.state.latchedCab,
+    );
+    const rawPermille = routeGradientPermille(raw);
+    const cabSign = resolveGradientSignForProfile(
+      inferredCab,
+      reversal,
+      raw.WheelSpeedMS,
+      phys.speedMS,
+      profile,
+    );
+    const currentGrad = cabSign * rawPermille;
 
     const bcPercent = brakeCylinderPercent(brk.bc, pressureUnit);
     const totalBrakingEffort = computeTotalBrakingEffort(bcPercent, brk, profile);
@@ -102,8 +128,8 @@ export class DataNormalizer {
       : toDisplaySpeed(sig.currentLimitConverted * units.simToMS, units.displayFromMS);
     const nextLimitDist = upcomingLimits.length > 0 ? upcomingLimits[0].distance : 0;
 
-    const currentThrottle = asNumber(raw.Throttle ?? raw.Regulator);
-    const currentBrake = asNumber(raw.TrainBrake ?? raw.TrainBrakeControl);
+    const currentThrottle = asNumber(raw.Throttle ?? raw.SimpleThrottle ?? raw.Regulator);
+    const currentBrake = asNumber(raw.TrainBrake ?? raw.VirtualBrake ?? raw.TrainBrakeControl);
     const limitFallback = sig.currentLimitConverted;
     const limitToMS = (v: number) => saneSpeedLimit(v, limitFallback) * units.simToMS;
 
@@ -134,9 +160,13 @@ export class DataNormalizer {
       DistToNextLimit2: sig.rawNextLimit2DistFromLua,
       UpcomingLimits: upcomingLimits,
       Gradient: currentGrad,
-      RawGradient: gameRawGrad,
+      RawGradient: rawPermille,
       LateralG: phys.lateralG,
       StationDistance: stickyStationDistance(raw, prevData),
+      StationAnchorM: asNumber(raw.StationAnchorM),
+      StationTraveledM: asNumber(raw.StationTraveledM),
+      StationDriftM: raw.StationDriftM !== undefined ? asNumber(raw.StationDriftM) : undefined,
+      StationNearCorrected: asNumber(raw.StationNearCorrected),
       StationName: raw.StationName || '',
       StationLength: asNumber(raw.PlatformLength ?? raw.StationLength, 200),
       BrakeCylinderPressure: brk.bc * pFactor,
@@ -210,6 +240,7 @@ export class DataNormalizer {
       lastSimTime: 0,
       lastRealTime: 0,
       activeCab: 1,
+      latchedCab: 0,
       emaAccelMS2: 0,
     };
   }

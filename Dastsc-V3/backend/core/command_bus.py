@@ -16,7 +16,10 @@ _MAX_COMBINED = 1.0
 _ALLOWED_CONTROLS = frozenset({
     "ThrottleAndBrake",
     "Regulator",
+    "SimpleThrottle",
+    "VirtualThrottle",
     "TrainBrakeControl",
+    "VirtualBrake",
     "TrainBrake",
     "Throttle",
     "AWSReset",
@@ -53,18 +56,66 @@ def format_send_command_line(control: str, value: float) -> str:
     return f"{control.strip()}:{_clamp(value):.4f}"
 
 
-def write_send_command(path: str, control: str, value: float) -> bool:
+def _split_throttle_control(profile: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not profile:
+        return None
+    mappings = profile.get("mappings") or {}
+    if mappings.get("combined_control"):
+        return None
+    brake = mappings.get("brake") or mappings.get("train_brake")
+    if not brake:
+        return None
+    return mappings.get("throttle") or mappings.get("regulator")
+
+
+def _command_lines(
+    control: str,
+    value: float,
+    profile: Optional[Dict[str, Any]] = None,
+) -> list[str]:
+    mappings = (profile or {}).get("mappings") or {}
+    primary_brake = mappings.get("brake") or mappings.get("train_brake")
+    secondary_brake = mappings.get("train_brake")
+    if secondary_brake == primary_brake:
+        secondary_brake = None
+
+    lines = [format_send_command_line(control, value)]
+    throttle = _split_throttle_control(profile)
+
+    is_brake_cmd = control == primary_brake or (secondary_brake and control == secondary_brake)
+    if throttle and primary_brake and is_brake_cmd and value > 0.01:
+        lines.insert(0, format_send_command_line(throttle, 0.0))
+
+    if (
+        secondary_brake
+        and primary_brake
+        and control == primary_brake
+        and value > 0.01
+    ):
+        lines.append(format_send_command_line(secondary_brake, value))
+    elif (
+        secondary_brake
+        and primary_brake
+        and control == primary_brake
+        and value <= 0.01
+    ):
+        lines.append(format_send_command_line(secondary_brake, 0.0))
+
+    return lines
+
+
+def write_send_command(path: str, control: str, value: float, profile: Optional[Dict[str, Any]] = None) -> bool:
     """Escribe SendCommand.txt de forma atómica. Devuelve False si falla validación o I/O."""
     if not path:
         return False
-    line = format_send_command_line(control, value)
+    lines = _command_lines(control, value, profile)
     directory = os.path.dirname(path) or "."
     try:
         os.makedirs(directory, exist_ok=True)
         fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=".sendcmd_", text=True)
         try:
             with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as tmp:
-                tmp.write(line + "\n")
+                tmp.write("\n".join(lines) + "\n")
             os.replace(tmp_path, path)
         except OSError:
             try:
@@ -88,11 +139,12 @@ def dispatch_command(
         return {"ok": False, "error": "send_command_path_unavailable"}
     if not is_allowed_command(control, profile):
         return {"ok": False, "error": "command_not_allowed", "command": control}
-    if not write_send_command(path, control, value):
+    if not write_send_command(path, control, value, profile):
         return {"ok": False, "error": "write_failed", "command": control}
+    lines = _command_lines(control, value, profile)
     return {
         "ok": True,
         "command": control,
         "value": _clamp(value),
-        "line": format_send_command_line(control, value),
+        "line": "\n".join(lines),
     }

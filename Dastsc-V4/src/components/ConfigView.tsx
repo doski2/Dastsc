@@ -1,6 +1,10 @@
+import { useMemo } from 'react';
+import type { BrakeStatsByNotch } from '@nexus/agent';
 import type { PolicyMode, ProfileSummary, TelemetrySnapshot } from '@nexus/kernel';
 import type { TrainProfileFields } from '../lib/profileBrake';
+import { deriveProfileCompleteness } from '../lib/profileCompleteness';
 import { PolicyModeSelector } from './PolicyModeSelector';
+import { ProfileCompletenessPanel } from './ProfileCompletenessPanel';
 import { ProfileSelector } from './ProfileSelector';
 
 export function ConfigView({
@@ -11,6 +15,7 @@ export function ConfigView({
   activeProfile,
   profileSelection,
   policyMode,
+  brakeStats,
   onSelectProfile,
   onPolicyModeChange,
 }: {
@@ -21,15 +26,30 @@ export function ConfigView({
   activeProfile: ProfileSummary | TrainProfileFields | null;
   profileSelection: string;
   policyMode: PolicyMode;
+  brakeStats: BrakeStatsByNotch;
   onSelectProfile: (profileId: string) => void;
   onPolicyModeChange: (mode: PolicyMode) => void;
 }) {
   const linkOk = isConnected && (useLive || snapshot.connected);
   const autoSelected = profileSelection.toUpperCase() === 'AUTO';
+  const completeness = useMemo(
+    () => deriveProfileCompleteness(
+      activeProfile && 'specs' in activeProfile ? activeProfile : null,
+      brakeStats,
+    ),
+    [activeProfile, brakeStats],
+  );
 
   return (
     <div className="space-y-6 w-full">
       <PolicyModeSelector mode={policyMode} onChange={onPolicyModeChange} />
+
+      {completeness && activeProfile?.id && (
+        <ProfileCompletenessPanel
+          profileId={activeProfile.id}
+          completeness={completeness}
+        />
+      )}
 
       <section className="rounded-lg border border-white/5 bg-nexus-raised p-4">
         <h3 className="text-[10px] font-mono uppercase tracking-widest text-white/30 mb-3">

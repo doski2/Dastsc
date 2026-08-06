@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -29,48 +28,9 @@ BACKEND_DIR = Path(__file__).resolve().parent / "Dastsc-V3" / "backend"
 sys.path.insert(0, str(BACKEND_DIR))
 
 from core.raildriver import RailDriverClient, get_raildriver_client  # noqa: E402
+from core.profile_draft import build_profile_draft  # noqa: E402
 
-# Controles frecuentes para sugerir mappings / fingerprint en borrador de perfil.
-_PROFILE_HINTS: dict[str, list[str]] = {
-    "combined_control": [
-        "ThrottleAndBrake",
-    ],
-    "regulator": ["Regulator", "SimpleThrottle"],
-    "train_brake": ["TrainBrakeControl", "DynamicBrake"],
-    "reverser": ["Reverser", "UserVirtualReverser", "SimpleChangeDirection"],
-    "brake_cylinder": ["TrainBrakeCylinderPressureBAR"],
-    "main_reservoir": ["MainReservoirPressureBAR"],
-    "brake_pipe": ["BrakePipePressureBAR", "TrainBrakePipePressureBAR"],
-    "ammeter": ["Ammeter"],
-    "current": ["Current"],
-    "effort": ["TractiveEffort"],
-    "aws": ["AWS"],
-    "aws_warning": ["AWSWarnCount", "AWSClearCount"],
-    "aws_reset": ["AWSReset"],
-    "dsd": ["DSD", "DSDAlarm", "DVDAlarm"],
-    "dra": ["DRA", "DRAButton"],
-    "doors_left": ["DoorsOpenCloseLeft"],
-    "doors_right": ["DoorsOpenCloseRight"],
-    "emergency_brake": ["EmergencyBrake"],
-    "master_key": ["MasterKey"],
-    "pantograph": ["Pantograph", "PantographControl"],
-}
-
-_FINGERPRINT_PRIORITY = [
-    "ThrottleAndBrake",
-    "Regulator",
-    "TrainBrakeControl",
-    "DRA",
-    "DRAButton",
-    "DSD",
-    "DSDAlarm",
-    "DVDAlarm",
-    "AWS",
-    "UserVirtualReverser",
-    "Reverser",
-    "RegenBrakesSwitch",
-    "EmergencyBrake",
-]
+# Controles frecuentes — ver core/profile_draft.py (PROFILE_HINTS).
 
 
 def format_engine_line(index: int, name: str, min_v: float, max_v: float, value: float) -> str:
@@ -92,87 +52,6 @@ def render_debug_text(snapshot) -> str:
             format_engine_line(ctrl.index, ctrl.name, ctrl.min_value, ctrl.max_value, ctrl.current),
         )
     return "\n".join(lines) + "\n"
-
-
-def _pick_mapping(available: set[str], candidates: list[str]) -> str | None:
-    for name in candidates:
-        if name in available:
-            return name
-    return None
-
-
-def build_profile_draft(snapshot, profile_id: str) -> dict:
-    names = {c.name for c in snapshot.controllers}
-    by_name = {c.name: c for c in snapshot.controllers}
-
-    mappings: dict[str, str] = {}
-    for key, candidates in _PROFILE_HINTS.items():
-        picked = _pick_mapping(names, candidates)
-        if picked:
-            mappings[key] = picked
-
-    fingerprint = [n for n in _FINGERPRINT_PRIORITY if n in names][:8]
-    if not fingerprint:
-        fingerprint = sorted(names)[:6]
-
-    specs: dict = {}
-    if "TrainBrakeCylinderPressureBAR" in by_name:
-        specs["max_brake_cyl"] = by_name["TrainBrakeCylinderPressureBAR"].max_value
-    if "MainReservoirPressureBAR" in by_name:
-        specs["max_main_res"] = by_name["MainReservoirPressureBAR"].max_value
-    if "Ammeter" in by_name:
-        specs["max_ammeter"] = abs(by_name["Ammeter"].max_value)
-    if "Current" in by_name:
-        specs["max_current"] = abs(by_name["Current"].max_value)
-
-    combined = mappings.get("combined_control")
-    notches: list[dict] = []
-    if combined and combined in by_name:
-        c = by_name[combined]
-        if c.min_value <= -0.5:
-            notches.extend([
-                {"value": -1.0, "label": "EMG"},
-                {"value": -0.75, "label": "B3"},
-                {"value": -0.5, "label": "B2"},
-                {"value": -0.25, "label": "B1"},
-                {"value": 0.0, "label": "OFF"},
-                {"value": 0.25, "label": "P1"},
-                {"value": 0.5, "label": "P2"},
-                {"value": 0.75, "label": "P3"},
-                {"value": 1.0, "label": "P4"},
-            ])
-    elif "Regulator" in by_name and "TrainBrakeControl" in by_name:
-        notches = [
-            {"value": 0.0, "label": "OFF"},
-            {"value": 0.25, "label": "P1"},
-            {"value": 0.5, "label": "P2"},
-            {"value": 0.75, "label": "P3"},
-            {"value": 1.0, "label": "P4"},
-        ]
-
-    if notches:
-        specs["notches_throttle_brake"] = notches
-
-    aliases = list(snapshot.loco_names)
-    for match in re.finditer(r"\d{3,6}", " ".join(snapshot.loco_names)):
-        aliases.append(match.group(0))
-        if len(match.group(0)) >= 6:
-            aliases.append(match.group(0)[:3])
-
-    return {
-        "name": profile_id.replace("_", " ").title(),
-        "aliases": sorted(set(aliases)),
-        "extends": "class323",
-        "fingerprint": {"required_controls": fingerprint},
-        "mappings": mappings,
-        "specs": specs,
-        "physics_config": {
-            "max_braking_decel": 1.0,
-            "brake_fill_time_s": 5,
-        },
-        "visuals": {"unit": "MPH", "color": "#3498db"},
-        "_draft_note": "Revisar extends, notches y physics_config antes de usar en producción.",
-    }
 
 
 def capture(client: RailDriverClient | None = None):
@@ -227,6 +106,7 @@ def main() -> None:
 
     if args.profile_draft:
         draft = build_profile_draft(snap, args.profile_draft)
+        draft["_draft_note"] = "Revisar extends, notches y physics_config antes de usar en producción."
         draft_path = Path(f"profiles/{args.profile_draft}_draft.json")
         draft_path.parent.mkdir(parents=True, exist_ok=True)
         draft_path.write_text(json.dumps(draft, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")

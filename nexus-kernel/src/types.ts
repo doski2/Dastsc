@@ -29,6 +29,10 @@ export interface TelemetrySnapshot {
     distanceM: number;
     nameOcr: string;
     eta: string;
+    anchorM?: number;
+    traveledM?: number;
+    driftM?: number;
+    nearCorrected?: boolean;
   };
   brake: {
     combined: number;
@@ -53,7 +57,14 @@ export interface TelemetrySnapshot {
     profileId: string | null;
     name: string;
   };
+  /** Gradiente corregido por cabina (‰, + = subida según marcha). */
   gradient: number;
+  /** Valor crudo del simulador antes de corrección de cabina. */
+  rawGradient: number;
+  /** Cabina activa reportada o inferida (1 = delantera, 2 = trasera). */
+  activeCab: number;
+  /** Inversor: -1 atrás, 0 neutro, +1 adelante. */
+  reverser: number;
   tripDistanceM: number;
   connected: boolean;
 }

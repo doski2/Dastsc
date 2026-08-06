@@ -6,6 +6,9 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
+import core.brake_log as brake_log
+from core.profile_completeness import assess_profile_completeness
+
 Profile = Dict[str, Any]
 ProfileSummary = Dict[str, Any]
 
@@ -109,18 +112,28 @@ class ProfileManager:
     ) -> Optional[Profile]:
         from core.profile_auto import enrich_profile, resolve_auto_profile, resolve_profile_chain
 
-        if self.manual_profile is not None:
-            resolved = resolve_profile_chain(self.manual_profile, self.get_by_id)
-            return enrich_profile(
-                resolved,
-                limits_by_name=limits_by_name,
-                loco_names=loco_names,
-            )
-
         loco_names = loco_names or []
         controller_names = controller_names or []
-        picked = resolve_auto_profile(self.profiles, loco_names, controller_names)
-        if picked is None:
-            return None
+
+        if self.manual_profile is not None:
+            picked = self.manual_profile
+        else:
+            picked = resolve_auto_profile(self.profiles, loco_names, controller_names)
+            if picked is None:
+                return None
+
         resolved = resolve_profile_chain(picked, self.get_by_id)
-        return enrich_profile(resolved, limits_by_name=limits_by_name, loco_names=loco_names)
+        enriched = enrich_profile(
+            resolved,
+            limits_by_name=limits_by_name,
+            loco_names=loco_names,
+        )
+        stats = brake_log.get_stats(str(picked.get("id", "")))
+        runtime = enriched.setdefault("runtime", {})
+        runtime["profile_completeness"] = assess_profile_completeness(
+            picked,
+            enriched,
+            self.get_by_id,
+            stats,
+        )
+        return enriched

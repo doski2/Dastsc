@@ -17,11 +17,19 @@ import {
 import {
   loadPolicyMode,
   loadProfileSelection,
+  loadCabOverride,
   savePolicyMode,
   saveProfileSelection,
+  saveCabOverride,
+  type CabOverride,
 } from '../lib/agentSettings';
 import type { AgentAction } from '@nexus/kernel';
 import { isFullTrainProfile, toBrakePlanProfile, toCommandProfile, type TrainProfileFields } from '../lib/profileBrake';
+import {
+  deriveProfileCompleteness,
+  shouldShowCompletenessAlert,
+  type ProfileCompleteness,
+} from '../lib/profileCompleteness';
 import { useBrakeLearning } from './useBrakeLearning';
 import { useBrakeStats } from './useBrakeStats';
 import { useTrainProfile } from './useTrainProfile';
@@ -40,8 +48,13 @@ export interface UseAgentResult {
   profileSelection: string;
   setPolicyMode: (mode: PolicyMode) => void;
   selectProfile: (profileId: string) => void;
+  cabOverride: CabOverride;
+  setCabOverride: (override: CabOverride) => void;
   sendCommand: (action: AgentAction) => void;
   lastCommandAck: CommandAck | null;
+  profileCompleteness: ProfileCompleteness | null;
+  profileAlertVisible: boolean;
+  dismissProfileAlert: () => void;
 }
 
 function sendProfileCommand(ws: WebSocket | null, profileId: string): void {
@@ -63,7 +76,9 @@ export function useAgent(): UseAgentResult {
   const [availableProfiles, setAvailableProfiles] = useState<ProfileSummary[]>([]);
   const [policyMode, setPolicyModeState] = useState<PolicyMode>(loadPolicyMode);
   const [profileSelection, setProfileSelection] = useState(loadProfileSelection);
+  const [cabOverride, setCabOverrideState] = useState<CabOverride>(loadCabOverride);
   const [lastCommandAck, setLastCommandAck] = useState<CommandAck | null>(null);
+  const [profileAlertVisible, setProfileAlertVisible] = useState(false);
 
   const trainProfile = useTrainProfile(activeProfile);
   const { brakeStats, refreshBrakeStats } = useBrakeStats(trainProfile);
@@ -72,16 +87,35 @@ export function useAgent(): UseAgentResult {
     useLive && isConnected && isFullTrainProfile(trainProfile);
   useBrakeLearning(snapshot, trainProfile, brakeLearningEnabled, refreshBrakeStats);
 
+  const profileCompleteness = useMemo(
+    () => deriveProfileCompleteness(trainProfile, brakeStats),
+    [trainProfile, brakeStats],
+  );
+
+  const dismissProfileAlert = useCallback(() => {
+    setProfileAlertVisible(false);
+  }, []);
+
   const activeProfileRef = useRef<ProfileSummary | TrainProfileFields | null>(null);
   const profilesRef = useRef<ProfileSummary[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMounted = useRef(true);
   const profileSelectionRef = useRef(profileSelection);
+  const cabOverrideRef = useRef(cabOverride);
 
   useEffect(() => {
     profileSelectionRef.current = profileSelection;
   }, [profileSelection]);
+
+  useEffect(() => {
+    cabOverrideRef.current = cabOverride;
+  }, [cabOverride]);
+
+  const setCabOverride = useCallback((override: CabOverride) => {
+    setCabOverrideState(override);
+    saveCabOverride(override);
+  }, []);
 
   const setPolicyMode = useCallback((mode: PolicyMode) => {
     setPolicyModeState(mode);
@@ -141,9 +175,16 @@ export function useAgent(): UseAgentResult {
         if (message.type === 'INIT' || message.type === 'PROFILE_CHANGED') {
           const resolved = resolveIncomingProfile(message, profilesRef.current);
           const incoming = message.active_profile as TrainProfileFields | undefined;
-          setActiveProfile(incoming ?? resolved);
-          activeProfileRef.current = incoming ?? resolved;
-          hubRef.current.setProfile((incoming ?? resolved) as NormalizerProfile | null);
+          const nextProfile = incoming ?? resolved;
+          setActiveProfile(nextProfile);
+          activeProfileRef.current = nextProfile;
+          hubRef.current.setProfile((nextProfile) as NormalizerProfile | null);
+          if (message.type === 'PROFILE_CHANGED') {
+            const completeness = deriveProfileCompleteness(
+              isFullTrainProfile(nextProfile) ? nextProfile : null,
+            );
+            setProfileAlertVisible(shouldShowCompletenessAlert(completeness));
+          }
           if (message.isConnected !== undefined) {
             setIsConnected(Boolean(message.isConnected));
           }
@@ -163,8 +204,13 @@ export function useAgent(): UseAgentResult {
 
         if (!isTelemetryMessage(message)) return;
 
+        const override = cabOverrideRef.current;
+        const payload = override === 'auto'
+          ? message
+          : { ...message, ActiveCab: override };
+
         const next = hubRef.current.ingestMessage(
-          message,
+          payload,
           true,
           activeProfileRef.current?.id ?? null,
         );
@@ -264,7 +310,12 @@ export function useAgent(): UseAgentResult {
     profileSelection,
     setPolicyMode,
     selectProfile,
+    cabOverride,
+    setCabOverride,
     sendCommand,
     lastCommandAck,
+    profileCompleteness,
+    profileAlertVisible,
+    dismissProfileAlert,
   };
 }

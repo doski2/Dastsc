@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import re
+import unicodedata
 from typing import Dict, Optional
 
 # ── Comprobación de dependencias opcionales ───────────────────────────────────
@@ -50,13 +51,22 @@ _region_initialized = False
 TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 # ── Patrones de parseo ────────────────────────────────────────────────────────
-_RE_DIST = re.compile(r"(\d+[.,]?\d*)\s*(millas?|miles?|km|m)\b", re.IGNORECASE)
+_RE_DIST = re.compile(
+    r"(\d+[.,]\d{1,3}|\d+)\s*(kil[oó]metros?|kilometers?|millas?|miles?|km|mi)\b",
+    re.IGNORECASE,
+)
+_RE_DIST_SPACE_DECIMAL = re.compile(
+    r"(\d{1,3})\s+(\d{1,2})\s*(kil[oó]metros?|kilometers?|km)\b",
+    re.IGNORECASE,
+)
+_RE_DIST_METERS = re.compile(r"(\d+[.,]?\d*)\s*m\b", re.IGNORECASE)
 _RE_ETA = re.compile(r"ETA[:\s]+(\d{1,2}:\d{2}(?::\d{2})?)", re.IGNORECASE)
 _RE_SCHED = re.compile(r"@\s*(\d{1,2}:\d{2}(?::\d{2})?)", re.IGNORECASE)
 _RE_PURE_TIME = re.compile(r"^\d{1,2}:\d{2}(?::\d{2})?$")
 _RE_LEADING_JUNK = re.compile(r"^[^A-Za-zÀ-ÿ0-9]+", re.UNICODE)
 
 _MILES_TO_M = 1609.34
+_MAX_STATION_DISTANCE_M = 150_000.0  # 150 km — más allá suele ser OCR sin decimal
 
 
 def _setup_tesseract() -> None:
@@ -118,14 +128,118 @@ def refresh_ocr_region() -> Dict[str, int]:
     return OCR_REGION
 
 
-def _distance_to_meters(value: str, unit: str) -> float:
+def _sanitize_distance_m(meters: float, raw_value: float, unit_kind: str) -> Optional[float]:
+    """Corrige decimales perdidos (4,27 km → 427 km) y descarta valores absurdos."""
+    if meters <= _MAX_STATION_DISTANCE_M:
+        return round(meters)
+
+    if unit_kind == "km" and raw_value >= 100:
+        for divisor in (100, 10):
+            candidate = (raw_value / divisor) * 1000.0
+            if 50.0 <= candidate <= 50_000.0:
+                print(
+                    f"[OCR] Distancia corregida: {raw_value} km -> {candidate / 1000:.2f} km (/{divisor})",
+                )
+                return round(candidate)
+
+    if unit_kind == "mi" and raw_value >= 5:
+        for divisor in (10, 100):
+            candidate = (raw_value / divisor) * _MILES_TO_M
+            if 50.0 <= candidate <= _MAX_STATION_DISTANCE_M:
+                print(
+                    f"[OCR] Distancia corregida: {raw_value} mi -> {candidate / _MILES_TO_M:.2f} mi (/{divisor})",
+                )
+                return round(candidate)
+
+    print(
+        f"[OCR] Distancia descartada (implausible): {meters / 1000:.1f} km "
+        f"(raw={raw_value} {unit_kind})",
+    )
+    return None
+
+
+def _parse_km_space_decimal(line: str) -> Optional[float]:
+    """OCR a veces lee '4,27 km' como '4 27 km'."""
+    match = _RE_DIST_SPACE_DECIMAL.search(line)
+    if not match:
+        return None
+    whole, frac, unit = match.group(1), match.group(2), match.group(3)
+    value = f"{whole}.{frac}"
+    return _distance_to_meters(value, unit)
+
+
+def _normalize_unit(unit: str) -> str:
+    return unicodedata.normalize("NFKD", unit).encode("ascii", "ignore").decode().lower()
+
+
+def _collect_distance_candidates(text: str) -> list[tuple[float, str, str, int]]:
+    candidates: list[tuple[float, str, str, int]] = []
+    for line in [ln.strip() for ln in text.splitlines() if ln.strip()]:
+        if _RE_PURE_TIME.match(line):
+            continue
+        best = _best_distance_match(line)
+        if best is None:
+            continue
+        dist, raw_value, unit_raw = best
+        score = 1
+        if re.search(r"[.,]", raw_value):
+            score += 2
+        if re.search(r"[.,]\d{2}", raw_value):
+            score += 1
+        candidates.append((dist, raw_value, unit_raw, score))
+    return candidates
+
+
+def _pick_distance_from_text(text: str) -> Optional[tuple[float, str, str]]:
+    candidates = _collect_distance_candidates(text)
+    if not candidates:
+        return None
+    top_score = max(item[3] for item in candidates)
+    tied = [item for item in candidates if item[3] == top_score]
+    best = min(tied, key=lambda item: item[0])
+    return best[0], best[1], best[2]
+def _best_distance_match(line: str) -> Optional[tuple[float, str, str]]:
+    """Elige la lectura de distancia más fiable en una línea."""
+    candidates: list[tuple[float, str, str, int]] = []
+
+    space_dist = _parse_km_space_decimal(line)
+    if space_dist is not None:
+        m = _RE_DIST_SPACE_DECIMAL.search(line)
+        assert m is not None
+        candidates.append((space_dist, m.group(1), m.group(3), 3))
+
+    for m in _RE_DIST.finditer(line):
+        dist = _distance_to_meters(m.group(1), m.group(2))
+        if dist is None:
+            continue
+        score = 1
+        token = m.group(1)
+        if re.search(r"[.,]", token):
+            score += 2
+        if re.search(r"[.,]\d{2}", token):
+            score += 1
+        candidates.append((dist, token, m.group(2), score))
+
+    if not candidates:
+        return None
+
+    top_score = max(item[3] for item in candidates)
+    tied = [item for item in candidates if item[3] == top_score]
+    best = min(tied, key=lambda item: item[0])
+    return best[0], best[1], best[2]
+
+
+def _distance_to_meters(value: str, unit: str) -> Optional[float]:
     val = float(value.replace(",", "."))
-    unit_l = unit.lower()
-    if "milla" in unit_l or "mile" in unit_l:
-        return round(val * _MILES_TO_M, 1)
-    if unit_l == "km":
-        return round(val * 1000.0, 1)
-    return round(val, 1)
+    unit_l = _normalize_unit(unit)
+
+    if unit_l == "mi" or "milla" in unit_l or "mile" in unit_l:
+        return _sanitize_distance_m(val * _MILES_TO_M, val, "mi")
+
+    if unit_l == "km" or "kilomet" in unit_l:
+        return _sanitize_distance_m(val * 1000.0, val, "km")
+
+    return _sanitize_distance_m(val, val, "m")
 
 
 def _ocr_image(image) -> str:
@@ -188,10 +302,27 @@ def _parse(text: str) -> Optional[Dict]:
     if not lines:
         return None
 
+    picked = _pick_distance_from_text(text)
+    if picked is not None:
+        dist, raw_value, unit_raw = picked
+        result["distance_m"] = dist
+        result["distance_unit_raw"] = unit_raw
+        result["distance_value_raw"] = raw_value
+
     for line in lines:
-        m = _RE_DIST.search(line)
-        if m and result["distance_m"] is None:
-            result["distance_m"] = _distance_to_meters(m.group(1), m.group(2))
+        if _RE_PURE_TIME.match(line):
+            continue
+
+        if result["distance_m"] is None:
+            for m in _RE_DIST_METERS.finditer(line):
+                if re.search(r"km|kilomet", line, re.IGNORECASE):
+                    continue
+                dist = _distance_to_meters(m.group(1), "m")
+                if dist is not None:
+                    result["distance_m"] = dist
+                    result["distance_unit_raw"] = "m"
+                    result["distance_value_raw"] = m.group(1)
+                    break
 
         m_eta = _RE_ETA.search(line)
         if m_eta and result["eta"] is None:

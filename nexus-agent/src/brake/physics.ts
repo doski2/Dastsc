@@ -2,11 +2,45 @@
 export const TYPE_LAG_MAP: Record<number, number> = { 0: 1.4, 1: 1.0, 2: 1.1, 3: 0.8 };
 
 export const APPLY_NOW_MARGIN_M = 150;
+export const APPLY_NOW_MARGIN_MIN_M = 25;
+/** Distancia máxima para planificar frenado ante un cartel de límite. */
+export const LIMIT_PLANNING_HORIZON_M = 2500;
+/** Tras soltar OFF en un límite, no volver a frenar hasta superar objetivo + este margen. */
+export const COAST_REBRAKE_MARGIN_MPH = 5;
+export const COAST_REBRAKE_MARGIN_KMH = 8;
+/** Si se acelera claramente por encima del objetivo, cancelar el coast latch. */
+export const COAST_CLEAR_OVERSHOOT_MPH = 8;
+export const COAST_CLEAR_OVERSHOOT_KMH = 13;
+/** Mínima velocidad (m/s) para considerar parada en andén. */
+export const STATION_DWELL_MAX_DISTANCE_M = 80;
+export const STATION_FINAL_STOP_SPEED_MS = 0.2;
+/** Velocidad máxima (m/s) para mantener freno de servicio en andén (~2 mph). */
+export const STATION_HOLD_MAX_SPEED_MS = 1.0;
 export const MIN_LEARNED_SAMPLES = 3;
 export const DEFAULT_MAX_BRAKE_DECEL = 0.8;
 export const G_MSS = 9.80665;
 /** Peso de la media en decel de planificación (resto = max aprendido). */
 export const PLANNING_DECEL_AVG_WEIGHT = 0.65;
+/** Estación: más peso al max aprendido → plan más agresivo / frena más tarde. */
+export const PLANNING_DECEL_STATION_AVG_WEIGHT = 0.4;
+
+/**
+ * Zona "aplicar ahora" escalada: a baja velocidad no dispara 150 m antes del punto.
+ */
+export function applyZoneMarginM(speedMs: number, applyAtRemainingM: number): number {
+  const speedBased = speedMs * 2.5;
+  const remainingBased = applyAtRemainingM * 0.12;
+  return Math.min(
+    APPLY_NOW_MARGIN_M,
+    Math.max(APPLY_NOW_MARGIN_MIN_M, speedBased, remainingBased),
+  );
+}
+
+export function isInApplyZone(distStart: number, applyZoneM: number): boolean {
+  // distStart < 0 → ya pasó el punto nominal de aplicación; frenar igualmente.
+  if (distStart < 0) return true;
+  return distStart <= applyZoneM;
+}
 
 /**
  * Componente de aceleración efectiva por pendiente.

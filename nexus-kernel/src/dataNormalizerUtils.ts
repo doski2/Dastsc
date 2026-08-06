@@ -16,6 +16,10 @@ export interface NormalizerProfile extends BrakeProfileInput {
     max_braking_kn?: number;
     max_braking_decel?: number;
     brake_fill_time_s?: number;
+    /** uk_consist (default): cabina 1/2 UK. driver: sin tabla cab UK (EMU alemán). */
+    gradient_mode?: 'uk_consist' | 'driver';
+    /** Invierte el signo tras resolver cabina (p. ej. GetGradient DTG alemán). */
+    gradient_sign_flip?: boolean;
   };
 }
 
@@ -26,6 +30,8 @@ export type SimulatorRawInput = BrakeRawInput &
   TrainLength?: number;
   Length?: number;
   ActiveCab?: number;
+  WheelSpeedMS?: number;
+  TrackMPH?: number;
   SpeedoType?: number;
   CabSpeed?: number;
   CurrentSpeed?: number;
@@ -35,19 +41,27 @@ export type SimulatorRawInput = BrakeRawInput &
   Mass?: number;
   Throttle?: number;
   Regulator?: number;
+  SimpleThrottle?: number;
   TrainBrake?: number;
   TrainBrakeControl?: number;
+  VirtualBrake?: number;
   Combined?: number;
   ThrottleAndBrake?: number;
   Gradient?: number;
+  GradientPct?: number;
   TrackLimit?: number;
   SignalLimit?: number;
   TimeOfDay?: number;
   StationDistance?: number;
+  StationAnchorM?: number;
+  StationTraveledM?: number;
+  StationDriftM?: number;
+  StationNearCorrected?: number;
   StationName?: string;
   PlatformLength?: number;
   StationLength?: number;
   TailDistance?: number;
+  TripDistance?: number;
   TailSeconds?: number;
   TailActive?: number;
   RVNumber?: string;
@@ -155,9 +169,144 @@ export function resolveSpeedMS(raw: SimulatorRawInput, simToMS: number): number 
   return speedMS;
 }
 
-export function inferActiveCab(reportedCab: number, reversal: number, speedMS: number): number {
-  if (reportedCab === 1 && reversal < 0 && speedMS > MIN_SPEED_FOR_CAB_INFER_MS) return 2;
+export function inferActiveCab(
+  reportedCab: number,
+  reversal: number,
+  speedMS: number,
+  wheelSpeedMS?: number,
+  trackMPH?: number,
+  latchedCab = 0,
+): number {
+  if (reportedCab === 2) return 2;
+
+  const motionCab = inferCabFromMotion(reversal, speedMS, wheelSpeedMS, trackMPH);
+  if (motionCab !== null) return motionCab;
+
+  if (latchedCab === 1 || latchedCab === 2) return latchedCab;
   return reportedCab;
+}
+
+function inferCabFromMotion(
+  reversal: number,
+  speedMS: number,
+  wheelSpeedMS?: number,
+  trackMPH?: number,
+): number | null {
+  if (speedMS <= MIN_SPEED_FOR_CAB_INFER_MS) return null;
+
+  const forward = reversal > 0.05;
+  const reverse = reversal < -0.05;
+  if (wheelSpeedMS !== undefined) {
+    if (forward && wheelSpeedMS < -0.15) return 2;
+    if (reverse && wheelSpeedMS > 0.15) return 2;
+    if (forward && wheelSpeedMS > 0.15) return 1;
+    if (reverse && wheelSpeedMS < -0.15) return 1;
+  }
+  if (trackMPH !== undefined) {
+    if (forward && trackMPH < -0.3) return 2;
+    if (reverse && trackMPH > 0.3) return 2;
+    if (forward && trackMPH > 0.3) return 1;
+    if (reverse && trackMPH < -0.3) return 1;
+  }
+  return null;
+}
+
+export function updateLatchedCab(
+  latchedCab: number,
+  reversal: number,
+  speedMS: number,
+  wheelSpeedMS?: number,
+  trackMPH?: number,
+): number {
+  const motionCab = inferCabFromMotion(reversal, speedMS, wheelSpeedMS, trackMPH);
+  return motionCab ?? latchedCab;
+}
+
+export function normalizeWheelSpeedMS(
+  wheelSpeedMS: number | undefined,
+  speedMS: number,
+): number | undefined {
+  if (wheelSpeedMS === undefined || wheelSpeedMS === null) return undefined;
+  if (speedMS > MIN_SPEED_FOR_CAB_INFER_MS && Math.abs(wheelSpeedMS) < 0.05) {
+    return undefined;
+  }
+  return wheelSpeedMS;
+}
+
+/** Pendiente de ruta en ‰ (GradientPct % × 10, o campo Gradient del Lua). */
+export function routeGradientPermille(raw: SimulatorRawInput): number {
+  if (raw.GradientPct !== undefined && raw.GradientPct !== null) {
+    return asNumber(raw.GradientPct) * 10;
+  }
+  return asNumber(raw.Gradient);
+}
+
+/**
+ * Signo para EMU alemán / referencia marcha: solo rueda + reverser, sin cab 1/2 UK.
+ */
+export function resolveGradientSignDriver(
+  reversal: number,
+  wheelSpeedMS: number | undefined,
+  speedMS: number,
+): number {
+  if (speedMS > MIN_SPEED_FOR_CAB_INFER_MS && wheelSpeedMS !== undefined) {
+    const forward = reversal > 0.05;
+    const reverse = reversal < -0.05;
+    if (forward && wheelSpeedMS < -0.15) return -1;
+    if (reverse && wheelSpeedMS > 0.15) return -1;
+    if (forward && wheelSpeedMS > 0.15) return 1;
+    if (reverse && wheelSpeedMS < -0.15) return 1;
+  }
+  return 1;
+}
+
+export function resolveGradientSignForProfile(
+  activeCab: number,
+  reversal: number,
+  wheelSpeedMS: number | undefined,
+  speedMS: number,
+  profile?: NormalizerProfile | null,
+): number {
+  const wheel = normalizeWheelSpeedMS(wheelSpeedMS, speedMS);
+  const mode = profile?.physics_config?.gradient_mode ?? 'uk_consist';
+  let sign = mode === 'driver'
+    ? resolveGradientSignDriver(reversal, wheel, speedMS)
+    : resolveGradientSign(activeCab, reversal, wheel, speedMS);
+  if (profile?.physics_config?.gradient_sign_flip) sign *= -1;
+  return sign;
+}
+
+/**
+ * Signo del gradiente respecto a la marcha actual.
+ * `GetGradient` TSC es % en el frente del consist (característica de ruta).
+ * Hay que invertir cuando conduces contra el eje nominal del consist.
+ */
+export function resolveGradientSign(
+  activeCab: number,
+  reversal: number,
+  wheelSpeedMS?: number,
+  speedMS?: number,
+): number {
+  const wheel = speedMS !== undefined
+    ? normalizeWheelSpeedMS(wheelSpeedMS, speedMS)
+    : wheelSpeedMS;
+
+  if (speedMS !== undefined && speedMS > MIN_SPEED_FOR_CAB_INFER_MS && wheel !== undefined) {
+    const forward = reversal > 0.05;
+    const reverse = reversal < -0.05;
+    if (forward && wheel < -0.15) return -1;
+    if (reverse && wheel > 0.15) return -1;
+    if (forward && wheel > 0.15) return 1;
+    if (reverse && wheel < -0.15) return 1;
+  }
+
+  const forward = reversal > 0.05;
+  const reverse = reversal < -0.05;
+  if (!forward && !reverse) return 1;
+
+  const fromLeadingCab = activeCab === 1;
+  const alongConsistForward = (fromLeadingCab && forward) || (!fromLeadingCab && reverse);
+  return alongConsistForward ? 1 : -1;
 }
 
 export function resolvePressureUnit(
@@ -238,17 +387,43 @@ export function resolveCombinedControl(
   throttle: number,
   brake: number,
 ): number {
-  const rawCombined = raw.Combined ?? raw.ThrottleAndBrake ?? null;
-  return rawCombined !== null && rawCombined !== undefined
-    ? asNumber(rawCombined)
-    : throttle - brake;
+  if (raw.ThrottleAndBrake !== undefined && raw.ThrottleAndBrake !== null) {
+    return asNumber(raw.ThrottleAndBrake);
+  }
+  // Lua emite Combined:0 aunque no exista ThrottleAndBrake (p. ej. ICE T split).
+  // No usar ese 0 como mando combinado real — calcular Regulator − freno.
+  if (
+    raw.Combined !== undefined
+    && raw.Combined !== null
+    && Math.abs(asNumber(raw.Combined)) > 0.001
+  ) {
+    return asNumber(raw.Combined);
+  }
+  return throttle - brake;
 }
 
+/** Umbral de salto OCR (m) — ignora lecturas que suben bruscamente. */
+const STATION_OCR_JUMP_THRESHOLD_M = 40;
+
 export function stickyStationDistance(raw: SimulatorRawInput, prev: TelemetryData): number {
-  if (raw.StationDistance !== undefined && asNumber(raw.StationDistance) >= 0) {
-    return asNumber(raw.StationDistance);
+  const incoming = raw.StationDistance !== undefined ? asNumber(raw.StationDistance) : -1;
+  const trip = asNumber(raw.TripDistance, prev.TripDistance ?? 0);
+  const prevDist = prev.StationDistance ?? -1;
+  const prevTrip = prev.TripDistance ?? 0;
+
+  if (prevDist >= 0 && trip > prevTrip) {
+    const estimated = Math.max(0, prevDist - (trip - prevTrip));
+    if (incoming < 0) {
+      return parseFloat(estimated.toFixed(1));
+    }
+    if (incoming > estimated + STATION_OCR_JUMP_THRESHOLD_M || incoming > prevDist + 5) {
+      return parseFloat(estimated.toFixed(1));
+    }
+    return incoming;
   }
-  return prev.StationDistance >= 0 ? prev.StationDistance : -1;
+
+  if (incoming >= 0) return incoming;
+  return prevDist >= 0 ? prevDist : -1;
 }
 
 export function stickyOcrField(

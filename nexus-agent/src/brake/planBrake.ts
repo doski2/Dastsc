@@ -4,11 +4,17 @@ import {
   DEFAULT_MAX_BRAKE_DECEL,
   MIN_LEARNED_SAMPLES,
   PLANNING_DECEL_AVG_WEIGHT,
+  PLANNING_DECEL_STATION_AVG_WEIGHT,
+  STATION_DWELL_MAX_DISTANCE_M,
+  STATION_FINAL_STOP_SPEED_MS,
+  applyZoneMarginM,
   displaySpeedToMs,
   gravityAcceleration,
+  isInApplyZone,
   lagFactor,
   massFactor,
 } from './physics';
+import { scheduleReactionScale, scheduleSlackSec, scheduleCoastAllowanceM } from './schedule';
 import type {
   BrakePlan,
   BrakePlanProfile,
@@ -31,11 +37,17 @@ export function reactionMarginM(
   return speedMs * Math.min(4.0, 1.5 + fillTimeSecs);
 }
 
-/** Decel para planificar: blend avg/max — la media de sesiones suele ser conservadora. */
-export function planningDecelFromStats(entry: BrakeStatsEntry): number {
+/** Decel para planificar: blend avg/max — estación favorece max (más agresivo). */
+export function planningDecelFromStats(
+  entry: BrakeStatsEntry,
+  targetKind: BrakeTargetKind = 'SPEED_LIMIT',
+): number {
+  const weight = targetKind === 'STATION'
+    ? PLANNING_DECEL_STATION_AVG_WEIGHT
+    : PLANNING_DECEL_AVG_WEIGHT;
   const { avg_decel: avg, max_decel: max } = entry;
   if (max != null && max > avg) {
-    return avg * PLANNING_DECEL_AVG_WEIGHT + max * (1 - PLANNING_DECEL_AVG_WEIGHT);
+    return avg * weight + max * (1 - weight);
   }
   return avg;
 }
@@ -48,13 +60,33 @@ export function decelForNotch(
   consistType: number,
   gradientPermille: number,
   brakeStats: BrakeStatsByNotch,
+  targetKind: BrakeTargetKind = 'SPEED_LIMIT',
 ): number {
   const learned = brakeStats[notchLabel];
   if (learned && learned.samples >= MIN_LEARNED_SAMPLES) {
-    return planningDecelFromStats(learned);
+    return planningDecelFromStats(learned, targetKind);
   }
   const grav = gravityAcceleration(gradientPermille);
   return (baseDecel * fraction) / (massFactor(massT) * lagFactor(consistType)) + grav;
+}
+
+function reactionTimeForTarget(
+  targetKind: BrakeTargetKind,
+  profile: BrakePlanProfile | null | undefined,
+): number | undefined {
+  const physics = profile?.physics_config;
+  if (targetKind === 'STATION') {
+    return physics?.station_reaction_time_s ?? physics?.reaction_time_s;
+  }
+  return physics?.reaction_time_s;
+}
+
+/** A baja velocidad y poco delta, el margen fijo de 3 s es demasiado conservador. */
+function lowSpeedReactionScale(speedMs: number, targetSpeedMs: number): number {
+  if (speedMs <= 0.5) return 1;
+  const delta = Math.max(0, speedMs - targetSpeedMs);
+  const ratio = delta / speedMs;
+  return Math.max(0.35, Math.min(1, ratio / 0.4));
 }
 
 export function brakingDistanceM(
@@ -95,27 +127,176 @@ export function buildServicePhases(profile: BrakePlanProfile | null | undefined)
   ];
 }
 
-export function selectActiveStep(steps: BrakePlanStepDetail[]): BrakePlanStepDetail | null {
+export function notchStrength(
+  notch: string,
+  profile?: BrakePlanProfile | null,
+): number {
+  const uk: Record<string, number> = { B3: 3, B2: 2, B1: 1 };
+  if (notch in uk) return uk[notch];
+
+  const entry = profile?.specs?.notches_throttle_brake?.find(n => n.label === notch);
+  if (entry && entry.value < 0 && entry.value > -0.99) {
+    return Math.round(Math.abs(entry.value) * 10);
+  }
+  return 0;
+}
+
+export function moderateServiceNotchLabel(
+  profile?: BrakePlanProfile | null,
+): string {
+  const service = profile?.specs?.notches_throttle_brake
+    ?.filter(n => n.value < 0 && n.value > -1.0)
+    .sort((a, b) => a.value - b.value) ?? [];
+  if (!service.length) return 'B2';
+  const mid = service[Math.floor((service.length - 1) / 2)];
+  return mid?.label ?? 'B2';
+}
+
+export function weakestServiceNotchLabel(
+  profile?: BrakePlanProfile | null,
+): string {
+  const service = profile?.specs?.notches_throttle_brake
+    ?.filter(n => n.value < 0 && n.value > -1.0)
+    .sort((a, b) => b.value - a.value) ?? [];
+  return service[0]?.label ?? 'B1';
+}
+
+function preferWeakestStep(
+  steps: BrakePlanStepDetail[],
+  profile?: BrakePlanProfile | null,
+): BrakePlanStepDetail {
+  return steps.reduce((best, step) =>
+    notchStrength(step.notch, profile) < notchStrength(best.notch, profile) ? step : best,
+  );
+}
+
+function preferStrongestStep(
+  steps: BrakePlanStepDetail[],
+  profile?: BrakePlanProfile | null,
+): BrakePlanStepDetail {
+  return steps.reduce((best, step) =>
+    notchStrength(step.notch, profile) > notchStrength(best.notch, profile) ? step : best,
+  );
+}
+
+function applyZoneForStep(speedMs: number, step: BrakePlanStepDetail): number {
+  return applyZoneMarginM(speedMs, step.applyAtRemainingM);
+}
+
+/** Estación: B2 por defecto, B3 si tarde/cerca, aprovechar holgura de horario. */
+export function selectStationActiveStep(
+  steps: BrakePlanStepDetail[],
+  speedMs: number,
+  distanceToTargetM: number,
+  scheduleEta?: string,
+  now = new Date(),
+  profile?: BrakePlanProfile | null,
+): BrakePlanStepDetail | null {
   if (!steps.length) return null;
 
-  const inZone = steps.filter(
-    s => s.distStart <= APPLY_NOW_MARGIN_M && s.distStart >= -APPLY_NOW_MARGIN_M,
-  );
-  if (inZone.length > 0) {
-    return inZone.reduce((best, step) =>
-      Math.abs(step.distStart) < Math.abs(best.distStart) ? step : best,
-    );
+  const moderateLabel = moderateServiceNotchLabel(profile);
+  const slackSec = scheduleSlackSec(distanceToTargetM, speedMs, scheduleEta, now);
+  const coastingForSchedule = slackSec != null && slackSec > 18 && distanceToTargetM > 300;
+
+  if (coastingForSchedule) {
+    const notYet = steps
+      .filter(s => s.distStart > 0)
+      .sort((a, b) => a.distStart - b.distStart);
+    if (notYet.length) {
+      const moderate = notYet.find(s => s.notch === moderateLabel);
+      if (moderate) return moderate;
+      return preferWeakestStep(notYet, profile);
+    }
+  }
+
+  const due = steps.filter(s => s.distStart <= 0);
+  const inZone = steps.filter(s => {
+    const zone = applyZoneForStep(speedMs, s);
+    return isInApplyZone(s.distStart, zone);
+  });
+  const upcoming = steps
+    .filter(s => s.distStart > 0)
+    .sort((a, b) => a.distStart - b.distStart);
+
+  const moderateOrStronger = (candidates: BrakePlanStepDetail[]) =>
+    candidates.filter(s => notchStrength(s.notch, profile) >= 2);
+
+  const lateForSchedule = slackSec != null && slackSec < -12;
+  const finalApproach = distanceToTargetM < 280;
+
+  if (finalApproach || lateForSchedule) {
+    const pool = moderateOrStronger([...due, ...inZone]);
+    if (pool.length) return preferStrongestStep(pool, profile);
+    if (upcoming.length) return preferStrongestStep(upcoming, profile);
+    return preferStrongestStep(steps, profile);
+  }
+
+  if (distanceToTargetM < 380 && upcoming.length > 0 && upcoming[0].distStart < 60) {
+    return preferStrongestStep(upcoming, profile);
+  }
+
+  if (due.length || inZone.length) {
+    const pool = [...due, ...inZone];
+    const service = moderateOrStronger(pool);
+    if (service.length) {
+      const moderate = service.filter(s => s.notch === moderateLabel);
+      if (moderate.length) return preferWeakestStep(moderate, profile);
+      return preferStrongestStep(service, profile);
+    }
+    return preferWeakestStep(pool, profile);
+  }
+
+  const preview = steps.find(s => s.notch === moderateLabel) ?? upcoming[0] ?? steps[0];
+  return preview ?? null;
+}
+
+export function selectActiveStep(
+  steps: BrakePlanStepDetail[],
+  speedMs: number,
+  targetKind: BrakeTargetKind = 'SPEED_LIMIT',
+  distanceToTargetM = 0,
+  scheduleEta?: string,
+  now = new Date(),
+  profile?: BrakePlanProfile | null,
+): BrakePlanStepDetail | null {
+  if (!steps.length) return null;
+
+  if (targetKind === 'STATION') {
+    return selectStationActiveStep(steps, speedMs, distanceToTargetM, scheduleEta, now, profile);
+  }
+
+  const late = steps.filter(s => s.distStart < 0);
+  if (late.length) {
+    return preferStrongestStep(late, profile);
+  }
+
+  const applicable = steps.filter(s => {
+    const zone = applyZoneForStep(speedMs, s);
+    return s.distStart <= zone;
+  });
+  if (applicable.length > 0) {
+    return preferWeakestStep(applicable, profile);
   }
 
   const upcoming = steps
-    .filter(s => s.distStart > APPLY_NOW_MARGIN_M)
+    .filter(s => {
+      const zone = applyZoneForStep(speedMs, s);
+      return s.distStart > zone;
+    })
     .sort((a, b) => a.distStart - b.distStart);
-  if (upcoming.length > 0) return upcoming[0];
+  if (upcoming.length > 0) {
+    return preferWeakestStep(upcoming, profile);
+  }
 
   return steps[steps.length - 1] ?? null;
 }
 
-export function planBrake(input: PlanBrakeInput, targetKind: BrakeTargetKind): BrakePlan | null {
+export function planBrake(
+  input: PlanBrakeInput,
+  targetKind: BrakeTargetKind,
+  scheduleEta?: string,
+  now = new Date(),
+): BrakePlan | null {
   const {
     speedMs,
     distanceToTargetM,
@@ -133,12 +314,22 @@ export function planBrake(input: PlanBrakeInput, targetKind: BrakeTargetKind): B
 
   const baseDecel = profile?.physics_config?.max_braking_decel ?? DEFAULT_MAX_BRAKE_DECEL;
   const fillTimeSecs = profile?.physics_config?.brake_fill_time_s ?? 2.5;
-  const reaction = reactionMarginM(
+  let reaction = reactionMarginM(
     speedMs,
     fillTimeSecs,
-    profile?.physics_config?.reaction_time_s,
+    reactionTimeForTarget(targetKind, profile),
   );
+
+  if (targetKind === 'STATION') {
+    reaction *= scheduleReactionScale(distanceToTargetM, speedMs, scheduleEta, now);
+  } else {
+    reaction *= lowSpeedReactionScale(speedMs, targetSpeedMs);
+  }
+
   const phases = buildServicePhases(profile);
+  const coastAllowanceM = targetKind === 'STATION'
+    ? scheduleCoastAllowanceM(distanceToTargetM, speedMs, scheduleEta, now)
+    : 0;
 
   const steps: BrakePlanStepDetail[] = phases.map(phase => {
     const decel = decelForNotch(
@@ -149,12 +340,14 @@ export function planBrake(input: PlanBrakeInput, targetKind: BrakeTargetKind): B
       consistType,
       gradientPermille,
       brakeStats,
+      targetKind,
     );
     const distNeeded = brakingDistanceM(speedMs, targetSpeedMs, decel);
     const applyAtRemainingM = distNeeded + reaction;
-    const distStart = distanceToTargetM - applyAtRemainingM;
+    const distStart = distanceToTargetM - applyAtRemainingM + coastAllowanceM;
     const learned = brakeStats[phase.notchLabel];
     const usingLearned = !!(learned && learned.samples >= MIN_LEARNED_SAMPLES);
+    const applyZoneM = applyZoneMarginM(speedMs, applyAtRemainingM);
 
     return {
       notch: phase.notchLabel,
@@ -164,7 +357,7 @@ export function planBrake(input: PlanBrakeInput, targetKind: BrakeTargetKind): B
       distStart,
       metersUntilActionM: Math.max(0, distStart),
       usingLearned,
-      applyNow: distStart <= APPLY_NOW_MARGIN_M && distStart >= -APPLY_NOW_MARGIN_M,
+      applyNow: isInApplyZone(distStart, applyZoneM),
     };
   });
 
@@ -174,7 +367,9 @@ export function planBrake(input: PlanBrakeInput, targetKind: BrakeTargetKind): B
     targetSpeedMs,
     reactionMarginM: reaction,
     steps,
-    activeStep: selectActiveStep(steps),
+    activeStep: targetKind === 'STATION'
+      ? selectStationActiveStep(steps, speedMs, distanceToTargetM, scheduleEta, now, profile)
+      : selectActiveStep(steps, speedMs, targetKind, distanceToTargetM, scheduleEta, now, profile),
     isRealTarget,
   };
 }
@@ -232,15 +427,60 @@ export function planBrakeForLimit(
   );
 }
 
+export function planStationFinalStop(
+  snapshot: {
+    speedMs: number;
+    station: { distanceM: number };
+  },
+  ctx: SnapshotBrakeContext = {},
+): BrakePlan | null {
+  const { distanceM } = snapshot.station;
+  if (distanceM > STATION_DWELL_MAX_DISTANCE_M || distanceM < -20) return null;
+  if (snapshot.speedMs <= STATION_FINAL_STOP_SPEED_MS) return null;
+
+  const profile = ctx.profile;
+  const notches = profile?.specs?.notches_throttle_brake
+    ?.filter(n => n.value < 0 && n.value > -1.0)
+    .sort((a, b) => a.value - b.value) ?? [];
+  const strongest = notches[0]?.label ?? 'B3';
+  const notch = snapshot.speedMs > 4 ? strongest
+    : snapshot.speedMs > 1.5 ? (notches[1]?.label ?? 'B2')
+      : (notches[2]?.label ?? 'B1');
+
+  const step: BrakePlanStepDetail = {
+    notch,
+    phase: 'stop',
+    distanceM: 0,
+    applyAtRemainingM: distanceM,
+    distStart: 0,
+    metersUntilActionM: 0,
+    usingLearned: false,
+    applyNow: true,
+  };
+
+  return {
+    targetKind: 'STATION',
+    distanceToTargetM: distanceM,
+    targetSpeedMs: 0,
+    reactionMarginM: 0,
+    steps: [step],
+    activeStep: step,
+    isRealTarget: true,
+  };
+}
+
 export function planBrakeForStation(
   snapshot: {
     speedMs: number;
     gradient: number;
     train: { massT: number; lengthM: number; consistType?: number };
-    station: { distanceM: number };
+    station: { distanceM: number; eta?: string };
   },
   ctx: SnapshotBrakeContext = {},
 ): BrakePlan | null {
+  const finalStop = planStationFinalStop(snapshot, ctx);
+  if (finalStop) return finalStop;
+
   if (snapshot.station.distanceM <= 0) return null;
 
   return planBrake(
@@ -257,5 +497,6 @@ export function planBrakeForStation(
       isRealTarget: true,
     },
     'STATION',
+    snapshot.station.eta,
   );
 }

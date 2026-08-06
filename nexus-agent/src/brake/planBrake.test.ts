@@ -8,6 +8,7 @@ import {
   planBrakeForStation,
   reactionMarginM,
   selectActiveStep,
+  selectStationActiveStep,
 } from './planBrake';
 import { gravityAcceleration, G_MSS } from './physics';
 import type { BrakePlanProfile } from './types';
@@ -169,13 +170,13 @@ describe('planBrake', () => {
 });
 
 describe('selectActiveStep', () => {
-  it('prefers apply-now step closest to zero distStart', () => {
+  it('prefers weakest service notch for speed limits', () => {
     const steps = [
-      { notch: 'B3', distStart: 120, applyNow: true } as const,
-      { notch: 'B2', distStart: 5, applyNow: true } as const,
-      { notch: 'B1', distStart: -200, applyNow: false } as const,
+      { notch: 'B3', distStart: 120, applyAtRemainingM: 200, applyNow: false } as const,
+      { notch: 'B2', distStart: 5, applyAtRemainingM: 240, applyNow: false } as const,
+      { notch: 'B1', distStart: -200, applyAtRemainingM: 270, applyNow: false } as const,
     ];
-    expect(selectActiveStep(steps as never)?.notch).toBe('B2');
+    expect(selectActiveStep(steps as never, 30, 'SPEED_LIMIT')?.notch).toBe('B1');
   });
 });
 
@@ -201,5 +202,22 @@ describe('snapshot helpers', () => {
     const plan = planBrakeForLimit(snapshot, { profile: CLASS323_PROFILE });
     expect(plan?.targetKind).toBe('SPEED_LIMIT');
     expect(plan!.targetSpeedMs).toBeGreaterThan(0);
+  });
+
+  it('selects strong notch when limit braking is late', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 27.8,
+      speedDisplay: 100,
+      speedUnit: 'km/h',
+      limits: {
+        effective: 160,
+        frontal: 160,
+        next: { speed: 60, distanceM: 153 },
+        upcoming: [],
+      },
+    });
+    const plan = planBrakeForLimit(snapshot, { profile: CLASS323_PROFILE });
+    expect(plan?.activeStep?.distStart).toBeLessThan(0);
+    expect(plan?.activeStep?.notch).toBe('B3');
   });
 });

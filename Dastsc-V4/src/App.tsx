@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAgent } from './hooks/useAgent';
+import { useStationDistanceDebug } from './hooks/useStationDistanceDebug';
 import { AgentHeadline } from './components/AgentHeadline';
 import { ArmActionBar } from './components/ArmActionBar';
 import { AppShell, type AppView } from './components/AppShell';
@@ -7,6 +8,7 @@ import { BrakePlanPanel } from './components/BrakePlanPanel';
 import { ConfigView } from './components/ConfigView';
 import { HorizonStrip } from './components/HorizonStrip';
 import { MiniHud } from './components/MiniHud';
+import { ProfileCompletenessPanel } from './components/ProfileCompletenessPanel';
 
 export default function App() {
   const [activeView, setActiveView] = useState<AppView>('agent');
@@ -22,11 +24,19 @@ export default function App() {
     profileSelection,
     setPolicyMode,
     selectProfile,
+    cabOverride,
+    setCabOverride,
     sendCommand,
     lastCommandAck,
+    profileCompleteness,
+    profileAlertVisible,
+    dismissProfileAlert,
   } = useAgent();
 
   const connected = isConnected && (useLive || snapshot.connected);
+  const stationApproach =
+    snapshot.station.distanceM >= 0 && snapshot.station.distanceM < 2000;
+  const stationDebug = useStationDistanceDebug(connected && stationApproach);
 
   return (
     <AppShell
@@ -39,6 +49,13 @@ export default function App() {
     >
       {activeView === 'agent' ? (
         <>
+          {profileAlertVisible && profileCompleteness && activeProfile?.id && (
+            <ProfileCompletenessPanel
+              profileId={activeProfile.id}
+              completeness={profileCompleteness}
+              onDismiss={dismissProfileAlert}
+            />
+          )}
           <AgentHeadline tick={agent} speedUnit={snapshot.speedUnit} />
           <ArmActionBar
             action={agent.suggestedAction}
@@ -47,7 +64,15 @@ export default function App() {
             lastAck={lastCommandAck}
             onConfirm={sendCommand}
           />
-          <BrakePlanPanel tick={agent} speedUnit={snapshot.speedUnit} brakeStats={brakeStats} />
+          <BrakePlanPanel
+            tick={agent}
+            snapshot={snapshot}
+            speedUnit={snapshot.speedUnit}
+            brakeStats={brakeStats}
+            stationDebug={stationDebug}
+            cabOverride={cabOverride}
+            onCabOverrideChange={setCabOverride}
+          />
           <HorizonStrip events={agent.horizon} speedUnit={snapshot.speedUnit} />
           <MiniHud
             speed={snapshot.speedDisplay}
@@ -65,6 +90,7 @@ export default function App() {
           activeProfile={activeProfile}
           profileSelection={profileSelection}
           policyMode={policyMode}
+          brakeStats={brakeStats}
           onSelectProfile={selectProfile}
           onPolicyModeChange={setPolicyMode}
         />

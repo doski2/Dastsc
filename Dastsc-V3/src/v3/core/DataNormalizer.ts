@@ -16,6 +16,8 @@ import {
   computeTotalBrakingEffort,
   formatTimeOfDay,
   inferActiveCab,
+  resolveGradientSign,
+  updateLatchedCab,
   MAX_DT_SIM_S,
   MIN_DT_SIM_S,
   MIN_SPEED_FOR_CAB_INFER_MS,
@@ -39,6 +41,7 @@ interface NormalizerState {
   lastSimTime: number;
   lastRealTime: number;
   activeCab: number;
+  latchedCab: number;
   emaAccelMS2: number;
 }
 
@@ -51,6 +54,7 @@ export class DataNormalizer {
     lastSimTime: 0,
     lastRealTime: 0,
     activeCab: 1,
+    latchedCab: 0,
     emaAccelMS2: 0,
   };
 
@@ -91,8 +95,27 @@ export class DataNormalizer {
     const computedGForce = this.state.emaAccelMS2 / G_CONSTANT;
 
     const reversal = asNumber(raw.Reversal ?? raw.Reverser);
-    const inferredCab = inferActiveCab(this.state.activeCab, reversal, phys.speedMS);
-    const cabSign = inferredCab === 2 ? -1 : 1;
+    this.state.latchedCab = updateLatchedCab(
+      this.state.latchedCab,
+      reversal,
+      phys.speedMS,
+      raw.WheelSpeedMS,
+      raw.TrackMPH,
+    );
+    const inferredCab = inferActiveCab(
+      this.state.activeCab,
+      reversal,
+      phys.speedMS,
+      raw.WheelSpeedMS,
+      raw.TrackMPH,
+      this.state.latchedCab,
+    );
+    const cabSign = resolveGradientSign(
+      inferredCab,
+      reversal,
+      raw.WheelSpeedMS,
+      phys.speedMS,
+    );
     const gameRawGrad = asNumber(raw.Gradient);
     const currentGrad = cabSign * gameRawGrad;
 
@@ -213,6 +236,7 @@ export class DataNormalizer {
       lastSimTime: 0,
       lastRealTime: 0,
       activeCab: 1,
+      latchedCab: 0,
       emaAccelMS2: 0,
     };
   }

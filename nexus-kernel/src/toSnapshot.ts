@@ -37,6 +37,10 @@ export function toTelemetrySnapshot(
       distanceM: data.StationDistance,
       nameOcr: data.StationNameOCR || data.StationName,
       eta: data.StationETA,
+      anchorM: data.StationAnchorM,
+      traveledM: data.StationTraveledM,
+      driftM: data.StationDriftM,
+      nearCorrected: (data.StationNearCorrected ?? 0) > 0,
     },
     brake: {
       combined: data.CombinedControl,
@@ -61,6 +65,9 @@ export function toTelemetrySnapshot(
       name: data.LocoName,
     },
     gradient: data.Gradient,
+    rawGradient: data.RawGradient,
+    activeCab: data.ActiveCab,
+    reverser: data.Reverser,
     tripDistanceM: data.TripDistance,
     connected,
   };

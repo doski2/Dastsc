@@ -1,6 +1,6 @@
 import type { AgentAction, AgentBrakeContext, AgentTick, BrakePlanStep, PolicyMode, TelemetrySnapshot, Urgency } from '@nexus/kernel';
 import { formatDistance, formatSpeed } from '@nexus/kernel';
-import { APPLY_NOW_MARGIN_M } from './brake/physics';
+import { applyZoneMarginM, isInApplyZone, LIMIT_PLANNING_HORIZON_M } from './brake/physics';
 import { planBrakeForLimit, planBrakeForStation, toAgentBrakeContext, toKernelBrakeSteps } from './brake/planBrake';
 import type { BrakePlan, BrakePlanProfile, SnapshotBrakeContext } from './brake/types';
 import { resolveSuggestedAction } from './command/commandBus';
@@ -25,6 +25,7 @@ function estimateMarginS(distanceM: number, speedMs: number): number {
 function formatBrakeAction(
   plan: BrakePlan,
   speedUnit: TelemetrySnapshot['speedUnit'],
+  speedMs: number,
 ): { headline: string; detail: string; urgency: Urgency } {
   const step = plan.activeStep;
   if (!step) {
@@ -36,11 +37,20 @@ function formatBrakeAction(
   }
 
   const learned = step.usingLearned ? ' · decel aprendida' : '';
-  if (step.applyNow || step.distStart < -APPLY_NOW_MARGIN_M) {
+  const applyZoneM = applyZoneMarginM(speedMs, step.applyAtRemainingM);
+  const pastDue = step.distStart < -applyZoneM;
+  const applyNow = step.applyNow || isInApplyZone(step.distStart, applyZoneM);
+
+  if (applyNow || pastDue) {
+    const headline = plan.targetKind === 'STATION' && step.phase === 'stop'
+      ? `${step.notch} — parada final`
+      : `${step.notch} — aplicar ahora`;
     return {
-      headline: `${step.notch} — aplicar ahora`,
-      detail: `Frenada ${step.distanceM.toFixed(0)} m + ${plan.reactionMarginM.toFixed(0)} m margen${learned}`,
-      urgency: step.distStart < -APPLY_NOW_MARGIN_M ? 'critical' : 'warn',
+      headline,
+      detail: plan.targetKind === 'STATION' && step.phase === 'stop'
+        ? `Andén a ${plan.distanceToTargetM.toFixed(0)} m · reducir a 0 ${speedUnit}`
+        : `Frenada ${step.distanceM.toFixed(0)} m + ${plan.reactionMarginM.toFixed(0)} m margen${learned}`,
+      urgency: pastDue ? 'critical' : 'warn',
     };
   }
 
@@ -62,27 +72,30 @@ function resolveActiveBrakePlan(
   };
 
   const limit = snapshot.limits.next;
-  if (limit && limit.distanceM > 0 && limit.distanceM < 800) {
-    const plan = planBrakeForLimit(snapshot, ctx);
-    if (plan?.activeStep) {
-      return {
-        plan,
-        brakePlan: toKernelBrakeSteps(plan),
-        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
-      };
-    }
-  }
+  const stationDist = snapshot.station.distanceM;
 
-  if (snapshot.station.distanceM > 0 && snapshot.station.distanceM < 1500) {
-    const plan = planBrakeForStation(snapshot, ctx);
-    if (plan?.activeStep) {
-      return {
-        plan,
-        brakePlan: toKernelBrakeSteps(plan),
-        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
-      };
-    }
+  const limitPlan =
+    limit && limit.distanceM > 0 && limit.distanceM < LIMIT_PLANNING_HORIZON_M
+      ? planBrakeForLimit(snapshot, ctx)
+      : null;
+
+  const stationPlan =
+    stationDist >= 0 && stationDist < 1500
+      ? planBrakeForStation(snapshot, ctx)
+      : null;
+
+  const wrap = (plan: BrakePlan) => ({
+    plan,
+    brakePlan: toKernelBrakeSteps(plan),
+    brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
+  });
+
+  if (limitPlan?.activeStep && stationPlan?.activeStep && limit) {
+    if (limit.distanceM <= stationDist) return wrap(limitPlan);
+    return wrap(stationPlan);
   }
+  if (limitPlan?.activeStep) return wrap(limitPlan);
+  if (stationPlan?.activeStep) return wrap(stationPlan);
 
   return { plan: null };
 }
@@ -108,44 +121,22 @@ function pickHeadline(
     };
   }
 
-  const limit = horizon.find(e => e.kind === 'SPEED_LIMIT');
-  if (limit && limit.distanceM < 800) {
-    const marginM = limit.distanceM;
-    const target = limit.targetSpeedDisplay ?? snapshot.limits.effective;
-    const plan = planBrakeForLimit(snapshot, {
-      profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
-      brakeStats: brakeCtx.brakeStats,
-    });
-    if (plan?.activeStep) {
-      const action = formatBrakeAction(plan, snapshot.speedUnit);
-      return {
-        ...action,
-        marginM: plan.activeStep.metersUntilActionM || marginM,
-        brakePlan: toKernelBrakeSteps(plan),
-        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
-      };
-    }
-    return {
-      headline: `Reducir a ${Math.round(target)} ${snapshot.speedUnit} en ~${formatDistance(marginM, snapshot.speedUnit)}`,
-      detail: `Límite ${Math.round(snapshot.limits.effective)} → ${Math.round(target)} ${snapshot.speedUnit} · gradiente ${snapshot.gradient > 0 ? '+' : ''}${snapshot.gradient.toFixed(1)}‰`,
-      urgency: marginM < 300 ? 'warn' : 'info',
-      marginM,
-    };
-  }
-
-  if (snapshot.station.distanceM > 0 && snapshot.station.distanceM < 1500) {
+  if (snapshot.station.distanceM >= 0 && snapshot.station.distanceM < 1500) {
     const marginM = snapshot.station.distanceM;
     const plan = planBrakeForStation(snapshot, {
       profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
       brakeStats: brakeCtx.brakeStats,
     });
     if (plan?.activeStep) {
-      const action = formatBrakeAction(plan, snapshot.speedUnit);
+      const action = formatBrakeAction(plan, snapshot.speedUnit, snapshot.speedMs);
       const station = snapshot.station.nameOcr || 'estación';
+      const scheduleHint = snapshot.station.eta
+        ? ` · horario ${snapshot.station.eta}`
+        : '';
       return {
         headline: `${station}: ${action.headline}`,
         detail: snapshot.station.eta
-          ? `${action.detail} · ETA ${snapshot.station.eta}`
+          ? `${action.detail}${scheduleHint}`
           : action.detail,
         urgency: action.urgency,
         marginM: plan.activeStep.metersUntilActionM || marginM,
@@ -155,8 +146,35 @@ function pickHeadline(
     }
     return {
       headline: `Aproximación a ${snapshot.station.nameOcr || 'estación'}`,
-      detail: snapshot.station.eta ? `ETA ${snapshot.station.eta}` : 'Prepare frenada de estación.',
+      detail: snapshot.station.eta
+        ? `Horario ${snapshot.station.eta} · prepare frenada de estación`
+        : 'Prepare frenada de estación.',
       urgency: 'info',
+      marginM,
+    };
+  }
+
+  const limit = horizon.find(e => e.kind === 'SPEED_LIMIT');
+  if (limit && limit.distanceM < LIMIT_PLANNING_HORIZON_M) {
+    const marginM = limit.distanceM;
+    const target = limit.targetSpeedDisplay ?? snapshot.limits.effective;
+    const plan = planBrakeForLimit(snapshot, {
+      profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
+      brakeStats: brakeCtx.brakeStats,
+    });
+    if (plan?.activeStep) {
+      const action = formatBrakeAction(plan, snapshot.speedUnit, snapshot.speedMs);
+      return {
+        ...action,
+        marginM: plan.activeStep.metersUntilActionM || marginM,
+        brakePlan: toKernelBrakeSteps(plan),
+        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
+      };
+    }
+    return {
+      headline: `Reducir a ${Math.round(target)} ${snapshot.speedUnit} en ~${formatDistance(marginM, snapshot.speedUnit)}`,
+      detail: `Límite ${Math.round(snapshot.limits.effective)} → ${Math.round(target)} ${snapshot.speedUnit} · gradiente ${snapshot.gradient > 0 ? '+' : ''}${(snapshot.gradient / 10).toFixed(2)}%`,
+      urgency: marginM < 300 ? 'warn' : 'info',
       marginM,
     };
   }
