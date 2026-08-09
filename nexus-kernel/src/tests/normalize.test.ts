@@ -56,6 +56,24 @@ describe('stickyStationDistance', () => {
     );
     expect(next).toBe(700);
   });
+
+  it('accepts handoff to next station after dwell (0 m → 50 km)', () => {
+    const prev = { StationDistance: 0, TripDistance: 12000 } as TelemetryData;
+    const next = stickyStationDistance(
+      { StationDistance: 50000, TripDistance: 12150 },
+      prev,
+    );
+    expect(next).toBe(50000);
+  });
+
+  it('accepts handoff from platform zone to far next station', () => {
+    const prev = { StationDistance: 15, TripDistance: 8000 } as TelemetryData;
+    const next = stickyStationDistance(
+      { StationDistance: 48000, TripDistance: 8200 },
+      prev,
+    );
+    expect(next).toBe(48000);
+  });
 });
 
 describe('resolveCombinedControl', () => {
@@ -100,6 +118,7 @@ describe('TelemetryHub', () => {
     );
 
     expect(snapshot.brake.combined).toBeCloseTo(0.1);
+    expect(snapshot.brake.position).toBeCloseTo(0.3);
   });
 
   it('inverts ICE T driver gradient when profile requests flip', () => {

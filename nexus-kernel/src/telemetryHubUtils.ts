@@ -12,6 +12,12 @@ export interface ProfileSummary {
     color?: string;
     pressure_unit?: 'PSI' | 'BAR';
   };
+  nexus?: {
+    tier?: 'genre' | 'train' | 'generic';
+    genre?: string;
+    hidden?: boolean;
+    auto_priority?: number;
+  };
 }
 
 export type WsMessage = Record<string, unknown> & {
@@ -21,6 +27,7 @@ export type WsMessage = Record<string, unknown> & {
   active_profile_id?: string | null;
   data?: WsMessage;
   isConnected?: boolean;
+  gameLinked?: boolean;
 };
 
 export function isTelemetryMessage(message: WsMessage): boolean {

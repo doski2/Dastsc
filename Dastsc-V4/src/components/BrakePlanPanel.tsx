@@ -18,6 +18,7 @@ interface BrakePlanPanelProps {
 const TARGET_LABEL: Record<AgentBrakeContext['targetKind'], string> = {
   STATION: 'Estación',
   SPEED_LIMIT: 'Límite',
+  SIGNAL: 'Señal',
 };
 
 function gradientLabel(permille: number): string {

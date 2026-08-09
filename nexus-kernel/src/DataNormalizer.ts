@@ -163,6 +163,10 @@ export class DataNormalizer {
       RawGradient: rawPermille,
       LateralG: phys.lateralG,
       StationDistance: stickyStationDistance(raw, prevData),
+      StationDistanceSource: raw.StationDistanceSource as TelemetryData['StationDistanceSource'],
+      StationDistanceLuaM: raw.StationDistanceLuaM !== undefined
+        ? asNumber(raw.StationDistanceLuaM)
+        : undefined,
       StationAnchorM: asNumber(raw.StationAnchorM),
       StationTraveledM: asNumber(raw.StationTraveledM),
       StationDriftM: raw.StationDriftM !== undefined ? asNumber(raw.StationDriftM) : undefined,

@@ -53,6 +53,8 @@ export type SimulatorRawInput = BrakeRawInput &
   SignalLimit?: number;
   TimeOfDay?: number;
   StationDistance?: number;
+  StationDistanceSource?: string;
+  StationDistanceLuaM?: number;
   StationAnchorM?: number;
   StationTraveledM?: number;
   StationDriftM?: number;
@@ -402,14 +404,30 @@ export function resolveCombinedControl(
   return throttle - brake;
 }
 
-/** Umbral de salto OCR (m) — ignora lecturas que suben bruscamente. */
+/** Umbral de salto OCR (m) — ignora lecturas que suben bruscamente en aproximación. */
 const STATION_OCR_JUMP_THRESHOLD_M = 40;
+/** Tras parar en andén, TSC salta a la siguiente estación (0 m → decenas de km). */
+const STATION_PLATFORM_HANDOFF_MAX_M = 80;
+const STATION_HANDOFF_MIN_DISTANCE_M = 200;
+
+function isStationHandoffToNext(prevDist: number, incoming: number): boolean {
+  return (
+    prevDist >= 0
+    && prevDist <= STATION_PLATFORM_HANDOFF_MAX_M
+    && incoming >= STATION_HANDOFF_MIN_DISTANCE_M
+    && incoming > prevDist + STATION_OCR_JUMP_THRESHOLD_M
+  );
+}
 
 export function stickyStationDistance(raw: SimulatorRawInput, prev: TelemetryData): number {
   const incoming = raw.StationDistance !== undefined ? asNumber(raw.StationDistance) : -1;
   const trip = asNumber(raw.TripDistance, prev.TripDistance ?? 0);
   const prevDist = prev.StationDistance ?? -1;
   const prevTrip = prev.TripDistance ?? 0;
+
+  if (incoming >= 0 && isStationHandoffToNext(prevDist, incoming)) {
+    return incoming;
+  }
 
   if (prevDist >= 0 && trip > prevTrip) {
     const estimated = Math.max(0, prevDist - (trip - prevTrip));

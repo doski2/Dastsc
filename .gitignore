@@ -26,6 +26,9 @@ GetData.txt
 RailWorks64_d3d9.log
 dxvk.tar.gz
 
+# Nexus V4 session diagnostics (últimos 5 JSON)
+logs/nexus-v4/*.json
+
 # OS
 Thumbs.db
 Desktop.ini

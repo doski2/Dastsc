@@ -128,6 +128,53 @@ def score_profile(profile: Profile, loco_names: List[str], controller_names: Lis
     return score
 
 
+def _auto_priority(profile: Profile) -> int:
+    nexus = profile.get("nexus") or {}
+    try:
+        return int(nexus.get("auto_priority", 50))
+    except (TypeError, ValueError):
+        return 50
+
+
+def _is_auto_candidate(profile: Profile) -> bool:
+    nexus = profile.get("nexus") or {}
+    if nexus.get("hidden"):
+        return False
+    if nexus.get("tier") == "genre":
+        return False
+    return True
+
+
+def _pick_generic_fallback(profiles: List[Profile], controller_names: List[str]) -> Optional[Profile]:
+    generics = [
+        p for p in profiles
+        if (p.get("nexus") or {}).get("tier") == "generic" and _is_auto_candidate(p)
+    ]
+    if not generics:
+        return None
+    ranked = sorted(
+        (
+            (
+                _auto_priority(p),
+                score_profile(p, [], controller_names),
+                p,
+            )
+            for p in generics
+        ),
+        key=lambda item: (item[0], item[1]),
+        reverse=True,
+    )
+    return ranked[0][2]
+
+
+def _auto_profile_pool(profiles: List[Profile]) -> List[Profile]:
+    nexus_pool = [p for p in profiles if p.get("nexus") and _is_auto_candidate(p)]
+    if nexus_pool:
+        return nexus_pool
+    legacy_pool = [p for p in profiles if _is_auto_candidate(p)]
+    return legacy_pool if legacy_pool else profiles
+
+
 def resolve_auto_profile(
     profiles: List[Profile],
     loco_names: List[str],
@@ -136,27 +183,45 @@ def resolve_auto_profile(
     if not profiles:
         return None
 
-    candidates = [p for p in profiles if _fingerprint_fully_matches(p, controller_names)]
+    auto_pool = _auto_profile_pool(profiles)
+
+    candidates = [p for p in auto_pool if _fingerprint_fully_matches(p, controller_names)]
     if not candidates:
-        candidates = profiles
+        candidates = auto_pool
 
     ranked = sorted(
-        ((score_profile(p, loco_names, controller_names), p) for p in candidates),
-        key=lambda item: item[0],
+        (
+            (
+                _auto_priority(p),
+                score_profile(p, loco_names, controller_names),
+                p,
+            )
+            for p in candidates
+        ),
+        key=lambda item: (item[1], item[0]),
         reverse=True,
     )
-    best_score, best = ranked[0]
-    if best_score > 0:
+    best_priority, best_score, best = ranked[0]
+    if best_score > 0 and (best.get("nexus") or {}).get("tier") != "generic":
         return best
 
     if loco_names:
         target = normalize_token(loco_names[0])
-        for profile in profiles:
+        for profile in auto_pool:
+            if (profile.get("nexus") or {}).get("tier") == "generic":
+                continue
             for token in _profile_tokens(profile):
                 if token and (target in token or token in target):
                     return profile
 
-    return profiles[0]
+    generic = _pick_generic_fallback(profiles, controller_names)
+    if generic is not None:
+        return generic
+
+    if best_score > 0:
+        return best
+
+    return auto_pool[0] if auto_pool else profiles[0]
 
 
 def _mapped_controller_limits(profile: Profile, limits_by_name: Dict[str, Dict[str, float]]) -> Dict[str, Dict[str, float]]:

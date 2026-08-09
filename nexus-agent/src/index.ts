@@ -2,12 +2,22 @@ export { buildHorizon } from './horizon';
 export { tickAgent } from './tick';
 export {
   buildBrakeCommand,
+  isBrakeApplied,
+  isBrakeReleased,
   resolveCombinedControlName,
   resolveSuggestedAction,
+  usesSplitBrakeLayout,
 } from './command/commandBus';
+export {
+  estimateBrakeNotchForLearning,
+  estimateBrakeNotchFromCombined,
+  estimateBrakeNotchFromPosition,
+  isBrakeEngagedForLearning,
+} from './brake/brakeLearning';
 export {
   planBrake,
   planBrakeForLimit,
+  planBrakeForSignal,
   planBrakeForStation,
   toKernelBrakeSteps,
   toAgentBrakeContext,
@@ -23,6 +33,9 @@ export {
   reactionMarginM,
 } from './brake/planBrake';
 export type {
+  AgentConfig,
+  AgentBrakeConfig,
+  AgentStationConfig,
   BrakePlan,
   BrakePlanProfile,
   BrakePlanStepDetail,
@@ -31,3 +44,4 @@ export type {
   PlanBrakeInput,
   SnapshotBrakeContext,
 } from './brake/types';
+export { resolveAgentConfig } from './brake/agentConfig';

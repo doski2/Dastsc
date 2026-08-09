@@ -1,4 +1,5 @@
 import type { HorizonEvent, TelemetrySnapshot } from '@nexus/kernel';
+import { signalRequiresFullStop } from './brake/signalUtils';
 
 export function buildHorizon(snapshot: TelemetrySnapshot): HorizonEvent[] {
   const events: HorizonEvent[] = [];
@@ -16,12 +17,14 @@ export function buildHorizon(snapshot: TelemetrySnapshot): HorizonEvent[] {
   }
 
   if (snapshot.signaling.distanceM > 0 && snapshot.signaling.aspect !== 'UNKNOWN') {
+    const stop = signalRequiresFullStop(snapshot.signaling.aspect);
     events.push({
       id: 'signal-next',
       kind: 'SIGNAL',
       distanceM: snapshot.signaling.distanceM,
       label: snapshot.signaling.aspect,
-      priority: 60,
+      requiredAction: stop ? 'STOP' : 'REDUCE_SPEED',
+      priority: stop ? 70 : 60,
     });
   }
 

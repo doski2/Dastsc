@@ -7,17 +7,25 @@ interface AppShellProps {
   trainName: string;
   profileId: string | null;
   mode: PolicyMode;
-  connected: boolean;
+  backendConnected: boolean;
+  gameLinked: boolean;
   activeView: AppView;
   onViewChange: (view: AppView) => void;
   children: ReactNode;
+}
+
+function linkDotClass(backendConnected: boolean, gameLinked: boolean): string {
+  if (gameLinked) return 'bg-cyan-400 animate-pulse';
+  if (backendConnected) return 'bg-amber-400';
+  return 'bg-red-500';
 }
 
 export function AppShell({
   trainName,
   profileId,
   mode,
-  connected,
+  backendConnected,
+  gameLinked,
   activeView,
   onViewChange,
   children,
@@ -26,7 +34,7 @@ export function AppShell({
     <div className="h-screen flex flex-col bg-nexus-surface text-sm">
       <header className="h-12 flex items-center justify-between px-6 border-b border-white/5 bg-nexus-raised shrink-0">
         <div className="flex items-center gap-3">
-          <div className={`w-2 h-2 rounded-full ${connected ? 'bg-cyan-400 animate-pulse' : 'bg-red-500'}`} />
+          <div className={`w-2 h-2 rounded-full ${linkDotClass(backendConnected, gameLinked)}`} />
           <span className="font-mono text-xs tracking-widest text-white/50 uppercase">
             Nexus V4 · {trainName}
           </span>

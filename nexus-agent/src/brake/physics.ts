@@ -16,6 +16,10 @@ export const STATION_DWELL_MAX_DISTANCE_M = 80;
 export const STATION_FINAL_STOP_SPEED_MS = 0.2;
 /** Velocidad máxima (m/s) para mantener freno de servicio en andén (~2 mph). */
 export const STATION_HOLD_MAX_SPEED_MS = 1.0;
+/** Por debajo de esta velocidad con freno, no mandar NEU/OFF (andén / arranque). */
+export const STATION_RELEASE_BLOCK_SPEED_MS = 2.5;
+/** Por encima: salida clara del andén — no aplicar parada final con distancia en 0. */
+export const STATION_DEPARTURE_SPEED_MS = 5;
 export const MIN_LEARNED_SAMPLES = 3;
 export const DEFAULT_MAX_BRAKE_DECEL = 0.8;
 export const G_MSS = 9.80665;

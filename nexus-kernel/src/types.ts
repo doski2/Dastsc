@@ -33,9 +33,15 @@ export interface TelemetrySnapshot {
     traveledM?: number;
     driftM?: number;
     nearCorrected?: boolean;
+    /** lua = GetNextStation; ocr_tracker = ancla OCR + odómetro. */
+    source?: 'lua' | 'ocr_tracker' | 'none';
+    luaDistanceM?: number;
+    scheduled?: string;
   };
   brake: {
     combined: number;
+    /** Posición del freno 0–1 (split: VirtualBrake/TrainBrakeControl). */
+    position: number;
     cylinder: number;
     effortKn: number;
     projectedStopM: number;
@@ -90,7 +96,7 @@ export interface BrakePlanStep {
   applyNow?: boolean;
 }
 
-export type BrakeTargetKind = 'STATION' | 'SPEED_LIMIT';
+export type BrakeTargetKind = 'STATION' | 'SPEED_LIMIT' | 'SIGNAL';
 
 export interface AgentBrakeContext {
   targetKind: BrakeTargetKind;

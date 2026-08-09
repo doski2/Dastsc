@@ -6,11 +6,12 @@ import { deriveProfileCompleteness } from '../lib/profileCompleteness';
 import { PolicyModeSelector } from './PolicyModeSelector';
 import { ProfileCompletenessPanel } from './ProfileCompletenessPanel';
 import { ProfileSelector } from './ProfileSelector';
+import { SessionLogsPanel } from './SessionLogsPanel';
 
 export function ConfigView({
   snapshot,
-  isConnected,
-  useLive,
+  isBackendConnected,
+  isGameLinked,
   availableProfiles,
   activeProfile,
   profileSelection,
@@ -20,8 +21,8 @@ export function ConfigView({
   onPolicyModeChange,
 }: {
   snapshot: TelemetrySnapshot;
-  isConnected: boolean;
-  useLive: boolean;
+  isBackendConnected: boolean;
+  isGameLinked: boolean;
   availableProfiles: ProfileSummary[];
   activeProfile: ProfileSummary | TrainProfileFields | null;
   profileSelection: string;
@@ -30,7 +31,7 @@ export function ConfigView({
   onSelectProfile: (profileId: string) => void;
   onPolicyModeChange: (mode: PolicyMode) => void;
 }) {
-  const linkOk = isConnected && (useLive || snapshot.connected);
+  const telemetryLive = isGameLinked;
   const autoSelected = profileSelection.toUpperCase() === 'AUTO';
   const completeness = useMemo(
     () => deriveProfileCompleteness(
@@ -57,9 +58,21 @@ export function ConfigView({
         </h3>
         <dl className="grid grid-cols-2 gap-3 text-xs font-mono">
           <div>
-            <dt className="text-white/30 uppercase text-[9px]">Telemetría</dt>
-            <dd className={linkOk ? 'text-emerald-400' : 'text-red-400'}>
-              {linkOk ? 'LIVE' : 'OFFLINE'}
+            <dt className="text-white/30 uppercase text-[9px]">Backend</dt>
+            <dd className={isBackendConnected ? 'text-emerald-400' : 'text-red-400'}>
+              {isBackendConnected ? 'ONLINE' : 'OFFLINE'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-white/30 uppercase text-[9px]">TSC / Lua</dt>
+            <dd className={telemetryLive ? 'text-emerald-400' : 'text-amber-400'}>
+              {telemetryLive ? 'LIVE' : isBackendConnected ? 'SIN TELEMETRÍA' : 'OFFLINE'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-white/30 uppercase text-[9px]">Mandos</dt>
+            <dd className={isBackendConnected ? 'text-emerald-400' : 'text-red-400'}>
+              {isBackendConnected ? 'SendCommand OK' : 'NO'}
             </dd>
           </div>
           <div>
@@ -91,9 +104,11 @@ export function ConfigView({
         profiles={availableProfiles}
         activeProfile={activeProfile}
         profileSelection={profileSelection}
-        isConnected={isConnected}
+        isConnected={isBackendConnected}
         onSelect={onSelectProfile}
       />
+
+      <SessionLogsPanel />
     </div>
   );
 }

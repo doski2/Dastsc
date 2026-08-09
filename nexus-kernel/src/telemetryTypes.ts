@@ -21,6 +21,8 @@ export interface TelemetryData {
   DistToNextLimit2: number;
   UpcomingLimits: { speed: number; distance: number }[];
   StationDistance: number;
+  StationDistanceSource?: 'lua' | 'ocr_tracker' | 'none';
+  StationDistanceLuaM?: number;
   StationAnchorM?: number;
   StationTraveledM?: number;
   StationDriftM?: number;

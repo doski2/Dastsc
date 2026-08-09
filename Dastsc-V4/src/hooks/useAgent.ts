@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BrakeStatsByNotch } from '@nexus/agent';
-import { tickAgent } from '@nexus/agent';
+import { isBrakeApplied, tickAgent } from '@nexus/agent';
 import type { AgentTick, PolicyMode, TelemetrySnapshot } from '@nexus/kernel';
 import {
   TelemetryHub,
@@ -35,10 +35,16 @@ import { useBrakeStats } from './useBrakeStats';
 import { useTrainProfile } from './useTrainProfile';
 import type { CommandAck } from '../lib/commandTypes';
 import { useAutoCommand } from './useAutoCommand';
+import { useSessionDiagnostic, logDiagnosticAutoFallback, registerSessionWithBackend } from './useSessionDiagnostic';
 
 export interface UseAgentResult {
   snapshot: TelemetrySnapshot;
   agent: AgentTick;
+  /** WebSocket con el backend Python (puede escribir SendCommand.txt). */
+  isBackendConnected: boolean;
+  /** Telemetría fresca desde TSC (GetData.txt). */
+  isGameLinked: boolean;
+  /** @deprecated Use isBackendConnected / isGameLinked */
   isConnected: boolean;
   useLive: boolean;
   activeProfile: ProfileSummary | TrainProfileFields | null;
@@ -120,6 +126,9 @@ export function useAgent(): UseAgentResult {
   const setPolicyMode = useCallback((mode: PolicyMode) => {
     setPolicyModeState(mode);
     savePolicyMode(mode);
+    if (mode === 'SUGGEST' && socketRef.current?.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({ type: 'PURGE_SEND_COMMAND' }));
+    }
   }, []);
 
   const selectProfile = useCallback((profileId: string) => {
@@ -202,7 +211,15 @@ export function useAgent(): UseAgentResult {
           }
         }
 
+        if (message.type === 'HEARTBEAT') {
+          const gameLinked = message.gameLinked !== false;
+          setSnapshot(prev => ({ ...prev, connected: gameLinked }));
+          return;
+        }
+
         if (!isTelemetryMessage(message)) return;
+
+        const gameLinked = message.gameLinked !== false;
 
         const override = cabOverrideRef.current;
         const payload = override === 'auto'
@@ -211,7 +228,7 @@ export function useAgent(): UseAgentResult {
 
         const next = hubRef.current.ingestMessage(
           payload,
-          true,
+          gameLinked,
           activeProfileRef.current?.id ?? null,
         );
         if (!next) return;
@@ -244,6 +261,10 @@ export function useAgent(): UseAgentResult {
         }
         setIsConnected(true);
         const selection = profileSelectionRef.current;
+        registerSessionWithBackend(ws, {
+          profileSelection: selection,
+          source: 'v4_websocket',
+        });
         if (selection && selection.toUpperCase() !== 'AUTO') {
           sendProfileCommand(ws, selection);
         }
@@ -274,33 +295,61 @@ export function useAgent(): UseAgentResult {
     };
   }, []);
 
+  const commandProfile = useMemo(
+    () => toCommandProfile(trainProfile),
+    [trainProfile],
+  );
+
   const agent = useMemo(
     () => tickAgent(snapshot, policyMode, {
       profile: toBrakePlanProfile(trainProfile),
-      commandProfile: toCommandProfile(trainProfile),
+      commandProfile,
       brakeStats,
     }),
-    [snapshot, policyMode, trainProfile, brakeStats],
+    [snapshot, policyMode, trainProfile, commandProfile, brakeStats],
   );
 
   const fallbackFromAuto = useCallback(() => {
+    logDiagnosticAutoFallback();
     setPolicyModeState('SUGGEST');
     savePolicyMode('SUGGEST');
   }, []);
 
   useAutoCommand({
     policyMode,
-    connected: isConnected && (useLive || snapshot.connected),
-    useLive,
+    backendConnected: isConnected,
+    gameLinked: useLive && snapshot.connected,
     agent,
+    stillBraking: isBrakeApplied(snapshot, commandProfile),
     sendCommand,
     lastAck: lastCommandAck,
     onFallback: fallbackFromAuto,
   });
 
+  const isGameLinked = useLive && snapshot.connected;
+  const telemetryActive = useLive;
+
+  useSessionDiagnostic({
+    snapshot,
+    agent,
+    policyMode,
+    profileSelection,
+    activeProfileId: activeProfile?.id ?? null,
+    isBackendConnected: isConnected,
+    isGameLinked,
+    telemetryActive,
+    stillBraking: isBrakeApplied(snapshot, commandProfile),
+    cabOverride,
+    lastAck: lastCommandAck,
+    brakeStats,
+    wsRef: socketRef,
+  });
+
   return {
     snapshot,
     agent,
+    isBackendConnected: isConnected,
+    isGameLinked,
     isConnected,
     useLive,
     activeProfile,

@@ -5,13 +5,13 @@ import type { CommandAck } from '../lib/commandTypes';
 export function ArmActionBar({
   action,
   mode,
-  connected,
+  backendConnected,
   lastAck,
   onConfirm,
 }: {
   action?: AgentAction;
   mode: string;
-  connected: boolean;
+  backendConnected: boolean;
   lastAck: CommandAck | null;
   onConfirm: (action: AgentAction) => void;
 }) {
@@ -83,7 +83,7 @@ export function ArmActionBar({
         </div>
         <button
           type="button"
-          disabled={!connected}
+          disabled={!backendConnected}
           onClick={() => onConfirm(action)}
           className="shrink-0 rounded border border-amber-400/60 bg-amber-500/20 px-4 py-2 text-xs font-mono font-semibold uppercase tracking-wider text-amber-100 hover:bg-amber-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
         >

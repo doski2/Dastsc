@@ -1,5 +1,10 @@
 {
     "name": "Class 323 DMS(B) CrossCity",
+    "extends": "passenger",
+    "nexus": {
+        "tier": "train",
+        "genre": "passenger"
+    },
     "aliases": [
         "Class 323",
         "Class323",
@@ -49,23 +54,11 @@
         "max_current": 1500,
         "max_brake_cyl": 7.0,
         "max_main_res": 10.0,
-        "max_speed": 100,
-        "notches_throttle_brake": [
-            {"value": -1.0, "label": "EMG"},
-            {"value": -0.75, "label": "B3"},
-            {"value": -0.5, "label": "B2"},
-            {"value": -0.25, "label": "B1"},
-            {"value": 0.0, "label": "OFF"},
-            {"value": 0.25, "label": "P1"},
-            {"value": 0.5, "label": "P2"},
-            {"value": 0.75, "label": "P3"},
-            {"value": 1.0, "label": "P4"}
-        ]
+        "max_speed": 100
     },
     "brakes": {
         "type": "COMBINED_BLENDED",
         "control": "ThrottleAndBrake",
-        "has_dynamic": true,
         "system": "AIR_BRITISH",
         "full_service_pressure": 0.0,
         "release_pressure": 5.0
@@ -75,11 +68,8 @@
         "color": "#a855f7"
     },
     "physics_config": {
-        "max_braking_kn": 250,
         "max_braking_decel": 1.1,
-        "dynamic_brake_ratio": 0.8,
         "brake_fill_time_s": 2.5,
-        "reaction_time_s": 3.0,
-        "station_reaction_time_s": 1.2
+        "dynamic_brake_ratio": 0.8
     }
 }

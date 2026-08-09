@@ -27,6 +27,7 @@
 --and test your script regularly. 
 
 -------------------  GetData function --------------------
+local NEXUS_LUA_VERSION = 11
 local gData = ""
 local delay = 5 
 local counter = 0
@@ -425,7 +426,8 @@ function GetSpeedLimits ()
 end
 	
 function WriteData ()
-	gData = gData .. "SimulationTime:" .. string.format("%.2f", Call("GetSimulationTime", 0))
+	gData = gData .. "|NexusLuaVersion:" .. NEXUS_LUA_VERSION ..
+	        "|SimulationTime:" .. string.format("%.2f", Call("GetSimulationTime", 0))
 
 	-- Escritura atómica para V3
 	local file = io.open("plugins/GetData.txt", "w")
@@ -435,69 +437,69 @@ function WriteData ()
 	end
 end
 
+function commandsArmed()
+	local f = io.open("plugins/NexusApplyCommands.flag", "r")
+	if f == nil then
+		f = io.open("Plugins/NexusApplyCommands.flag", "r")
+	end
+	if f == nil then return false end
+	f:close()
+	return true
+end
+
+function controlValueChanged(controlName, value)
+	local prev = previousValues[controlName]
+	if prev ~= nil and math.abs(prev - value) < 0.0001 then
+		return false
+	end
+	if Call("ControlExists", controlName, 0) ~= 1 then
+		return false
+	end
+	Call("SetControlValue", controlName, 0, value)
+	previousValues[controlName] = value
+	return true
+end
+
 function SendData ()
+	-- Sin flag Nexus: no aplicar SendCommand.txt (mandos manuales libres).
+	if not commandsArmed() then return end
+
 	-- Si no existe SendCommand.txt, no hay nada que enviar
 	local f = io.open("plugins/SendCommand.txt", "r")
 	if not f then return end
 	f:close()
 
-	-- Read file & send data to Railworks
+	-- Read file & send data to Railworks (misma estructura que copia Documents)
 	for line in io.lines("plugins/SendCommand.txt") do 
-		--Check to make sure it isn't a blank line
 		if line ~= "" then
-			--it isn't blank so create a table(array) to hold the variables
 			t = {}
 			i = 1
-			--Look for the colon(:) in the file that separates the control name
-			-- from the value to send
 			for str in string.gfind(line, "[^:]+") do
-				--Place the control name in t[1] then increment i
-				--and place the value for the control in t[2]
 				t[i] = str
 				i = i + 1
 			end
-			
-			--Force controls to 0 on first run
-			if dataread == 0 then
-				previousValues[t[1]] = -1
-				t[2] = 0
-			end
 
-			if t[1]~= "Wipers" and t[1] ~= "WiperSpeed" and t[1] ~= "swDriverWiper" then
-				if previousValues[t[1]] ~= t[2] then
-					--Send the command to railworks. The format is:-
-					--Call("*:SetControlValue", Control name, 0 (for lead engine), value for the control)
-					if OnControlValueChange then
-						OnControlValueChange(t[1], 0, tonumber(t[2]))
-					else
-						Call( "SetControlValue", t[1], 0, tonumber(t[2])) 
-					end
-					Call("SetControlTargetValue", t[1], 0, tonumber(t[2]))
-					previousValues[t[1]] = t[2]
+			if t[1] and t[2] then
+				local value = tonumber(t[2])
+				if value ~= nil then
+					controlValueChanged(t[1], value)
 				end
-			end
-			
-			if t[1] == "Wipers" or t[1] == "WiperSpeed" or t[1] == "swDriverWiper" then
-				if previousValues[t[1]] ~= 0 or previousValues[t[1]] ~= t[2] then 
-					--Send the command to railworks. The format is:-
-					--Call("SetControlValue", Control name, 0 (for lead engine), value for the control)
-					if OnControlValueChange then
-						OnControlValueChange(t[1], 0, tonumber(t[2]))
-					else
-						Call( "SetControlValue", t[1], 0, tonumber(t[2])) 
-					end
-					Call("SetControlTargetValue", t[1], 0, tonumber(t[2]))
-				end
-				previousValues[t[1]] = t[2]
 			end
 		end
 	end
+
 	dataread = 1
+	pcall(os.remove, "plugins/SendCommand.txt")
+	pcall(os.remove, "Plugins/SendCommand.txt")
 end
 
 function deleteFiles()
 
 	os.remove("Plugins/GetData.txt")
+	os.remove("plugins/SendCommand.txt")
+	os.remove("Plugins/SendCommand.txt")
 	os.remove("Plugins/sendcommand.txt")
+	os.remove("plugins/NexusApplyCommands.flag")
+	os.remove("Plugins/NexusApplyCommands.flag")
 	delete_Files = 0
 end

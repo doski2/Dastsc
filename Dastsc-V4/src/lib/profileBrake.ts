@@ -1,4 +1,4 @@
-import type { BrakePlanProfile } from '@nexus/agent';
+import type { AgentConfig, BrakePlanProfile } from '@nexus/agent';
 import type { ProfileCompleteness } from './profileCompleteness';
 
 const API_BASE = 'http://localhost:8000';
@@ -12,6 +12,7 @@ export interface TrainProfileFields {
   specs?: BrakePlanProfile['specs'];
   mappings?: Record<string, string>;
   fingerprint?: { required_controls?: string[] };
+  agent_config?: AgentConfig;
   runtime?: {
     controller_limits?: Record<string, { min: number; max: number; current?: number }>;
     loco_names?: string[];
@@ -30,6 +31,7 @@ export function toBrakePlanProfile(profile: TrainProfileFields | null | undefine
   return {
     physics_config: profile.physics_config,
     specs: profile.specs,
+    agent_config: profile.agent_config,
   };
 }
 
@@ -39,6 +41,7 @@ export function toCommandProfile(profile: TrainProfileFields | null | undefined)
     physics_config: profile.physics_config,
     specs: profile.specs,
     mappings: profile.mappings,
+    agent_config: profile.agent_config,
   };
 }
 

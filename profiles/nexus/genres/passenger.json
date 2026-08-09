@@ -1,0 +1,59 @@
+{
+    "name": "Pasajeros (base)",
+    "nexus": {
+        "tier": "genre",
+        "genre": "passenger",
+        "hidden": true
+    },
+    "specs": {
+        "max_speed": 160,
+        "notches_throttle_brake": [
+            { "value": -1.0, "label": "EMG" },
+            { "value": -0.75, "label": "B3" },
+            { "value": -0.5, "label": "B2" },
+            { "value": -0.25, "label": "B1" },
+            { "value": 0.0, "label": "OFF" },
+            { "value": 0.25, "label": "P1" },
+            { "value": 0.5, "label": "P2" },
+            { "value": 0.75, "label": "P3" },
+            { "value": 1.0, "label": "P4" }
+        ]
+    },
+    "physics_config": {
+        "max_braking_kn": 250,
+        "max_braking_decel": 1.0,
+        "brake_fill_time_s": 3.0,
+        "reaction_time_s": 3.0,
+        "station_reaction_time_s": 1.2,
+        "dynamic_brake_ratio": 0.85
+    },
+    "brakes": {
+        "has_dynamic": true,
+        "system": "AIR_SERVICE"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#3498db"
+    },
+    "agent_config": {
+        "station": {
+            "dwell_max_distance_m": 80,
+            "platform_tail_m": -20,
+            "hold_max_speed_ms": 1.0,
+            "release_block_speed_ms": 2.5,
+            "departure_speed_ms": 5,
+            "final_stop_speed_ms": 0.2,
+            "plan_horizon_m": 1500
+        },
+        "brake": {
+            "release_margin_mph": 2,
+            "release_margin_kmh": 3,
+            "brake_position_threshold": 0.05,
+            "braking_combined_threshold": -0.05,
+            "coast_rebrake_margin_mph": 5,
+            "coast_rebrake_margin_kmh": 8,
+            "coast_clear_overshoot_mph": 8,
+            "coast_clear_overshoot_kmh": 13
+        }
+    }
+}

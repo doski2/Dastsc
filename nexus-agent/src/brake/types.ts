@@ -3,6 +3,32 @@ export interface BrakeNotch {
   value: number;
 }
 
+export interface AgentStationConfig {
+  dwell_max_distance_m?: number;
+  platform_tail_m?: number;
+  hold_max_speed_ms?: number;
+  release_block_speed_ms?: number;
+  departure_speed_ms?: number;
+  final_stop_speed_ms?: number;
+  plan_horizon_m?: number;
+}
+
+export interface AgentBrakeConfig {
+  release_margin_mph?: number;
+  release_margin_kmh?: number;
+  brake_position_threshold?: number;
+  braking_combined_threshold?: number;
+  coast_rebrake_margin_mph?: number;
+  coast_rebrake_margin_kmh?: number;
+  coast_clear_overshoot_mph?: number;
+  coast_clear_overshoot_kmh?: number;
+}
+
+export interface AgentConfig {
+  station?: AgentStationConfig;
+  brake?: AgentBrakeConfig;
+}
+
 export interface BrakePlanProfile {
   physics_config?: {
     max_braking_decel?: number;
@@ -15,6 +41,7 @@ export interface BrakePlanProfile {
   specs?: {
     notches_throttle_brake?: BrakeNotch[];
   };
+  agent_config?: AgentConfig;
 }
 
 export interface BrakeStatsEntry {
@@ -62,6 +89,7 @@ export interface CommandProfile {
   mappings?: Record<string, string>;
   physics_config?: BrakePlanProfile['physics_config'];
   specs?: BrakePlanProfile['specs'];
+  agent_config?: AgentConfig;
 }
 
 export interface SnapshotBrakeContext {

@@ -13,6 +13,8 @@ Profile = Dict[str, Any]
 ProfileSummary = Dict[str, Any]
 
 _DEFAULT_VISUALS = {"unit": "MPH", "color": "#3498db"}
+_NEXUS_SUBDIR = "nexus"
+_NEXUS_MANIFEST = "manifest.json"
 
 
 def _profile_id_from_path(file_path: str) -> str:
@@ -31,6 +33,34 @@ def _load_profile_file(file_path: str) -> Optional[Profile]:
     return profile
 
 
+def _iter_profile_files(profiles_dir: str) -> List[str]:
+    """Raíz legacy + árbol Nexus (nexus/**). Los de Nexus sobrescriben mismo id."""
+    paths: List[str] = []
+    if not os.path.isdir(profiles_dir):
+        return paths
+
+    root_pattern = os.path.join(profiles_dir, "*.json")
+    paths.extend(sorted(glob.glob(root_pattern)))
+
+    nexus_root = os.path.join(profiles_dir, _NEXUS_SUBDIR)
+    if os.path.isdir(nexus_root):
+        nexus_pattern = os.path.join(nexus_root, "**", "*.json")
+        for file_path in sorted(glob.glob(nexus_pattern, recursive=True)):
+            if os.path.basename(file_path) == _NEXUS_MANIFEST:
+                continue
+            paths.append(file_path)
+
+    return paths
+
+
+def _is_nexus_ui_profile(profile: Profile) -> bool:
+    nexus = profile.get("nexus") or {}
+    if nexus.get("hidden"):
+        return False
+    tier = nexus.get("tier")
+    return tier in {"train", "generic"}
+
+
 class ProfileManager:
     def __init__(self, profiles_dir: str):
         self.profiles_dir = profiles_dir
@@ -40,32 +70,40 @@ class ProfileManager:
 
     def load_profiles(self) -> int:
         """Recarga perfiles desde disco. Devuelve cuántos se cargaron."""
-        self.profiles = []
         if not os.path.isdir(self.profiles_dir):
+            self.profiles = []
             return 0
 
-        loaded: List[Profile] = []
-        pattern = os.path.join(self.profiles_dir, "*.json")
-        for file_path in sorted(glob.glob(pattern)):
+        by_id: Dict[str, Profile] = {}
+        for file_path in _iter_profile_files(self.profiles_dir):
             try:
                 profile = _load_profile_file(file_path)
                 if profile:
-                    loaded.append(profile)
+                    by_id[profile["id"]] = profile
             except (json.JSONDecodeError, OSError):
                 continue
 
-        self.profiles = sorted(loaded, key=lambda p: p.get("name", p["id"]).lower())
+        self.profiles = sorted(by_id.values(), key=lambda p: p.get("name", p["id"]).lower())
         return len(self.profiles)
+
+    def has_nexus_profiles(self) -> bool:
+        return any(p.get("nexus") for p in self.profiles)
 
     def get_all_profiles(self) -> List[ProfileSummary]:
         """Lista simplificada para el selector de la UI."""
+        sources = (
+            [p for p in self.profiles if _is_nexus_ui_profile(p)]
+            if self.has_nexus_profiles()
+            else self.profiles
+        )
         return [
             {
                 "id": p["id"],
                 "name": p["name"],
                 "visuals": p.get("visuals", dict(_DEFAULT_VISUALS)),
+                "nexus": p.get("nexus"),
             }
-            for p in self.profiles
+            for p in sources
         ]
 
     def get_by_id(self, profile_id: str) -> Optional[Profile]:

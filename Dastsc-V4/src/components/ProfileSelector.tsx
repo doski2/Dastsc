@@ -100,6 +100,16 @@ export function ProfileSelector({
                 <span className={`text-xs font-mono font-semibold ${manualActive ? 'text-cyan-300' : 'text-white/70'}`}>
                   {profile.name ?? profile.id}
                 </span>
+                {profile.nexus?.genre && (
+                  <span className="text-[9px] font-mono uppercase text-white/30">
+                    {profile.nexus.genre}
+                  </span>
+                )}
+                {profile.nexus?.tier === 'generic' && (
+                  <span className="text-[9px] font-mono uppercase text-amber-400/70">
+                    fallback
+                  </span>
+                )}
                 {isActiveProfile && (
                   <span className="text-[9px] font-mono uppercase text-emerald-400/80 ml-auto">
                     en uso
@@ -107,7 +117,11 @@ export function ProfileSelector({
                 )}
               </div>
               <div className="text-[10px] font-mono text-white/25 mt-1 pl-4">
-                {profile.id}.json
+                {profile.nexus
+                  ? (profile.nexus.tier === 'generic'
+                    ? 'nexus/generic.json'
+                    : `nexus/trains/${profile.id}.json`)
+                  : `${profile.id}.json`}
               </div>
             </button>
           );

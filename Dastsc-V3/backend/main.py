@@ -12,6 +12,7 @@ import math
 import os
 import sys
 import time
+from datetime import datetime, timezone
 
 # Con reload=True, uvicorn importa este módulo en un worker sin ejecutar __main__.
 if sys.platform == "win32":
@@ -22,6 +23,7 @@ from core.profiles import ProfileManager
 from core.raildriver import get_raildriver_client
 import core.ocr_hud as ocr_hud
 import core.brake_log as brake_log
+import core.session_log as session_log
 import core.command_bus as command_bus
 import core.station_distance as station_distance
 from core.cab_inference import CabInferenceState, enrich_cab_telemetry
@@ -45,6 +47,7 @@ _CORS_ORIGINS = [
 
 _POLL_INTERVAL_S = 0.01
 _HEARTBEAT_EVERY_N = 200  # a 100 Hz → keep-alive cada ~2 s si GetData no cambia
+_GAME_LINK_STALE_S = 4.0
 _DOOR_OPEN_THRESHOLD = 0.5
 _PROFILE_SYNC_INTERVAL_S = 2.0
 
@@ -112,6 +115,79 @@ def _apply_ocr_metadata(data: Dict[str, Any], ocr_result: Dict[str, Any]) -> Non
         data["StationETA"] = ocr_result["eta"]
     if ocr_result.get("scheduled_time"):
         data["StationScheduled"] = ocr_result["scheduled_time"]
+
+
+def _log_ocr_session_event(
+    event: str,
+    tracker: station_distance.StationDistanceTracker,
+    result: Optional[Dict[str, Any]] = None,
+    error: Optional[str] = None,
+) -> None:
+    """Registra captura OCR en el log de sesión V4 activo."""
+    session_log._store.ensure_active_session({"source": "backend_ocr"})
+    payload: Dict[str, Any] = {
+        "type": "ocr_capture",
+        "t": time.time(),
+        "wall": datetime.now(timezone.utc).isoformat(),
+        "event": event,
+    }
+    if result:
+        raw_text = result.get("raw_text")
+        payload["parsed"] = {
+            "station_name": result.get("station_name"),
+            "distance_m": result.get("distance_m"),
+            "eta": result.get("eta"),
+            "scheduled_time": result.get("scheduled_time"),
+            "distance_unit_raw": result.get("distance_unit_raw"),
+            "distance_value_raw": result.get("distance_value_raw"),
+            "raw_text": (raw_text[:500] + "…") if isinstance(raw_text, str) and len(raw_text) > 500 else raw_text,
+        }
+    if error:
+        payload["error"] = error
+    payload["tracker"] = tracker.debug_payload()
+    session_log._store.append_active([payload])
+
+
+_BACKEND_TICK_INTERVAL_S = 2.5
+_last_backend_tick_at = 0.0
+
+
+def _log_backend_telemetry_tick(data: Dict[str, Any], profile_id: Optional[str]) -> None:
+    """Tick de respaldo desde GetData cuando V4 no vuelca eventos."""
+    global _last_backend_tick_at
+    now = time.time()
+    if now - _last_backend_tick_at < _BACKEND_TICK_INTERVAL_S:
+        return
+    _last_backend_tick_at = now
+
+    session_log._store.ensure_active_session({"source": "backend_telemetry"})
+    speed_ms = station_distance.speed_ms_from_telemetry(data)
+    payload: Dict[str, Any] = {
+        "type": "backend_tick",
+        "t": now,
+        "wall": datetime.now(timezone.utc).isoformat(),
+        "profileId": profile_id,
+        "speed": {
+            "ms": round(speed_ms, 4),
+            "display": data.get("SpeedDisplay") or data.get("Speed"),
+            "unit": "MPH" if int(float(data.get("SpeedoType") or 1)) == 1 else "km/h",
+        },
+        "brake": {
+            "combined": data.get("CombinedControl") or data.get("Combined"),
+            "position": data.get("TrainBrake") or data.get("VirtualBrake"),
+        },
+        "station": {
+            "distanceM": data.get("StationDistance"),
+            "nameOcr": data.get("StationNameOCR"),
+            "source": data.get("StationDistanceSource"),
+        },
+        "signaling": {
+            "aspect": data.get("NextSignalAspect"),
+            "distanceM": data.get("DistToNextSignal"),
+        },
+        "train": {"name": data.get("LocoName"), "profileId": profile_id},
+    }
+    session_log._store.append_active([payload])
 
 
 # Referencia al tracker activo (telemetry_reader) para API de depuración.
@@ -232,6 +308,23 @@ class TelemetryManager:
                 logging.warning("COMMAND rejected %s: %s", control, result.get("error"))
             return {"type": "COMMAND_ACK", **result}
 
+        if cmd_type == "PURGE_SEND_COMMAND":
+            purged = _purge_send_command_file()
+            return {"type": "COMMAND_ACK", "ok": True, "action": "purged" if purged else "no_file"}
+
+        if cmd_type == "SESSION_REGISTER":
+            meta = cmd.get("meta") if isinstance(cmd.get("meta"), dict) else {}
+            session_id = cmd.get("session_id")
+            if session_id and isinstance(session_id, str):
+                session_log._store.adopt_session(session_id, meta)
+            else:
+                session_id = session_log._store.ensure_active_session(meta)
+            return {
+                "type": "SESSION_ACK",
+                "ok": True,
+                "session_id": session_id,
+            }
+
         return {"type": "COMMAND_ACK", "ok": False, "error": "unknown_command_type"}
 
     async def _broadcast_profile_change(self) -> None:
@@ -280,6 +373,14 @@ class TelemetryManager:
 manager = TelemetryManager()
 
 
+def _purge_send_command_file() -> bool:
+    """Elimina SendCommand.txt + flag huérfanos (bloquean mandos del jugador en TSC)."""
+    purged = command_bus.purge_lua_commands(_resolve_send_command_path())
+    if purged:
+        logging.info("Purged stale SendCommand / NexusApplyCommands.flag")
+    return purged
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _win_reset_exception_handler(asyncio.get_running_loop())
@@ -287,6 +388,8 @@ async def lifespan(app: FastAPI):
     ocr_status = "disponible" if ocr_hud.is_available() else "no disponible"
     print(f"[Nexus] Perfiles: {manager.active_profiles_path} ({profile_count} cargados)")
     print(f"[Nexus] OCR: {ocr_status}")
+    if _purge_send_command_file():
+        print("[Nexus] SendCommand.txt huérfano eliminado al arranque")
     asyncio.create_task(telemetry_reader())
     yield
 
@@ -307,6 +410,7 @@ async def telemetry_reader() -> None:
     global _active_station_tracker
     sync_counter = 0
     last_mtime = 0.0
+    last_game_telemetry_at = 0.0
     ocr_last_result: Dict[str, Any] = {}
     ocr_door_was_open = False
     ocr_is_capturing = False
@@ -331,8 +435,17 @@ async def telemetry_reader() -> None:
                     speed_ms=capture_speed_ms,
                     ocr_raw_m=float(result["distance_m"]),
                 )
+                _log_ocr_session_event(event, station_tracker, result=result)
+            else:
+                _log_ocr_session_event(
+                    event,
+                    station_tracker,
+                    result=result,
+                    error="no_distance_parsed",
+                )
         except Exception as exc:
             print(f"[OCR] Error ({event}): {exc}")
+            _log_ocr_session_event(event, station_tracker, error=str(exc))
         finally:
             ocr_is_capturing = False
 
@@ -348,6 +461,7 @@ async def telemetry_reader() -> None:
                     with open(active_path, "r", encoding="utf-8") as f:
                         line = f.readline()
                     if line:
+                        last_game_telemetry_at = now
                         data = parse_telemetry_line(line)
                         door_l = float(data.get("DoorL") or 0.0)
                         door_r = float(data.get("DoorR") or 0.0)
@@ -383,19 +497,40 @@ async def telemetry_reader() -> None:
                         _apply_station_distance(data, station_tracker)
                         enrich_cab_telemetry(data, _cab_inference_state)
 
+                        profile_id = (
+                            manager.current_profile.get("id")
+                            if manager.current_profile else None
+                        )
+                        _log_backend_telemetry_tick(data, profile_id)
+
                         await manager.sync_auto_profile(str(data.get("LocoName") or ""))
 
                         await manager.broadcast({
                             "type": "TELEMETRY",
                             **data,
                             "timestamp": time.time(),
+                            "gameLinked": True,
                         })
                     sync_counter += 1
                 elif sync_counter % _HEARTBEAT_EVERY_N == 0:
-                    await manager.broadcast({"type": "HEARTBEAT", "timestamp": now})
+                    game_linked = (now - last_game_telemetry_at) <= _GAME_LINK_STALE_S
+                    await manager.broadcast({
+                        "type": "HEARTBEAT",
+                        "timestamp": now,
+                        "gameLinked": game_linked,
+                    })
                     sync_counter += 1
                 else:
                     sync_counter += 1
+            elif sync_counter % _HEARTBEAT_EVERY_N == 0:
+                await manager.broadcast({
+                    "type": "HEARTBEAT",
+                    "timestamp": now,
+                    "gameLinked": False,
+                })
+                sync_counter += 1
+            else:
+                sync_counter += 1
 
             await asyncio.sleep(_POLL_INTERVAL_S)
         except Exception as exc:
@@ -482,6 +617,69 @@ async def get_brake_events(limit: int = 50, profile: str = ""):
 @app.get("/api/brake/stats")
 async def get_brake_stats(profile: str = ""):
     return brake_log.get_stats(profile=profile or None)
+
+
+@app.post("/api/debug/session/start")
+async def debug_session_start(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
+    meta = body.get("meta") if isinstance(body.get("meta"), dict) else {}
+    if not meta:
+        meta = {k: v for k, v in body.items() if k not in ("meta", "session_id")}
+    session_id = session_log._store.start(meta if isinstance(meta, dict) else {})
+    return {"ok": True, "session_id": session_id}
+
+
+@app.patch("/api/debug/session/{session_id}/meta")
+async def debug_session_meta(session_id: str, request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    patch = body if isinstance(body, dict) else {}
+    saved = session_log._store.update_meta(session_id, patch)
+    return {"ok": saved}
+
+
+@app.post("/api/debug/session/{session_id}/events")
+async def debug_session_events(session_id: str, request: Request):
+    try:
+        body = await request.json()
+        events = body.get("events") if isinstance(body, dict) else []
+        if not isinstance(events, list):
+            events = []
+        saved = session_log._store.append(session_id, events)
+        return {"ok": saved}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@app.post("/api/debug/session/{session_id}/end")
+async def debug_session_end(session_id: str, request: Request):
+    try:
+        body = await request.json()
+        summary = body.get("summary") if isinstance(body, dict) else None
+        saved = session_log._store.end(session_id, summary if isinstance(summary, dict) else None)
+        return {"ok": saved}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@app.get("/api/debug/sessions")
+async def debug_sessions_list():
+    return {"sessions": session_log._store.list_sessions()}
+
+
+@app.get("/api/debug/sessions/{session_id}")
+async def debug_session_get(session_id: str):
+    data = session_log._store.get(session_id)
+    if data is None:
+        return {"error": "not_found"}
+    return data
 
 
 @app.websocket("/ws/telemetry")

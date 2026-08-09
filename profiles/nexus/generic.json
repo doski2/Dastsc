@@ -1,0 +1,46 @@
+{
+    "name": "Pasajeros (genérico)",
+    "extends": "passenger",
+    "nexus": {
+        "tier": "generic",
+        "genre": "passenger",
+        "auto_priority": 1
+    },
+    "aliases": [
+        "EMU",
+        "DMU",
+        "Multiple Unit",
+        "Passenger",
+        "Coach"
+    ],
+    "fingerprint": {
+        "required_controls": [
+            "TrainBrakeControl"
+        ]
+    },
+    "mappings": {
+        "throttle": "Regulator",
+        "brake": "TrainBrakeControl",
+        "reverser": "Reverser",
+        "brake_pipe": "BrakePipePressureBAR",
+        "brake_cylinder": "TrainBrakeCylinderPressureBAR",
+        "main_reservoir": "MainReservoirPressureBAR",
+        "effort": "TractiveEffort",
+        "emergency_brake": "EmergencyBrake"
+    },
+    "brakes": {
+        "type": "SPLIT",
+        "throttle": "Regulator",
+        "brake": "TrainBrakeControl",
+        "system": "AIR_SERVICE"
+    },
+    "visuals": {
+        "unit": "KPH",
+        "color": "#7f8c8d"
+    },
+    "physics_config": {
+        "max_braking_decel": 0.9,
+        "brake_fill_time_s": 3.5,
+        "station_reaction_time_s": 1.4
+    }
+}

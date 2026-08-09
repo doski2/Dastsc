@@ -10,7 +10,7 @@ export interface ProfileCompleteness {
   brake_samples: number;
 }
 
-const GOLD_BASE_IDS = new Set(['class323']);
+const GOLD_BASE_IDS = new Set(['passenger', 'class323', 'icet']);
 const DEFAULT_DECEL = 0.8;
 const MIN_CALIBRATED_SAMPLES = 9;
 

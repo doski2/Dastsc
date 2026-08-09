@@ -66,6 +66,7 @@ export function useBrakeLearning(
     snapshot.speedMs,
     snapshot.tripDistanceM,
     snapshot.brake.combined,
+    snapshot.brake.position,
     enabled,
     submitEvent,
   ]);

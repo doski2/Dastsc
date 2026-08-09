@@ -1,7 +1,9 @@
 import type { AgentAction, AgentBrakeContext, AgentTick, BrakePlanStep, PolicyMode, TelemetrySnapshot, Urgency } from '@nexus/kernel';
 import { formatDistance, formatSpeed } from '@nexus/kernel';
+import { resolveAgentConfig } from './brake/agentConfig';
 import { applyZoneMarginM, isInApplyZone, LIMIT_PLANNING_HORIZON_M } from './brake/physics';
-import { planBrakeForLimit, planBrakeForStation, toAgentBrakeContext, toKernelBrakeSteps } from './brake/planBrake';
+import { planBrakeForLimit, planBrakeForSignal, planBrakeForStation, toAgentBrakeContext, toKernelBrakeSteps } from './brake/planBrake';
+import { signalRequiresFullStop } from './brake/signalUtils';
 import type { BrakePlan, BrakePlanProfile, SnapshotBrakeContext } from './brake/types';
 import { resolveSuggestedAction } from './command/commandBus';
 import { buildHorizon } from './horizon';
@@ -44,11 +46,13 @@ function formatBrakeAction(
   if (applyNow || pastDue) {
     const headline = plan.targetKind === 'STATION' && step.phase === 'stop'
       ? `${step.notch} — parada final`
-      : `${step.notch} — aplicar ahora`;
+      : plan.targetKind === 'SIGNAL' && step.phase === 'stop'
+        ? `${step.notch} — parada en señal`
+        : `${step.notch} — aplicar ahora`;
     return {
       headline,
-      detail: plan.targetKind === 'STATION' && step.phase === 'stop'
-        ? `Andén a ${plan.distanceToTargetM.toFixed(0)} m · reducir a 0 ${speedUnit}`
+      detail: (plan.targetKind === 'STATION' || plan.targetKind === 'SIGNAL') && step.phase === 'stop'
+        ? `Objetivo a ${plan.distanceToTargetM.toFixed(0)} m · reducir a 0 ${speedUnit}`
         : `Frenada ${step.distanceM.toFixed(0)} m + ${plan.reactionMarginM.toFixed(0)} m margen${learned}`,
       urgency: pastDue ? 'critical' : 'warn',
     };
@@ -68,8 +72,10 @@ function resolveActiveBrakePlan(
 ): { plan: BrakePlan | null; brakePlan?: BrakePlanStep[]; brakeContext?: AgentBrakeContext } {
   const ctx = {
     profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
+    commandProfile: brakeCtx.commandProfile,
     brakeStats: brakeCtx.brakeStats,
   };
+  const stationHorizonM = resolveAgentConfig(brakeCtx.commandProfile ?? ctx.profile).station.planHorizonM;
 
   const limit = snapshot.limits.next;
   const stationDist = snapshot.station.distanceM;
@@ -80,8 +86,16 @@ function resolveActiveBrakePlan(
       : null;
 
   const stationPlan =
-    stationDist >= 0 && stationDist < 1500
+    stationDist >= 0 && stationDist < stationHorizonM
       ? planBrakeForStation(snapshot, ctx)
+      : null;
+
+  const signalDist = snapshot.signaling.distanceM;
+  const signalPlan =
+    signalRequiresFullStop(snapshot.signaling.aspect)
+    && signalDist >= 0
+    && signalDist < stationHorizonM
+      ? planBrakeForSignal(snapshot, ctx)
       : null;
 
   const wrap = (plan: BrakePlan) => ({
@@ -90,14 +104,15 @@ function resolveActiveBrakePlan(
     brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
   });
 
-  if (limitPlan?.activeStep && stationPlan?.activeStep && limit) {
-    if (limit.distanceM <= stationDist) return wrap(limitPlan);
-    return wrap(stationPlan);
-  }
-  if (limitPlan?.activeStep) return wrap(limitPlan);
-  if (stationPlan?.activeStep) return wrap(stationPlan);
+  const candidates = [limitPlan, stationPlan, signalPlan].filter(
+    (plan): plan is BrakePlan => Boolean(plan?.activeStep),
+  );
+  if (!candidates.length) return { plan: null };
 
-  return { plan: null };
+  const closest = candidates.reduce((best, plan) =>
+    plan.distanceToTargetM < best.distanceToTargetM ? plan : best,
+  );
+  return wrap(closest);
 }
 function pickHeadline(
   snapshot: TelemetrySnapshot,
@@ -121,10 +136,55 @@ function pickHeadline(
     };
   }
 
-  if (snapshot.station.distanceM >= 0 && snapshot.station.distanceM < 1500) {
-    const marginM = snapshot.station.distanceM;
+  const stationHorizonM = resolveAgentConfig(
+    brakeCtx.commandProfile ?? brakeCtx.profile,
+  ).station.planHorizonM;
+
+  const signalStop = signalRequiresFullStop(snapshot.signaling.aspect)
+    && snapshot.signaling.distanceM >= 0
+    && snapshot.signaling.distanceM < stationHorizonM
+    ? snapshot.signaling.distanceM
+    : null;
+  const stationStop = snapshot.station.distanceM >= 0
+    && snapshot.station.distanceM < stationHorizonM
+    ? snapshot.station.distanceM
+    : null;
+
+  const preferSignal = signalStop != null
+    && (stationStop == null || signalStop <= stationStop);
+
+  if (preferSignal && signalStop != null) {
+    const signal = horizon.find(e => e.kind === 'SIGNAL');
+    const marginM = signalStop;
+    const plan = planBrakeForSignal(snapshot, {
+      profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
+      commandProfile: brakeCtx.commandProfile,
+      brakeStats: brakeCtx.brakeStats,
+    });
+    if (plan?.activeStep) {
+      const action = formatBrakeAction(plan, snapshot.speedUnit, snapshot.speedMs);
+      return {
+        headline: `Señal ${signal?.label ?? 'DANGER'}: ${action.headline}`,
+        detail: action.detail,
+        urgency: action.urgency,
+        marginM: plan.activeStep.metersUntilActionM || marginM,
+        brakePlan: toKernelBrakeSteps(plan),
+        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
+      };
+    }
+    return {
+      headline: `Señal ${signal?.label ?? 'DANGER'} — parada requerida`,
+      detail: `Distancia ${formatDistance(marginM, snapshot.speedUnit)} · prepare frenada`,
+      urgency: marginM < 400 ? 'warn' : 'info',
+      marginM,
+    };
+  }
+
+  if (stationStop != null) {
+    const marginM = stationStop;
     const plan = planBrakeForStation(snapshot, {
       profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
+      commandProfile: brakeCtx.commandProfile,
       brakeStats: brakeCtx.brakeStats,
     });
     if (plan?.activeStep) {
@@ -205,8 +265,8 @@ export function tickAgent(
   );
 
   let blockedReason: string | undefined;
-  if (!snapshot.connected) {
-    blockedReason = 'Sin enlace con backend';
+  if (!snapshot.connected && mode === 'AUTO') {
+    blockedReason = 'AUTO en pausa — sin telemetría TSC';
   } else if (mode === 'AUTO' && hasSafetyEvent) {
     blockedReason = 'AUTO suspendido — evento SAFETY';
   }

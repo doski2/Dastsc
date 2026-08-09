@@ -11,6 +11,8 @@ from typing import Any, Dict, Optional
 
 _MIN_COMBINED = -1.0
 _MAX_COMBINED = 1.0
+_SENDCOMMAND_FILENAME = "SendCommand.txt"
+_APPLY_FLAG_FILENAME = "NexusApplyCommands.flag"
 
 # Mandos genéricos permitidos sin mirar perfil.
 _ALLOWED_CONTROLS = frozenset({
@@ -37,6 +39,35 @@ _BLOCKED_CONTROLS = frozenset({
 
 def _clamp(value: float) -> float:
     return max(_MIN_COMBINED, min(_MAX_COMBINED, float(value)))
+
+
+def apply_flag_path(send_command_path: str) -> str:
+    return os.path.join(os.path.dirname(send_command_path), _APPLY_FLAG_FILENAME)
+
+
+def enable_lua_commands(send_command_path: str) -> None:
+    """Lua solo aplica SendCommand.txt si existe este flag (evita bloquear mandos manuales)."""
+    directory = os.path.dirname(send_command_path) or "."
+    os.makedirs(directory, exist_ok=True)
+    with open(apply_flag_path(send_command_path), "w", encoding="utf-8", newline="\n") as flag:
+        flag.write("1\n")
+
+
+def purge_lua_commands(send_command_path: Optional[str]) -> bool:
+    """Elimina SendCommand + flag huérfanos en plugins/ de TSC."""
+    if not send_command_path:
+        return False
+    removed = False
+    directory = os.path.dirname(send_command_path) or "."
+    for name in (_SENDCOMMAND_FILENAME, _APPLY_FLAG_FILENAME):
+        path = os.path.join(directory, name)
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+                removed = True
+            except OSError:
+                pass
+    return removed
 
 
 def is_allowed_command(control: str, profile: Optional[Dict[str, Any]] = None) -> bool:
@@ -79,12 +110,14 @@ def _command_lines(
     if secondary_brake == primary_brake:
         secondary_brake = None
 
-    lines = [format_send_command_line(control, value)]
+    is_brake_cmd = control == primary_brake or (secondary_brake and control == secondary_brake)
     throttle = _split_throttle_control(profile)
 
-    is_brake_cmd = control == primary_brake or (secondary_brake and control == secondary_brake)
-    if throttle and primary_brake and is_brake_cmd and value > 0.01:
-        lines.insert(0, format_send_command_line(throttle, 0.0))
+    lines: list[str] = []
+    # NEU / soltar freno: acelerador a 0 igual que al frenar (ICE T split).
+    if throttle and primary_brake and is_brake_cmd:
+        lines.append(format_send_command_line(throttle, 0.0))
+    lines.append(format_send_command_line(control, value))
 
     if (
         secondary_brake
@@ -123,6 +156,7 @@ def write_send_command(path: str, control: str, value: float, profile: Optional[
             except OSError:
                 pass
             raise
+        enable_lua_commands(path)
         return True
     except OSError:
         return False

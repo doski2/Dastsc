@@ -15,7 +15,8 @@ export default function App() {
   const {
     snapshot,
     agent,
-    isConnected,
+    isBackendConnected,
+    isGameLinked,
     useLive,
     brakeStats,
     activeProfile,
@@ -33,17 +34,17 @@ export default function App() {
     dismissProfileAlert,
   } = useAgent();
 
-  const connected = isConnected && (useLive || snapshot.connected);
   const stationApproach =
     snapshot.station.distanceM >= 0 && snapshot.station.distanceM < 2000;
-  const stationDebug = useStationDistanceDebug(connected && stationApproach);
+  const stationDebug = useStationDistanceDebug(isGameLinked && stationApproach);
 
   return (
     <AppShell
       trainName={snapshot.train.name}
       profileId={snapshot.train.profileId}
       mode={agent.mode}
-      connected={connected}
+      backendConnected={isBackendConnected}
+      gameLinked={isGameLinked}
       activeView={activeView}
       onViewChange={setActiveView}
     >
@@ -60,7 +61,7 @@ export default function App() {
           <ArmActionBar
             action={agent.suggestedAction}
             mode={policyMode}
-            connected={connected}
+            backendConnected={isBackendConnected}
             lastAck={lastCommandAck}
             onConfirm={sendCommand}
           />
@@ -84,8 +85,8 @@ export default function App() {
       ) : (
         <ConfigView
           snapshot={snapshot}
-          isConnected={isConnected}
-          useLive={useLive}
+          isBackendConnected={isBackendConnected}
+          isGameLinked={isGameLinked}
           availableProfiles={availableProfiles}
           activeProfile={activeProfile}
           profileSelection={profileSelection}

@@ -5,8 +5,6 @@ import {
   MIN_LEARNED_SAMPLES,
   PLANNING_DECEL_AVG_WEIGHT,
   PLANNING_DECEL_STATION_AVG_WEIGHT,
-  STATION_DWELL_MAX_DISTANCE_M,
-  STATION_FINAL_STOP_SPEED_MS,
   applyZoneMarginM,
   displaySpeedToMs,
   gravityAcceleration,
@@ -14,6 +12,8 @@ import {
   lagFactor,
   massFactor,
 } from './physics';
+import { resolveAgentConfig } from './agentConfig';
+import { signalRequiresFullStop } from './signalUtils';
 import { scheduleReactionScale, scheduleSlackSec, scheduleCoastAllowanceM } from './schedule';
 import type {
   BrakePlan,
@@ -42,7 +42,7 @@ export function planningDecelFromStats(
   entry: BrakeStatsEntry,
   targetKind: BrakeTargetKind = 'SPEED_LIMIT',
 ): number {
-  const weight = targetKind === 'STATION'
+  const weight = targetKind === 'STATION' || targetKind === 'SIGNAL'
     ? PLANNING_DECEL_STATION_AVG_WEIGHT
     : PLANNING_DECEL_AVG_WEIGHT;
   const { avg_decel: avg, max_decel: max } = entry;
@@ -75,7 +75,7 @@ function reactionTimeForTarget(
   profile: BrakePlanProfile | null | undefined,
 ): number | undefined {
   const physics = profile?.physics_config;
-  if (targetKind === 'STATION') {
+  if (targetKind === 'STATION' || targetKind === 'SIGNAL') {
     return physics?.station_reaction_time_s ?? physics?.reaction_time_s;
   }
   return physics?.reaction_time_s;
@@ -261,7 +261,7 @@ export function selectActiveStep(
 ): BrakePlanStepDetail | null {
   if (!steps.length) return null;
 
-  if (targetKind === 'STATION') {
+  if (targetKind === 'STATION' || targetKind === 'SIGNAL') {
     return selectStationActiveStep(steps, speedMs, distanceToTargetM, scheduleEta, now, profile);
   }
 
@@ -322,7 +322,7 @@ export function planBrake(
 
   if (targetKind === 'STATION') {
     reaction *= scheduleReactionScale(distanceToTargetM, speedMs, scheduleEta, now);
-  } else {
+  } else if (targetKind !== 'SIGNAL') {
     reaction *= lowSpeedReactionScale(speedMs, targetSpeedMs);
   }
 
@@ -367,7 +367,7 @@ export function planBrake(
     targetSpeedMs,
     reactionMarginM: reaction,
     steps,
-    activeStep: targetKind === 'STATION'
+    activeStep: targetKind === 'STATION' || targetKind === 'SIGNAL'
       ? selectStationActiveStep(steps, speedMs, distanceToTargetM, scheduleEta, now, profile)
       : selectActiveStep(steps, speedMs, targetKind, distanceToTargetM, scheduleEta, now, profile),
     isRealTarget,
@@ -388,7 +388,7 @@ export function toKernelBrakeSteps(plan: BrakePlan): BrakePlanStep[] {
 
 export function toAgentBrakeContext(plan: BrakePlan, gradientPermille: number): AgentBrakeContext {
   return {
-    targetKind: plan.targetKind === 'SIGNAL' ? 'SPEED_LIMIT' : plan.targetKind,
+    targetKind: plan.targetKind,
     distanceToTargetM: plan.distanceToTargetM,
     reactionMarginM: plan.reactionMarginM,
     gradientPermille,
@@ -435,8 +435,17 @@ export function planStationFinalStop(
   ctx: SnapshotBrakeContext = {},
 ): BrakePlan | null {
   const { distanceM } = snapshot.station;
-  if (distanceM > STATION_DWELL_MAX_DISTANCE_M || distanceM < -20) return null;
-  if (snapshot.speedMs <= STATION_FINAL_STOP_SPEED_MS) return null;
+  const agent = resolveAgentConfig(ctx.commandProfile ?? ctx.profile);
+  const { station: stationCfg } = agent;
+  if (distanceM > stationCfg.dwellMaxDistanceM || distanceM < stationCfg.platformTailM) return null;
+  if (snapshot.speedMs <= stationCfg.finalStopSpeedMs) return null;
+  // Salida del andén con distancia aún en 0 (Lua no actualizó) — no frenar de nuevo.
+  if (
+    distanceM <= 5
+    && snapshot.speedMs > stationCfg.departureSpeedMs
+  ) {
+    return null;
+  }
 
   const profile = ctx.profile;
   const notches = profile?.specs?.notches_throttle_brake
@@ -498,5 +507,84 @@ export function planBrakeForStation(
     },
     'STATION',
     snapshot.station.eta,
+  );
+}
+
+export function planSignalFinalStop(
+  snapshot: {
+    speedMs: number;
+    signaling: { distanceM: number; aspect: string };
+  },
+  ctx: SnapshotBrakeContext = {},
+): BrakePlan | null {
+  if (!signalRequiresFullStop(snapshot.signaling.aspect)) return null;
+
+  const { distanceM } = snapshot.signaling;
+  const agent = resolveAgentConfig(ctx.commandProfile ?? ctx.profile);
+  const { station: stationCfg } = agent;
+  if (distanceM > stationCfg.dwellMaxDistanceM || distanceM < stationCfg.platformTailM) return null;
+  if (snapshot.speedMs <= stationCfg.finalStopSpeedMs) return null;
+
+  const profile = ctx.profile;
+  const notches = profile?.specs?.notches_throttle_brake
+    ?.filter(n => n.value < 0 && n.value > -1.0)
+    .sort((a, b) => a.value - b.value) ?? [];
+  const strongest = notches[0]?.label ?? 'B3';
+  const notch = snapshot.speedMs > 4 ? strongest
+    : snapshot.speedMs > 1.5 ? (notches[1]?.label ?? 'B2')
+      : (notches[2]?.label ?? 'B1');
+
+  const step: BrakePlanStepDetail = {
+    notch,
+    phase: 'stop',
+    distanceM: 0,
+    applyAtRemainingM: distanceM,
+    distStart: 0,
+    metersUntilActionM: 0,
+    usingLearned: false,
+    applyNow: true,
+  };
+
+  return {
+    targetKind: 'SIGNAL',
+    distanceToTargetM: distanceM,
+    targetSpeedMs: 0,
+    reactionMarginM: 0,
+    steps: [step],
+    activeStep: step,
+    isRealTarget: true,
+  };
+}
+
+export function planBrakeForSignal(
+  snapshot: {
+    speedMs: number;
+    gradient: number;
+    train: { massT: number; lengthM: number; consistType?: number };
+    signaling: { distanceM: number; aspect: string };
+  },
+  ctx: SnapshotBrakeContext = {},
+): BrakePlan | null {
+  if (!signalRequiresFullStop(snapshot.signaling.aspect)) return null;
+
+  const finalStop = planSignalFinalStop(snapshot, ctx);
+  if (finalStop) return finalStop;
+
+  if (snapshot.signaling.distanceM <= 0) return null;
+
+  return planBrake(
+    {
+      speedMs: snapshot.speedMs,
+      distanceToTargetM: snapshot.signaling.distanceM,
+      targetSpeedMs: 0,
+      massT: snapshot.train.massT,
+      lengthM: snapshot.train.lengthM,
+      gradientPermille: snapshot.gradient,
+      consistType: ctx.consistType ?? snapshot.train.consistType,
+      profile: ctx.profile,
+      brakeStats: ctx.brakeStats,
+      isRealTarget: true,
+    },
+    'SIGNAL',
   );
 }

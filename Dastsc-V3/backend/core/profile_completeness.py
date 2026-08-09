@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional
 Profile = Dict[str, Any]
 GetById = Callable[[str], Optional[Profile]]
 
-GOLD_BASE_IDS = frozenset({"class323"})
+GOLD_BASE_IDS = frozenset({"passenger", "class323", "icet"})
 _DEFAULT_DECEL = 0.8
 _MIN_GOLD_FINGERPRINT = 3
 _MIN_GOLD_MAPPINGS = 5

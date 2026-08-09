@@ -1,5 +1,9 @@
 import type { TelemetrySnapshot } from '@nexus/kernel';
-import { brakeApiUrl, profileId, type TrainProfileFields } from './profileBrake';
+import {
+  estimateBrakeNotchForLearning,
+  isBrakeEngagedForLearning,
+} from '@nexus/agent';
+import { brakeApiUrl, profileId, toCommandProfile, type TrainProfileFields } from './profileBrake';
 
 export const MIN_SPEED_TO_START_MS = 2.0;
 export const DECEL_THRESHOLD_MS2 = 0.05;
@@ -10,13 +14,8 @@ export const MIN_DECEL_AVG_MS2 = 0.10;
 export const MAX_DURATION_SECS = 240;
 export const MAX_PHYSICAL_DECEL_MS2 = 3.5;
 export const MIN_STOP_SPEED_MS = 0.5;
+export const MIN_SPEED_DROP_MS = 5 / 3.6;
 export const MIN_DT_S = 0.016;
-export const NOTCH_TOLERANCE = 0.05;
-
-export interface BrakeNotch {
-  label: string;
-  value: number;
-}
 
 export interface BrakeSample {
   speed: number;
@@ -57,6 +56,7 @@ export interface BrakeLearningInput {
   speedMs: number;
   tripDistanceM: number;
   combined: number;
+  brakePosition: number;
 }
 
 export interface BrakeLearningContext {
@@ -71,6 +71,7 @@ export function brakeLearningInput(snapshot: TelemetrySnapshot): BrakeLearningIn
     speedMs: snapshot.speedMs,
     tripDistanceM: snapshot.tripDistanceM,
     combined: snapshot.brake.combined,
+    brakePosition: snapshot.brake.position,
   };
 }
 
@@ -81,30 +82,6 @@ export function brakeLearningContext(snapshot: TelemetrySnapshot): BrakeLearning
     trainLength: snapshot.train.lengthM,
     loco: snapshot.train.name,
   };
-}
-
-export function estimateBrakeNotch(
-  combinedControl: number,
-  profile?: LearningProfile,
-): string {
-  const val = combinedControl ?? 0;
-  const notches = profile?.specs?.notches_throttle_brake as BrakeNotch[] | undefined;
-
-  if (notches?.length) {
-    const brakeNotches = notches
-      .filter(n => n.value < 0)
-      .sort((a, b) => a.value - b.value);
-
-    for (const notch of brakeNotches) {
-      if (val <= notch.value + NOTCH_TOLERANCE) return notch.label;
-    }
-    if (brakeNotches.length && val < -NOTCH_TOLERANCE) {
-      return brakeNotches[brakeNotches.length - 1].label;
-    }
-  }
-
-  if (val < -NOTCH_TOLERANCE) return `B${Math.round(Math.abs(val) * 100)}%`;
-  return '?';
 }
 
 export function computeDeceleration(
@@ -145,6 +122,9 @@ export function buildBrakeEventPayload(
 
   const duration = (samples[samples.length - 1].t - samples[0].t) / 1000;
   if (duration < MIN_DURATION_SECS) return null;
+
+  const speedDrop = event.startSpeed - endSpeed;
+  if (speedDrop < MIN_SPEED_DROP_MS) return null;
 
   const decels = samples
     .map(s => s.decel)
@@ -209,6 +189,13 @@ export function tickBrakeLearning(
   profile: LearningProfile,
   now: number,
 ): BrakeLearningTickResult {
+  const commandProfile = toCommandProfile(profile);
+  const signals = {
+    combined: input.combined,
+    brakePosition: input.brakePosition,
+  };
+  const brakeEngaged = isBrakeEngagedForLearning(signals, commandProfile);
+
   const { decel, prevSpeed, prevSpeedChangeTime } = computeDeceleration(
     input.speedMs,
     refs.prevSpeed,
@@ -220,7 +207,7 @@ export function tickBrakeLearning(
     speed: input.speedMs,
     decel,
     trip: input.tripDistanceM ?? 0,
-    notch: estimateBrakeNotch(input.combined, profile),
+    notch: estimateBrakeNotchForLearning(signals, commandProfile),
     t: now,
   };
 
@@ -228,7 +215,11 @@ export function tickBrakeLearning(
   let submit: { event: ActiveBrakeEvent; endSpeed: number } | null = null;
 
   if (!activeEvent) {
-    if (input.speedMs > MIN_SPEED_TO_START_MS && decel >= DECEL_THRESHOLD_MS2) {
+    if (
+      input.speedMs > MIN_SPEED_TO_START_MS
+      && decel >= DECEL_THRESHOLD_MS2
+      && brakeEngaged
+    ) {
       activeEvent = {
         confirmStartT: now,
         confirmed: false,
@@ -239,7 +230,7 @@ export function tickBrakeLearning(
       };
     }
   } else {
-    if (decel > 0) activeEvent.lastDecelT = now;
+    if (decel > 0 && brakeEngaged) activeEvent.lastDecelT = now;
     activeEvent.samples.push(sample);
 
     if (!activeEvent.confirmed && (now - activeEvent.confirmStartT) / 1000 >= CONFIRM_SECS) {

@@ -86,6 +86,15 @@ describe('station braking', () => {
     expect(plan?.activeStep?.notch).toBe('B2');
   });
 
+  it('does not plan final stop when departing platform at line speed', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 12,
+      speedDisplay: 43,
+      station: { distanceM: 0, nameOcr: 'Birmingham', eta: '' },
+    });
+    expect(planStationFinalStop(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
+  });
+
   it('prefers strongest notch near station', () => {
     const steps = [
       { notch: 'B3', distStart: 8, applyAtRemainingM: 200, applyNow: false } as const,

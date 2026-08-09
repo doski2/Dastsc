@@ -27,6 +27,7 @@ export function createMockSnapshot(overrides: Partial<TelemetrySnapshot> = {}): 
     },
     brake: {
       combined: -0.35,
+      position: 0.35,
       cylinder: 2.1,
       effortKn: 45,
       projectedStopM: 890,
