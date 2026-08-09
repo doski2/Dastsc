@@ -21,6 +21,21 @@ MIN_TRAVELED_FOR_CORRECTION_M = 200.0
 LUA_SYNC_MIN_DRIFT_M = 120.0
 LUA_SYNC_MIN_DRIFT_RATIO = 0.05
 
+# Corrección OCR en tramos largos (> 5 km): checkpoints cada fracción del tramo.
+LONG_LEG_MIN_M = 5000.0
+MID_LEG_INTERVAL_M = 5000.0
+MID_LEG_MAX_CAPTURES = 3
+MID_LEG_MIN_SPEED_MS = 10.0 / 3.6  # ~10 km/h
+MID_LEG_COOLDOWN_S = 60.0
+OCR_REJECT_JUMP_M = 40.0
+
+
+def mid_leg_checkpoint_count(anchor_m: float) -> int:
+    """Número de capturas intermedias según distancia inicial del tramo."""
+    if anchor_m <= LONG_LEG_MIN_M:
+        return 0
+    return min(MID_LEG_MAX_CAPTURES, max(1, int(anchor_m / MID_LEG_INTERVAL_M) - 1))
+
 
 def normalize_lua_station_distance(raw: float) -> Optional[float]:
     """GetNextStation devuelve metros; valores < 50 suelen ser km (p. ej. 3.95)."""
@@ -30,7 +45,14 @@ def normalize_lua_station_distance(raw: float) -> Optional[float]:
         return round(raw * 1000.0)
     return round(raw)
 
-SampleEvent = Literal["door_anchor", "near_correction", "lua_sync", "tick", "arrival"]
+SampleEvent = Literal[
+    "door_anchor",
+    "mid_leg_correction",
+    "near_correction",
+    "lua_sync",
+    "tick",
+    "arrival",
+]
 
 
 @dataclass
@@ -92,6 +114,9 @@ class StationDistanceTracker:
         self._last_sample_time: float = 0.0
         self._near_correction_done = False
         self._last_drift_m: Optional[float] = None
+        self._leg_initial_anchor_m: Optional[float] = None
+        self._mid_leg_captures_done = 0
+        self._last_ocr_capture_at: float = 0.0
 
     @property
     def has_anchor(self) -> bool:
@@ -117,6 +142,30 @@ class StationDistanceTracker:
         if len(self._samples) > MAX_SAMPLES:
             self._samples = self._samples[-MAX_SAMPLES:]
 
+    def _mid_leg_milestones_m(self) -> List[float]:
+        """Distancias recorridas (m) en las que pedir corrección intermedia."""
+        if self._leg_initial_anchor_m is None or self._leg_initial_anchor_m <= LONG_LEG_MIN_M:
+            return []
+        count = mid_leg_checkpoint_count(self._leg_initial_anchor_m)
+        if count <= 0:
+            return []
+        leg = self._leg_initial_anchor_m
+        return [leg * k / (count + 1) for k in range(1, count + 1)]
+
+    def should_accept_ocr_distance(self, ocr_distance_m: float, event: SampleEvent) -> bool:
+        """Rechaza lecturas que suben la distancia de forma implausible."""
+        if event == "door_anchor":
+            return True
+        computed = self.distance_m()
+        if computed is None:
+            return True
+        ocr_value = max(0.0, float(ocr_distance_m))
+        if ocr_value > computed + OCR_REJECT_JUMP_M:
+            return False
+        if event in ("mid_leg_correction", "near_correction") and ocr_value > computed + 5.0:
+            return False
+        return True
+
     def anchor_from_ocr(
         self,
         distance_m: float,
@@ -125,14 +174,18 @@ class StationDistanceTracker:
         now: float,
         speed_ms: float = 0.0,
         ocr_raw_m: Optional[float] = None,
-    ) -> None:
-        computed_before = self.distance_m()
+    ) -> bool:
         ocr_value = max(0.0, float(distance_m))
+        if not self.should_accept_ocr_distance(ocr_value, event):
+            return False
+
+        computed_before = self.distance_m()
         drift = None
-        if computed_before is not None and event == "near_correction":
+        if computed_before is not None and event in ("near_correction", "mid_leg_correction"):
             drift = ocr_value - computed_before
             self._last_drift_m = drift
-            self._near_correction_done = True
+            if event == "near_correction":
+                self._near_correction_done = True
 
         self._anchor_distance_m = ocr_value
         self._anchor_odometer_m = self._odometer_m
@@ -140,6 +193,12 @@ class StationDistanceTracker:
         if event == "door_anchor":
             self._near_correction_done = False
             self._last_drift_m = None
+            self._leg_initial_anchor_m = ocr_value
+            self._mid_leg_captures_done = 0
+        elif event == "mid_leg_correction":
+            self._mid_leg_captures_done += 1
+
+        self._last_ocr_capture_at = now
 
         dist = self.distance_m() or ocr_value
         self._append_sample(StationDistanceSample(
@@ -154,6 +213,7 @@ class StationDistanceTracker:
             drift_m=drift,
         ))
         self._last_sample_time = now
+        return True
 
     def sync_lua_distance(
         self,
@@ -199,6 +259,23 @@ class StationDistanceTracker:
             return None
         return max(0.0, self._anchor_distance_m - self.traveled_m())
 
+    def should_request_mid_leg_correction(self, speed_ms: float, now: float) -> bool:
+        if not self.has_anchor or self._leg_initial_anchor_m is None:
+            return False
+        if self._leg_initial_anchor_m <= LONG_LEG_MIN_M:
+            return False
+        milestones = self._mid_leg_milestones_m()
+        if self._mid_leg_captures_done >= len(milestones):
+            return False
+        if speed_ms < MID_LEG_MIN_SPEED_MS:
+            return False
+        if now - self._last_ocr_capture_at < MID_LEG_COOLDOWN_S:
+            return False
+        dist = self.distance_m()
+        if dist is None or dist <= NEAR_CORRECTION_M:
+            return False
+        return self.traveled_m() >= milestones[self._mid_leg_captures_done]
+
     def should_request_near_correction(self) -> bool:
         if not self.has_anchor or self._near_correction_done:
             return False
@@ -238,6 +315,9 @@ class StationDistanceTracker:
             "traveled_m": round(self.traveled_m(), 1),
             "current_distance_m": round(dist, 1) if dist is not None else None,
             "near_correction_done": self._near_correction_done,
+            "leg_initial_anchor_m": self._leg_initial_anchor_m,
+            "mid_leg_captures_done": self._mid_leg_captures_done,
+            "mid_leg_milestones_m": [round(m, 1) for m in self._mid_leg_milestones_m()],
             "last_drift_m": self._last_drift_m,
             "sample_count": len(self._samples),
             "samples": [s.to_dict() for s in self._samples[-40:]],
@@ -271,3 +351,6 @@ class StationDistanceTracker:
         self._last_sample_time = 0.0
         self._near_correction_done = False
         self._last_drift_m = None
+        self._leg_initial_anchor_m = None
+        self._mid_leg_captures_done = 0
+        self._last_ocr_capture_at = 0.0

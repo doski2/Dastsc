@@ -2,7 +2,8 @@
 
 **Estado al cierre (2026-08-08):** sin issues abiertos en capa Lua/IPC.
 
-Los problemas históricos (mandos bloqueados, `SetControlTargetValue`, SendCommand huérfano) están cubiertos por el baseline v11 y purge backend — ver sesión `sesiones/2026-08-08.md`.
+Los problemas históricos (mandos bloqueados, `SetControlTargetValue`, SendCommand huérfano) están
+cubiertos por el baseline v11 y purge backend — ver sesión `sesiones/2026-08-08.md`.
 
 ---
 

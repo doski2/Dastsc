@@ -428,14 +428,22 @@ async def telemetry_reader() -> None:
             result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
             if result and result.get("distance_m") is not None:
                 ocr_last_result = result
-                station_tracker.anchor_from_ocr(
+                anchored = station_tracker.anchor_from_ocr(
                     float(result["distance_m"]),
                     event=event,
                     now=capture_time or time.time(),
                     speed_ms=capture_speed_ms,
                     ocr_raw_m=float(result["distance_m"]),
                 )
-                _log_ocr_session_event(event, station_tracker, result=result)
+                if anchored:
+                    _log_ocr_session_event(event, station_tracker, result=result)
+                else:
+                    _log_ocr_session_event(
+                        event,
+                        station_tracker,
+                        result=result,
+                        error="rejected_jump",
+                    )
             else:
                 _log_ocr_session_event(
                     event,
@@ -491,6 +499,14 @@ async def telemetry_reader() -> None:
                                 ocr_is_capturing = True
                                 asyncio.create_task(
                                     run_ocr_capture("near_correction", speed_ms, now),
+                                )
+                            elif (
+                                not doors_open_now
+                                and station_tracker.should_request_mid_leg_correction(speed_ms, now)
+                            ):
+                                ocr_is_capturing = True
+                                asyncio.create_task(
+                                    run_ocr_capture("mid_leg_correction", speed_ms, now),
                                 )
 
                         _apply_ocr_metadata(data, ocr_last_result)

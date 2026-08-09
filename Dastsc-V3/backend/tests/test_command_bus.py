@@ -1,7 +1,10 @@
 import os
+import sys
 import shutil
 import tempfile
 import unittest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core import command_bus
 

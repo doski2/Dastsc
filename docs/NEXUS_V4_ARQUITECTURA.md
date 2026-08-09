@@ -31,8 +31,8 @@ no un grid de widgets.
 | Modo                  | Usuario                         | Comportamiento                                                      |
 | --------------------- | ------------------------------- | ------------------------------------------------------------------- |
 | **SUGGEST** (default) | Conductor humano                | Texto + horizonte + mini-HUD. Sin comandos al sim.                  |
-| **ARM**               | Conductor avanzado              | Sugiere acción; un clic confirma envío a `SendCommand.txt`. ✅       |
-| **AUTO**              | Entrenamiento / rutas conocidas | Frenado + OFF automático vía `SendCommand.txt`. Sin tracción v1. ✅  |
+| **ARM**               | Conductor avanzado              | Sugiere acción; un clic confirma envío a `SendCommand.txt`. ✅      |
+| **AUTO**              | Entrenamiento / rutas conocidas | Frenado + OFF automático vía `SendCommand.txt`. Sin tracción v1. ✅ |
 
 La política (`SUGGEST` / `ARM` / `AUTO`) se elige en **CONFIG V4** y persiste en `localStorage`.
 Perfil de tren: **AUTO** (detección DLL) recomendado; selección manual opcional.
@@ -103,16 +103,16 @@ Pestaña **Config** en V4 (`localhost:5175`):
 
 | Módulo                | Estado | Notas                                                     |
 | --------------------- | ------ | --------------------------------------------------------- |
-| `buildHorizon()`      | ✅      | Señal, límite, estación, cola, AWS/DSD                    |
-| `planBrake()`         | ✅      | Port física V3; gradiente ‰ corregido; golden tests vs V3 |
-| `tickAgent()`         | ✅      | Headline + `suggestedAction` en ARM/AUTO                  |
-| `commandBus`          | ✅      | Muesca + OFF; EMG bloqueado; AUTO suspende en SAFETY      |
-| `useAutoCommand`      | ✅      | V4: rate limit 2 s, fallback a SUGGEST si ack falla       |
-| `useBrakeLearning`    | ✅      | V4 → `POST /api/brake/event`                              |
-| `evaluateVigilance()` | ⏳      | Solo vía horizon SAFETY hoy                               |
-| `evaluateCruise()`    | ⏳      | **Fase tracción** — ver §8.4                              |
-| `planThrottle()`      | ⏳      | **Fase tracción** — después de frenado completo           |
-| `mergeTicks()`        | ⏳      | Un solo tick por ahora                                    |
+| `buildHorizon()`      | ✅     | Señal, límite, estación, cola, AWS/DSD                    |
+| `planBrake()`         | ✅     | Port física V3; gradiente ‰ corregido; golden tests vs V3 |
+| `tickAgent()`         | ✅     | Headline + `suggestedAction` en ARM/AUTO                  |
+| `commandBus`          | ✅     | Muesca + OFF; EMG bloqueado; AUTO suspende en SAFETY      |
+| `useAutoCommand`      | ✅     | V4: rate limit 2 s, fallback a SUGGEST si ack falla       |
+| `useBrakeLearning`    | ✅     | V4 → `POST /api/brake/event`                              |
+| `evaluateVigilance()` | ⏳     | Solo vía horizon SAFETY hoy                               |
+| `evaluateCruise()`    | ⏳     | **Fase tracción** — ver §8.4                              |
+| `planThrottle()`      | ⏳     | **Fase tracción** — después de frenado completo           |
+| `mergeTicks()`        | ⏳     | Un solo tick por ahora                                    |
 
 **v1 = reglas + física + brake learning + ARM.** Sin LLM en el loop de telemetría.
 
@@ -166,12 +166,12 @@ Los comandos ARM funcionan en ruta real. **AUTO v1** envía sin confirmación co
 
 | Regla | Descripción                                         | Estado                         |
 | ----- | --------------------------------------------------- | ------------------------------ |
-| R1    | Solo mandos permitidos (sin EMG, sin reverser)      | ✅                              |
-| R2    | Rate limit 2 s; mismo `command:value` no se reenvía | ✅ `useAutoCommand`             |
-| R3    | Sin mandos si `horizon` tiene `SAFETY`              | ✅                              |
-| R4    | Vuelve a SUGGEST si `COMMAND_ACK` falla             | ✅                              |
-| R5    | Solo frenado B1–B3 + OFF; sin tracción              | ✅                              |
-| R6    | Log backend de comandos                             | ✅ `logging.info` en `main.py`  |
+| R1    | Solo mandos permitidos (sin EMG, sin reverser)      | ✅                             |
+| R2    | Rate limit 2 s; mismo `command:value` no se reenvía | ✅ `useAutoCommand`            |
+| R3    | Sin mandos si `horizon` tiene `SAFETY`              | ✅                             |
+| R4    | Vuelve a SUGGEST si `COMMAND_ACK` falla             | ✅                             |
+| R5    | Solo frenado B1–B3 + OFF; sin tracción              | ✅                             |
+| R6    | Log backend de comandos                             | ✅ `logging.info` en `main.py` |
 
 **Código:**
 
@@ -207,7 +207,7 @@ mismo `CommandBus` (Lua primero).
 | Herencia sin duplicar        | `"extends": "class323"` o perfil base por familia | P2        |
 | Aliases RV automáticos       | Ampliar al detectar nombre nuevo                  | P3        |
 | Perfil en disco desde sesión | Export explícito (no auto-write en juego)         | P3        |
-| UI selector AUTO / manual    | CONFIG V4                                         | ✅         |
+| UI selector AUTO / manual    | CONFIG V4                                         | ✅        |
 | Tablas decel ERA / XML TSC   | Calibración `max_braking_decel`                   | P4        |
 
 ---
@@ -227,13 +227,13 @@ Ver también `docs/COMPARATIVA_LUA_RAILDRIVER.md`, `docs/GUIA_TECNICA_IPC.md`.
 
 | Origen V3                              | Destino                                    | Estado                 |
 | -------------------------------------- | ------------------------------------------ | ---------------------- |
-| `core/normalizers/*`                   | `nexus-kernel/normalizers/`                | ✅                      |
-| `DataNormalizer` + utils               | `nexus-kernel/`                            | ✅                      |
-| `brakingCurveUtils.computeBrakeParams` | `nexus-agent/brake/planBrake.ts`           | ✅ (+ fix gradiente ‰)  |
-| `useBrakeLearning`                     | `Dastsc-V4/hooks/useBrakeLearning.ts`      | ✅                      |
-| `CommandBus` / ARM                     | `command_bus.py` + `command/commandBus.ts` | ✅ validado en juego    |
-| `CommandBus` / AUTO                    | `useAutoCommand.ts` + reglas R1–R5         | ✅ v1 frenado           |
-| `planThrottle` / tracción              | —                                          | ⏳ §8.4                 |
+| `core/normalizers/*`                   | `nexus-kernel/normalizers/`                | ✅                     |
+| `DataNormalizer` + utils               | `nexus-kernel/`                            | ✅                     |
+| `brakingCurveUtils.computeBrakeParams` | `nexus-agent/brake/planBrake.ts`           | ✅ (+ fix gradiente ‰) |
+| `useBrakeLearning`                     | `Dastsc-V4/hooks/useBrakeLearning.ts`      | ✅                     |
+| `CommandBus` / ARM                     | `command_bus.py` + `command/commandBus.ts` | ✅ validado en juego   |
+| `CommandBus` / AUTO                    | `useAutoCommand.ts` + reglas R1–R5         | ✅ v1 frenado          |
+| `planThrottle` / tracción              | —                                          | ⏳ §8.4                |
 
 ---
 

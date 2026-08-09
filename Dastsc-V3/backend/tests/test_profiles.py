@@ -44,7 +44,10 @@ class TestProfiles(unittest.TestCase):
 
     def test_select_manual_profile(self):
         self.assertTrue(self.manager.select_manual_profile("class323"))
-        self.assertEqual(self.manager.manual_profile["name"], "Class 323")
+        manual = self.manager.manual_profile
+        self.assertIsNotNone(manual)
+        assert manual is not None
+        self.assertEqual(manual["name"], "Class 323")
 
         self.assertTrue(self.manager.select_manual_profile("AUTO"))
         self.assertIsNone(self.manager.manual_profile)
@@ -53,7 +56,10 @@ class TestProfiles(unittest.TestCase):
 
     def test_select_case_insensitive(self):
         self.assertTrue(self.manager.select_manual_profile("Class323"))
-        self.assertEqual(self.manager.manual_profile["id"], "class323")
+        manual = self.manager.manual_profile
+        self.assertIsNotNone(manual)
+        assert manual is not None
+        self.assertEqual(manual["id"], "class323")
 
     def test_clear_with_empty_id(self):
         self.manager.select_manual_profile("class323")
@@ -62,6 +68,8 @@ class TestProfiles(unittest.TestCase):
 
     def test_get_profile_for_loco(self):
         p = self.manager.get_profile_for_loco("class390")
+        self.assertIsNotNone(p)
+        assert p is not None
         self.assertEqual(p["name"], "Class 390")
 
         p = self.manager.get_profile_for_loco("unknown")
@@ -83,6 +91,8 @@ class TestProfiles(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"visuals": {"unit": "MPH"}}, f)
         profile = _load_profile_file(path)
+        self.assertIsNotNone(profile)
+        assert profile is not None
         self.assertEqual(profile["id"], "hst")
         self.assertEqual(profile["name"], "hst")
 

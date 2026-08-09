@@ -44,6 +44,8 @@ class TestProfileAuto(unittest.TestCase):
             ["Class 323 DMS"],
             ["ThrottleAndBrake", "DRA"],
         )
+        self.assertIsNotNone(resolved)
+        assert resolved is not None
         self.assertEqual(resolved["id"], "class323")
 
     def test_resolve_rv_loco_name(self):
@@ -52,6 +54,8 @@ class TestProfileAuto(unittest.TestCase):
             ["RV:323211_65011"],
             ["ThrottleAndBrake", "DRA", "DVDAlarm", "RegenBrakesSwitch", "UserVirtualReverser"],
         )
+        self.assertIsNotNone(resolved)
+        assert resolved is not None
         self.assertEqual(resolved["id"], "class323")
 
     def test_resolve_rv_loco_expert_fingerprint(self):
@@ -68,6 +72,8 @@ class TestProfileAuto(unittest.TestCase):
             ["RV:323211_65011"],
             ["ThrottleAndBrake"],
         )
+        self.assertIsNotNone(resolved)
+        assert resolved is not None
         self.assertEqual(resolved["id"], "xc_class323_expert")
 
     def test_extends_inherits_physics_and_notches(self):

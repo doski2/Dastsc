@@ -187,8 +187,21 @@ El backend enriquece el dict antes del WebSocket (`backend/main.py` → `_apply_
 | `StationScheduled` | OCR                                   | Hora programada                |
 | `timestamp`        | `time.time()`                         | Marca del mensaje WS           |
 
-**OCR:** se dispara al cerrar puertas o cada 5–30 s según distancia. Requiere `mss` + `pytesseract`
-en el backend.
+#### OCR:** no hay captura periódica por timer. El backend sondea `GetData.txt` cada **10 ms
+(`_POLL_INTERVAL_S`) y dispara `ocr_hud.capture_next_stop` solo en estos casos:
+
+| Evento               | Cuándo                                                                                                                                                                        | Frecuencia típica                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| `door_anchor`        | Puertas pasan de abiertas a cerradas (`DoorL`/`DoorR` > 0.5 → ≤ 0.5)                                                                                                          | **1× por parada**                |
+| `mid_leg_correction` | Tramo inicial **> 5 km**: checkpoints al recorrer fracciones del tramo (máx. **3**; p. ej. 20 km → ~5 km, 10 km, 15 km). Velocidad ≥ 10 km/h, puertas cerradas, cooldown 60 s | **0–3× por tramo**               |
+| `near_correction`    | Distancia estimada ≤ **400 m**, recorrido ≥ **200 m** desde el ancla, y aún no corregido en ese tramo                                                                         | **0–1× por tramo** entre paradas |
+| Debug manual         | `GET /api/ocr/debug`                                                                                                                                                          | Bajo demanda                     |
+
+Entre capturas, `StationDistance` se integra con odómetro (velocidad × Δt) en
+`core/station_distance.py`. El tracker guarda muestras internas cada **5 s** (`SAMPLE_INTERVAL_S`;
+eventos `tick`/`arrival` en debug), pero **no** vuelve a leer pantalla.
+
+Solo una captura OCR a la vez (`ocr_is_capturing`). Requiere `mss` + `pytesseract` en el backend.
 
 ---
 

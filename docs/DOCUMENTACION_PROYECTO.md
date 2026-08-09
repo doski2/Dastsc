@@ -47,7 +47,9 @@ asistencia para Train Simulator Classic.
 
 * **OCR de Distancia:** ✅ Backend captura el HUD del juego para anclar la distancia a la próxima
 
-  parada con precisión del juego.
+  parada con precisión del juego. **No es periódico:** captura al cerrar puertas (`door_anchor`),
+  checkpoints en tramos **> 5 km** (`mid_leg_correction`, máx. 3) y al acercarse a ≤ 400 m
+  (`near_correction`). Entre capturas, el odómetro integra la distancia.
 
 ---
 
@@ -75,9 +77,12 @@ asistencia para Train Simulator Classic.
   * `POST /api/brake/event` — registra un evento de frenada real.
   * `GET /api/brake/events` — historial de frenadas (últimas 20 por perfil).
   * `GET /api/brake/stats` — estadísticas promedio por muesca de freno.
-* **Lógica `StationDistance`:** OCR ancla el valor cuando hay captura; el odómetro lo decrementa
+* **Lógica `StationDistance`:** OCR ancla el valor en `door_anchor` (cierre de puertas),
 
-  entre capturas; el backend sobreescribe el `-1` del Lua antes de enviarlo al frontend.
+  opcionalmente
+  en `mid_leg_correction` (tramos > 5 km) y en `near_correction` (≤ 400 m, una vez por tramo); el
+odómetro lo decrementa entre capturas; el backend sobreescribe el `-1` del Lua antes de enviarlo al
+  frontend.
 
 ### 3. Frontend React + TypeScript (Vite, puerto 5173)
 

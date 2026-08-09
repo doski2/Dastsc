@@ -40,7 +40,6 @@ misma sesión.
 ## Tests antes de cada sesión TSC
 
 ```bash
-scripts/debug/pre-vuelo-tests.bat
 ```
 
 ## Logs automáticos de sesión V4
@@ -50,9 +49,18 @@ Cada vez que abres Nexus V4 con el backend activo se guarda un log en `logs/nexu
 
 - Descarga desde **Config → Logs de sesión** en la UI, o copia `logs/nexus-v4/session_*.json`.
 - Pásale el JSON al asistente para análisis comparativo entre sesiones.
-- Eventos **`ocr_capture`**: cada lectura OCR (cierre puertas / corrección cerca de estación), con texto parseado, distancia en metros y estado del tracker.
-- Eventos **`backend_tick`**: respaldo cada ~2.5 s desde GetData si V4 no vuelca ticks (freno, velocidad, señal).
-- En cada tick V4, bloque **`station`**: `source` (`lua` vs `ocr_tracker`), `nameOcr`, `anchorM`, `driftM`, `luaDistanceM`.
+- Eventos **`ocr_capture`**: lectura OCR bajo demanda (no hay intervalo fijo). Se registran en
+
+  `door_anchor` (cierre de puertas), `mid_leg_correction` (tramos > 5 km, hasta 3 checkpoints) y
+  `near_correction` (≤ 400 m). Incluyen texto parseado, distancia en metros y estado del tracker.
+
+- Eventos **`backend_tick`**: respaldo cada ~2.5 s desde GetData si V4 no vuelca ticks (freno,
+
+  velocidad, señal).
+
+- En cada tick V4, bloque **`station`**: `source` (`lua` vs `ocr_tracker`), `nameOcr`, `anchorM`,
+
+  `driftM`, `luaDistanceM`.
 
 ## Reglas de oro
 

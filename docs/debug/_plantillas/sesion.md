@@ -25,15 +25,11 @@
 ## Telemetría clave (pegar fragmento GetData o V4)
 
 ```text
-StationDistance:
-TrainBrake / VirtualBrake / Combined:
-Speed:
 ```
 
 ## Comandos / ack
 
 ```text
-SendCommand.txt / ack V4:
 ```
 
 ## Resultado

@@ -7,10 +7,10 @@
 
 ## Funcional
 
-- [ ] Perfil AUTO detecta ICE T vs 323 vs genérico
-- [ ] Selector V4 muestra solo 3 perfiles Nexus
-- [ ] Ack ICE T al frenar: 3 líneas (`SimpleThrottle:0`, `VirtualBrake`, `TrainBrakeControl`)
-- [ ] Ack 323: una línea `ThrottleAndBrake`
+- [x] Perfil AUTO detecta ICE T vs 323 vs genérico
+- [x] Selector V4 muestra solo 3 perfiles Nexus
+- [x] Ack ICE T al frenar: 3 líneas (`SimpleThrottle:0`, `VirtualBrake`, `TrainBrakeControl`)
+- [x] Ack 323: una línea `ThrottleAndBrake`
 - [ ] Purge WebSocket al pasar a SUGGEST
 - [ ] Flag `NexusApplyCommands.flag` solo con ARM/AUTO
 
