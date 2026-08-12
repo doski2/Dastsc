@@ -10,7 +10,10 @@ export interface AgentStationConfig {
   release_block_speed_ms?: number;
   departure_speed_ms?: number;
   final_stop_speed_ms?: number;
+  final_stop_max_distance_m?: number;
   plan_horizon_m?: number;
+  /** Distancia (m) a partir de la cual se endurece la frenada de estación. */
+  terminal_approach_distance_m?: number;
 }
 
 export interface AgentBrakeConfig {

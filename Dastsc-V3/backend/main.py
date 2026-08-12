@@ -37,6 +37,23 @@ _GETDATA_PLUGIN_PATH = (
 _GETDATA_ALT_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\RailWorks\GetData.txt"
 _SENDCOMMAND_FILENAME = "SendCommand.txt"
 
+
+def _telemetry_int(data: Dict[str, Any], key: str, default: int = 1) -> int:
+    try:
+        return int(float(data.get(key) or default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _telemetry_float_from_keys(data: Dict[str, Any], *keys: str, default: float = 0.0) -> float:
+    for key in keys:
+        if key in data:
+            try:
+                return float(data[key])
+            except (TypeError, ValueError):
+                pass
+    return default
+
 _CORS_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
@@ -416,6 +433,8 @@ async def telemetry_reader() -> None:
     ocr_is_capturing = False
     station_tracker = station_distance.StationDistanceTracker()
     _active_station_tracker = station_tracker
+    last_active_cab: Optional[int] = None
+    last_reversal: Optional[float] = None
 
     async def run_ocr_capture(
         event: station_distance.SampleEvent = "door_anchor",
@@ -455,6 +474,8 @@ async def telemetry_reader() -> None:
             print(f"[OCR] Error ({event}): {exc}")
             _log_ocr_session_event(event, station_tracker, error=str(exc))
         finally:
+            if event == "near_correction":
+                station_tracker.mark_near_correction_attempted(capture_time or time.time())
             ocr_is_capturing = False
 
     while True:
@@ -489,6 +510,32 @@ async def telemetry_reader() -> None:
                             )
                         station_tracker.maybe_record_sample(now, speed_ms)
 
+                        enrich_cab_telemetry(data, _cab_inference_state)
+
+                        active_cab = _telemetry_int(data, "ActiveCab", default=1)
+                        reversal = _telemetry_float_from_keys(data, "Reversal", "Reverser")
+                        if station_distance.should_clear_on_turnaround(
+                            speed_ms=speed_ms,
+                            tracked_dist_m=station_tracker.distance_m(),
+                            active_cab=active_cab,
+                            reversal=reversal,
+                            last_active_cab=last_active_cab,
+                            last_reversal=last_reversal,
+                        ):
+                            station_tracker.clear()
+                        last_active_cab = active_cab
+                        last_reversal = reversal
+
+                        combined_control = _telemetry_float_from_keys(
+                            data, "CombinedControl", "Combined",
+                        )
+                        if station_distance.should_clear_on_departure_intent(
+                            speed_ms=speed_ms,
+                            tracked_dist_m=station_tracker.distance_m(),
+                            combined_control=combined_control,
+                        ):
+                            station_tracker.clear()
+
                         if ocr_hud.is_available() and not ocr_is_capturing:
                             if door_just_closed:
                                 ocr_is_capturing = True
@@ -511,7 +558,6 @@ async def telemetry_reader() -> None:
 
                         _apply_ocr_metadata(data, ocr_last_result)
                         _apply_station_distance(data, station_tracker)
-                        enrich_cab_telemetry(data, _cab_inference_state)
 
                         profile_id = (
                             manager.current_profile.get("id")

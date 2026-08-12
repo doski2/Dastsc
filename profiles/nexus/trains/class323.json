@@ -70,6 +70,13 @@
     "physics_config": {
         "max_braking_decel": 1.1,
         "brake_fill_time_s": 2.5,
-        "dynamic_brake_ratio": 0.8
+        "dynamic_brake_ratio": 0.8,
+        "station_reaction_time_s": 0.9
+    },
+    "agent_config": {
+        "station": {
+            "final_stop_max_distance_m": 35,
+            "terminal_approach_distance_m": 90
+        }
     }
 }

@@ -6,9 +6,11 @@ import {
   COAST_REBRAKE_MARGIN_MPH,
   STATION_DEPARTURE_SPEED_MS,
   STATION_DWELL_MAX_DISTANCE_M,
+  STATION_FINAL_STOP_MAX_DISTANCE_M,
   STATION_FINAL_STOP_SPEED_MS,
   STATION_HOLD_MAX_SPEED_MS,
   STATION_RELEASE_BLOCK_SPEED_MS,
+  STATION_TERMINAL_APPROACH_M,
 } from './physics';
 
 export interface ResolvedAgentStationConfig {
@@ -18,7 +20,9 @@ export interface ResolvedAgentStationConfig {
   releaseBlockSpeedMs: number;
   departureSpeedMs: number;
   finalStopSpeedMs: number;
+  finalStopMaxDistanceM: number;
   planHorizonM: number;
+  terminalApproachDistanceM: number;
 }
 
 export interface ResolvedAgentBrakeConfig {
@@ -44,7 +48,9 @@ const DEFAULT_STATION: ResolvedAgentStationConfig = {
   releaseBlockSpeedMs: STATION_RELEASE_BLOCK_SPEED_MS,
   departureSpeedMs: STATION_DEPARTURE_SPEED_MS,
   finalStopSpeedMs: STATION_FINAL_STOP_SPEED_MS,
+  finalStopMaxDistanceM: STATION_FINAL_STOP_MAX_DISTANCE_M,
   planHorizonM: 1500,
+  terminalApproachDistanceM: STATION_TERMINAL_APPROACH_M,
 };
 
 const DEFAULT_BRAKE: ResolvedAgentBrakeConfig = {
@@ -68,7 +74,9 @@ function pickStation(
     releaseBlockSpeedMs: overrides?.release_block_speed_ms ?? DEFAULT_STATION.releaseBlockSpeedMs,
     departureSpeedMs: overrides?.departure_speed_ms ?? DEFAULT_STATION.departureSpeedMs,
     finalStopSpeedMs: overrides?.final_stop_speed_ms ?? DEFAULT_STATION.finalStopSpeedMs,
+    finalStopMaxDistanceM: overrides?.final_stop_max_distance_m ?? DEFAULT_STATION.finalStopMaxDistanceM,
     planHorizonM: overrides?.plan_horizon_m ?? DEFAULT_STATION.planHorizonM,
+    terminalApproachDistanceM: overrides?.terminal_approach_distance_m ?? DEFAULT_STATION.terminalApproachDistanceM,
   };
 }
 

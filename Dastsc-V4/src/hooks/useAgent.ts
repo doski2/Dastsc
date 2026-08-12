@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BrakeStatsByNotch } from '@nexus/agent';
 import { isBrakeApplied, tickAgent } from '@nexus/agent';
-import type { AgentTick, PolicyMode, TelemetrySnapshot } from '@nexus/kernel';
+import type { AgentAction, AgentTick, PolicyMode, TelemetrySnapshot } from '@nexus/kernel';
 import {
   TelemetryHub,
   TELEMETRY_WS_URL,
@@ -23,7 +23,6 @@ import {
   saveCabOverride,
   type CabOverride,
 } from '../lib/agentSettings';
-import type { AgentAction } from '@nexus/kernel';
 import { isFullTrainProfile, toBrakePlanProfile, toCommandProfile, type TrainProfileFields } from '../lib/profileBrake';
 import {
   deriveProfileCompleteness,
@@ -69,6 +68,16 @@ function sendProfileCommand(ws: WebSocket | null, profileId: string): void {
     type: 'SELECT_PROFILE',
     profile_id: profileId,
   }));
+}
+
+function parseCommandAck(message: WsMessage): CommandAck {
+  return {
+    ok: Boolean(message.ok),
+    command: typeof message.command === 'string' ? message.command : undefined,
+    value: typeof message.value === 'number' ? message.value : undefined,
+    error: typeof message.error === 'string' ? message.error : undefined,
+    line: typeof message.line === 'string' ? message.line : undefined,
+  };
 }
 
 export function useAgent(): UseAgentResult {
@@ -123,6 +132,12 @@ export function useAgent(): UseAgentResult {
     saveCabOverride(override);
   }, []);
 
+  const applyActiveProfile = useCallback((profile: ProfileSummary | TrainProfileFields | null) => {
+    setActiveProfile(profile);
+    activeProfileRef.current = profile;
+    hubRef.current.setProfile(profile as NormalizerProfile | null);
+  }, []);
+
   const setPolicyMode = useCallback((mode: PolicyMode) => {
     setPolicyModeState(mode);
     savePolicyMode(mode);
@@ -151,11 +166,6 @@ export function useAgent(): UseAgentResult {
   }, []);
 
   useEffect(() => {
-    activeProfileRef.current = activeProfile;
-    hubRef.current.setProfile(activeProfile as NormalizerProfile | null);
-  }, [activeProfile]);
-
-  useEffect(() => {
     isMounted.current = true;
 
     const handleMessage = (event: MessageEvent) => {
@@ -166,13 +176,7 @@ export function useAgent(): UseAgentResult {
         if (!message?.type) return;
 
         if (message.type === 'COMMAND_ACK') {
-          setLastCommandAck({
-            ok: Boolean(message.ok),
-            command: typeof message.command === 'string' ? message.command : undefined,
-            value: typeof message.value === 'number' ? message.value : undefined,
-            error: typeof message.error === 'string' ? message.error : undefined,
-            line: typeof message.line === 'string' ? message.line : undefined,
-          });
+          setLastCommandAck(parseCommandAck(message));
           return;
         }
 
@@ -185,9 +189,7 @@ export function useAgent(): UseAgentResult {
           const resolved = resolveIncomingProfile(message, profilesRef.current);
           const incoming = message.active_profile as TrainProfileFields | undefined;
           const nextProfile = incoming ?? resolved;
-          setActiveProfile(nextProfile);
-          activeProfileRef.current = nextProfile;
-          hubRef.current.setProfile((nextProfile) as NormalizerProfile | null);
+          applyActiveProfile(nextProfile);
           if (message.type === 'PROFILE_CHANGED') {
             const completeness = deriveProfileCompleteness(
               isFullTrainProfile(nextProfile) ? nextProfile : null,
@@ -204,10 +206,7 @@ export function useAgent(): UseAgentResult {
           const incomingId = message.active_profile_id ?? message.active_profile?.id ?? null;
           const currentId = activeProfileRef.current?.id ?? null;
           if (!profileIdsEqual(incomingId, currentId) || message.active_profile !== undefined) {
-            const resolved = resolveIncomingProfile(message, profilesRef.current);
-            setActiveProfile(resolved);
-            activeProfileRef.current = resolved;
-            hubRef.current.setProfile(resolved as NormalizerProfile | null);
+            applyActiveProfile(resolveIncomingProfile(message, profilesRef.current));
           }
         }
 
@@ -293,7 +292,7 @@ export function useAgent(): UseAgentResult {
       socketRef.current?.close();
       socketRef.current = null;
     };
-  }, []);
+  }, [applyActiveProfile]);
 
   const commandProfile = useMemo(
     () => toCommandProfile(trainProfile),
@@ -309,6 +308,11 @@ export function useAgent(): UseAgentResult {
     [snapshot, policyMode, trainProfile, commandProfile, brakeStats],
   );
 
+  const stillBraking = useMemo(
+    () => isBrakeApplied(snapshot, commandProfile),
+    [snapshot, commandProfile],
+  );
+
   const fallbackFromAuto = useCallback(() => {
     logDiagnosticAutoFallback();
     setPolicyModeState('SUGGEST');
@@ -320,14 +324,13 @@ export function useAgent(): UseAgentResult {
     backendConnected: isConnected,
     gameLinked: useLive && snapshot.connected,
     agent,
-    stillBraking: isBrakeApplied(snapshot, commandProfile),
+    stillBraking,
     sendCommand,
     lastAck: lastCommandAck,
     onFallback: fallbackFromAuto,
   });
 
   const isGameLinked = useLive && snapshot.connected;
-  const telemetryActive = useLive;
 
   useSessionDiagnostic({
     snapshot,
@@ -337,8 +340,8 @@ export function useAgent(): UseAgentResult {
     activeProfileId: activeProfile?.id ?? null,
     isBackendConnected: isConnected,
     isGameLinked,
-    telemetryActive,
-    stillBraking: isBrakeApplied(snapshot, commandProfile),
+    telemetryActive: useLive,
+    stillBraking,
     cabOverride,
     lastAck: lastCommandAck,
     brakeStats,

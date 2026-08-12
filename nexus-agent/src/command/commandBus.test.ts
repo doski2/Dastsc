@@ -395,6 +395,22 @@ describe('commandBus', () => {
     expect(resolveSuggestedAction('AUTO', plan as never, CLASS323, snapshot)).toBeUndefined();
   });
 
+  it('does not release OFF when braking toward station above speed limit target', () => {
+    const plan = {
+      targetKind: 'STATION' as const,
+      targetSpeedMs: 0,
+      activeStep: { notch: 'B3', distStart: 10, applyAtRemainingM: 40, applyNow: false, phase: 'service' },
+    };
+    const snapshot = createMockSnapshot({
+      brake: testBrake(-0.5, { cylinder: 2, effortKn: 40, projectedStopM: 35 }),
+      speedMs: 3,
+      speedDisplay: 7,
+      station: { distanceM: 35, nameOcr: 'Test', eta: '' },
+      limits: { effective: 45, frontal: 45, next: { speed: 45, distanceM: 800 }, upcoming: [] },
+    });
+    expect(resolveReleaseAction(snapshot, plan as never, CLASS323)).toBeUndefined();
+  });
+
   it('does not release OFF when at station platform', () => {
     const snapshot = createMockSnapshot({
       brake: testBrake(-0.5, { cylinder: 2, effortKn: 40, projectedStopM: 20 }),

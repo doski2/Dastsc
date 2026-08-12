@@ -40,7 +40,11 @@ misma sesión.
 ## Tests antes de cada sesión TSC
 
 ```bash
+cd nexus-agent && npm test -- --run
+cd Dastsc-V3/backend && python -m unittest discover -s tests -p "test_*.py" -v
 ```
+
+Guía detallada módulo frenado: [semana-04-agente-frenado/brake-module.md](./semana-04-agente-frenado/brake-module.md).
 
 ## Logs automáticos de sesión V4
 

@@ -64,6 +64,12 @@ describe('signal braking', () => {
 
   it('tickAgent prioritizes closer DANGER signal over distant station', () => {
     const snapshot = createMockSnapshot({
+      limits: {
+        effective: 72,
+        frontal: 72,
+        next: { speed: 40, distanceM: 420 },
+        upcoming: [],
+      },
       signaling: { aspect: 'DANGER', distanceM: 400 },
       station: { distanceM: 2000, nameOcr: 'Far', eta: '' },
       speedMs: 20,

@@ -1,5 +1,6 @@
 import type { AgentAction, TelemetrySnapshot } from '@nexus/kernel';
 import {
+  APPLY_NOW_MARGIN_M,
   applyZoneMarginM,
   isInApplyZone,
 } from '../brake/physics';
@@ -186,7 +187,10 @@ function releaseSpeedMargin(
   return unit === 'MPH' ? cfg.releaseMarginMph : cfg.releaseMarginKmh;
 }
 
-function targetSpeedDisplay(snapshot: TelemetrySnapshot): number {
+function targetSpeedDisplay(snapshot: TelemetrySnapshot, plan: BrakePlan | null): number {
+  if (plan?.targetKind === 'STATION' || plan?.targetKind === 'SIGNAL') {
+    return 0;
+  }
   return snapshot.limits.next?.speed ?? snapshot.limits.effective;
 }
 
@@ -197,7 +201,7 @@ function stepInApplyZone(
 ): boolean {
   if (step.applyNow) return true;
   if (!snapshot) {
-    return step.distStart <= 150 && step.distStart >= -150;
+    return step.distStart <= APPLY_NOW_MARGIN_M && step.distStart >= -APPLY_NOW_MARGIN_M;
   }
 
   const zone = applyZoneMarginM(snapshot.speedMs, step.applyAtRemainingM ?? 0);
@@ -260,6 +264,14 @@ export function shouldBlockAutoReleaseForStation(
   if (plan?.targetKind === 'STATION' || plan?.targetKind === 'SIGNAL') {
     if (plan.activeStep?.phase === 'stop') return true;
     if (
+      snapshot.station.distanceM <= stationCfg.dwellMaxDistanceM
+      && snapshot.station.distanceM >= stationCfg.platformTailM
+      && snapshot.speedMs > stationCfg.finalStopSpeedMs
+      && isBrakeApplied(snapshot, profile)
+    ) {
+      return true;
+    }
+    if (
       snapshot.speedMs <= stationCfg.releaseBlockSpeedMs
       && isBrakeApplied(snapshot, profile)
     ) {
@@ -316,16 +328,8 @@ export function resolveReleaseAction(
 
   if (shouldBlockAutoReleaseForStation(snapshot, plan, profile)) return undefined;
 
-  const target = targetSpeedDisplay(snapshot);
+  const target = targetSpeedDisplay(snapshot, plan);
   if (snapshot.speedDisplay > target + releaseSpeedMargin(snapshot.speedUnit, profile)) return undefined;
-
-  if (plan?.activeStep) {
-    const step = plan.activeStep;
-    const stillAboveTarget = snapshot.speedDisplay > target + releaseSpeedMargin(snapshot.speedUnit, profile);
-    if (stepInApplyZone(snapshot, step, plan) && !isReleaseNotch(step.notch) && stillAboveTarget) {
-      return undefined;
-    }
-  }
 
   return buildReleaseCommand(profile) ?? undefined;
 }

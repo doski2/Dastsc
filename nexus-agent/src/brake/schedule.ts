@@ -1,3 +1,5 @@
+import { STATION_COAST_CUTOFF_M } from './physics';
+
 /** Parsea ETA OCR tipo "14:38" a minutos desde medianoche. */
 export function parseEtaMinutes(eta: string): number | null {
   const match = /^(\d{1,2}):(\d{2})$/.exec(eta.trim());
@@ -58,6 +60,7 @@ export function scheduleReactionScale(
 
 /**
  * Metros extra de coast antes del punto de aplicación cuando llegamos pronto.
+ * Cercano al andén no se aplaza la frenada por horario.
  */
 export function scheduleCoastAllowanceM(
   distanceM: number,
@@ -65,6 +68,8 @@ export function scheduleCoastAllowanceM(
   eta: string | undefined,
   now = new Date(),
 ): number {
+  if (distanceM < STATION_COAST_CUTOFF_M) return 0;
+
   const slackSec = scheduleSlackSec(distanceM, speedMs, eta, now);
   if (slackSec == null || slackSec <= 8 || speedMs < 0.5) return 0;
 

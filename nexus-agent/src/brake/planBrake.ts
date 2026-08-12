@@ -1,10 +1,10 @@
 import type { AgentBrakeContext, BrakePlanStep } from '@nexus/kernel';
 import {
-  APPLY_NOW_MARGIN_M,
   DEFAULT_MAX_BRAKE_DECEL,
   MIN_LEARNED_SAMPLES,
   PLANNING_DECEL_AVG_WEIGHT,
   PLANNING_DECEL_STATION_AVG_WEIGHT,
+  TARGET_CLUSTER_GAP_M,
   applyZoneMarginM,
   displaySpeedToMs,
   gravityAcceleration,
@@ -25,6 +25,196 @@ import type {
   PlanBrakeInput,
   SnapshotBrakeContext,
 } from './types';
+
+/** Menor distStart = frenar antes (más urgente). */
+export function brakePlanUrgencyScore(plan: BrakePlan): number {
+  const step = plan.activeStep;
+  if (!step) return Number.POSITIVE_INFINITY;
+  return step.distStart;
+}
+
+export function targetsAreClustered(
+  limitDistM: number,
+  stationDistM: number,
+  clusterGapM = TARGET_CLUSTER_GAP_M,
+): boolean {
+  if (limitDistM <= 0 || stationDistM <= 0) return false;
+  return Math.abs(stationDistM - limitDistM) <= clusterGapM;
+}
+
+function targetKindPriority(kind: BrakeTargetKind): number {
+  if (kind === 'SIGNAL') return 0;
+  if (kind === 'STATION') return 1;
+  return 2;
+}
+
+function isFullStopTarget(kind: BrakeTargetKind): boolean {
+  return kind === 'STATION' || kind === 'SIGNAL';
+}
+
+/** Parada completa gana al cartel si está en el mismo bloque de frenada. */
+function shouldPreferStopTargetOverLimit(
+  plan: BrakePlan,
+  other: BrakePlan,
+  snapshot: {
+    limits: { next: { distanceM: number } | null };
+    station: { distanceM: number };
+    signaling: { distanceM: number };
+  },
+): boolean {
+  if (!isFullStopTarget(plan.targetKind) || other.targetKind !== 'SPEED_LIMIT') return false;
+  const limitDist = snapshot.limits.next?.distanceM;
+  if (limitDist == null || limitDist <= 0) return false;
+  const stopDist = plan.targetKind === 'SIGNAL'
+    ? snapshot.signaling.distanceM
+    : snapshot.station.distanceM;
+  if (stopDist <= 0) return false;
+  return stopDist <= limitDist + TARGET_CLUSTER_GAP_M;
+}
+
+/** Elige el plan que exige frenar antes; si límite y estación están juntos, prioriza parada. */
+export function selectUrgentBrakePlan(
+  candidates: BrakePlan[],
+  snapshot?: {
+    limits: { next: { distanceM: number } | null };
+    station: { distanceM: number };
+    signaling: { distanceM: number };
+  },
+): BrakePlan | null {
+  if (!candidates.length) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  return candidates.reduce((best, plan) => {
+    if (snapshot) {
+      if (shouldPreferStopTargetOverLimit(plan, best, snapshot)) return plan;
+      if (shouldPreferStopTargetOverLimit(best, plan, snapshot)) return best;
+    }
+    const bestScore = brakePlanUrgencyScore(best);
+    const planScore = brakePlanUrgencyScore(plan);
+    if (planScore < bestScore - 5) return plan;
+    if (bestScore < planScore - 5) return best;
+    const planPri = targetKindPriority(plan.targetKind);
+    const bestPri = targetKindPriority(best.targetKind);
+    if (planPri !== bestPri) return planPri < bestPri ? plan : best;
+    return plan.distanceToTargetM < best.distanceToTargetM ? plan : best;
+  });
+}
+
+export function formatClusteredBrakeDetail(
+  snapshot: {
+    limits: { next: { speed: number; distanceM: number } | null; effective: number };
+    station: { distanceM: number; nameOcr?: string };
+    speedUnit: 'MPH' | 'km/h';
+  },
+  plan: BrakePlan,
+): string | null {
+  const limit = snapshot.limits.next;
+  const stationDist = snapshot.station.distanceM;
+  if (!limit || limit.distanceM <= 0 || stationDist <= 0) return null;
+  if (!targetsAreClustered(limit.distanceM, stationDist)) return null;
+
+  const stationName = snapshot.station.nameOcr || 'estación';
+  const step = plan.activeStep;
+  const actionIn = step
+    ? (step.applyNow || step.distStart <= 0
+      ? 'ahora'
+      : `en ~${Math.round(step.metersUntilActionM ?? step.distStart)} m`)
+    : '—';
+  return (
+    `Límite ${Math.round(snapshot.limits.effective)}→${Math.round(limit.speed)} `
+    + `${snapshot.speedUnit} a ${Math.round(limit.distanceM)} m · `
+    + `${stationName} a ${Math.round(stationDist)} m · frenada ${actionIn}`
+  );
+}
+
+/** Salida lenta con distancia OCR residual (20–80 m) — no frenar de nuevo. */
+export function isStalePlatformDeparture(
+  snapshot: {
+    speedMs: number;
+    station: { distanceM: number };
+    brake?: { combined: number };
+  },
+  stationCfg: ReturnType<typeof resolveAgentConfig>['station'],
+): boolean {
+  const distanceM = snapshot.station.distanceM;
+  if (distanceM <= stationCfg.finalStopMaxDistanceM) return false;
+  if (distanceM > stationCfg.dwellMaxDistanceM) return false;
+  if (!hasThrottleApplied(snapshot.brake)) return false;
+  if (snapshot.speedMs <= stationCfg.finalStopSpeedMs) return false;
+  return snapshot.speedMs < stationCfg.departureSpeedMs;
+}
+
+const TURNAROUND_DEPARTURE_MAX_DIST_M = 150;
+const TURNAROUND_DEPARTURE_MAX_TRAVELED_M = 250;
+const BAD_ANCHOR_DWELL_MAX_TRAVELED_M = 15;
+const SHORT_TURNAROUND_ANCHOR_MAX_M = 200;
+const SHORT_TURNAROUND_MAX_TRAVELED_M = 100;
+
+function hasThrottleApplied(brake?: { combined: number }): boolean {
+  return brake != null && brake.combined > 0.05;
+}
+
+/**
+ * Tras giro de cabina en cabecera: ancla OCR residual (~97 m) o salida con tracción
+ * hace que el odómetro “acercarse” de nuevo a la estación — no planificar frenada.
+ */
+export function shouldSuppressStationBrakingForDeparture(
+  snapshot: {
+    speedMs: number;
+    station: { distanceM: number; traveledM?: number; anchorM?: number };
+    brake?: { combined: number };
+  },
+  stationCfg: ReturnType<typeof resolveAgentConfig>['station'],
+): boolean {
+  if (isStalePlatformDeparture(snapshot, stationCfg)) return true;
+
+  const distanceM = snapshot.station.distanceM;
+  const traveled = snapshot.station.traveledM ?? 0;
+  const anchorM = snapshot.station.anchorM;
+  const throttle = hasThrottleApplied(snapshot.brake);
+
+  // Ancla corta tras giro en cabecera (p. ej. 129 m al cerrar puertas) — ignorar estación.
+  if (
+    anchorM != null
+    && anchorM > 0
+    && anchorM < SHORT_TURNAROUND_ANCHOR_MAX_M
+    && traveled <= SHORT_TURNAROUND_MAX_TRAVELED_M
+  ) {
+    return true;
+  }
+
+  // Salida en cabecera con distancia ~0 (llegada completa) y tracción.
+  if (
+    distanceM <= stationCfg.finalStopMaxDistanceM
+    && throttle
+    && snapshot.speedMs > stationCfg.finalStopSpeedMs
+  ) {
+    return true;
+  }
+
+  // Parado con ancla errónea (p. ej. 97 m) — no frenar hacia estación fantasma.
+  if (
+    distanceM > stationCfg.dwellMaxDistanceM
+    && distanceM <= TURNAROUND_DEPARTURE_MAX_DIST_M
+    && traveled < BAD_ANCHOR_DWELL_MAX_TRAVELED_M
+    && snapshot.speedMs <= stationCfg.holdMaxSpeedMs
+  ) {
+    return true;
+  }
+
+  // Salida tras giro: poco recorrido desde ancla + tracción — alejándose, no acercándose.
+  if (
+    distanceM > stationCfg.finalStopMaxDistanceM
+    && distanceM <= TURNAROUND_DEPARTURE_MAX_DIST_M
+    && traveled <= TURNAROUND_DEPARTURE_MAX_TRAVELED_M
+    && throttle
+    && snapshot.speedMs > stationCfg.finalStopSpeedMs
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 export function reactionMarginM(
   speedMs: number,
@@ -98,14 +288,23 @@ export function brakingDistanceM(
   return (speedMs ** 2 - targetSpeedMs ** 2) / (2 * decelMs2);
 }
 
+function listServiceNotches(
+  profile?: BrakePlanProfile | null,
+  order: 'asc' | 'desc' = 'asc',
+): { value: number; label: string }[] {
+  const notches = profile?.specs?.notches_throttle_brake
+    ?.filter(n => n.value < 0 && n.value > -1.0) ?? [];
+  return order === 'asc'
+    ? [...notches].sort((a, b) => a.value - b.value)
+    : [...notches].sort((a, b) => b.value - a.value);
+}
+
 export function buildServicePhases(profile: BrakePlanProfile | null | undefined): {
   fraction: number;
   notchLabel: string;
   label: string;
 }[] {
-  const serviceNotches = profile?.specs?.notches_throttle_brake
-    ?.filter(n => n.value < 0 && n.value > -1.0)
-    .sort((a, b) => a.value - b.value) ?? [];
+  const serviceNotches = listServiceNotches(profile);
 
   if (serviceNotches.length >= 1) {
     const total = serviceNotches.length;
@@ -144,9 +343,7 @@ export function notchStrength(
 export function moderateServiceNotchLabel(
   profile?: BrakePlanProfile | null,
 ): string {
-  const service = profile?.specs?.notches_throttle_brake
-    ?.filter(n => n.value < 0 && n.value > -1.0)
-    .sort((a, b) => a.value - b.value) ?? [];
+  const service = listServiceNotches(profile);
   if (!service.length) return 'B2';
   const mid = service[Math.floor((service.length - 1) / 2)];
   return mid?.label ?? 'B2';
@@ -155,10 +352,7 @@ export function moderateServiceNotchLabel(
 export function weakestServiceNotchLabel(
   profile?: BrakePlanProfile | null,
 ): string {
-  const service = profile?.specs?.notches_throttle_brake
-    ?.filter(n => n.value < 0 && n.value > -1.0)
-    .sort((a, b) => b.value - a.value) ?? [];
-  return service[0]?.label ?? 'B1';
+  return listServiceNotches(profile, 'desc')[0]?.label ?? 'B1';
 }
 
 function preferWeakestStep(
@@ -223,6 +417,13 @@ export function selectStationActiveStep(
 
   const lateForSchedule = slackSec != null && slackSec < -12;
   const finalApproach = distanceToTargetM < 280;
+  const terminalZone = distanceToTargetM < 50;
+
+  if (terminalZone) {
+    const pool = moderateOrStronger([...due, ...inZone, ...upcoming]);
+    if (pool.length) return preferStrongestStep(pool, profile);
+    return preferStrongestStep(steps, profile);
+  }
 
   if (finalApproach || lateForSchedule) {
     const pool = moderateOrStronger([...due, ...inZone]);
@@ -246,8 +447,7 @@ export function selectStationActiveStep(
     return preferWeakestStep(pool, profile);
   }
 
-  const preview = steps.find(s => s.notch === moderateLabel) ?? upcoming[0] ?? steps[0];
-  return preview ?? null;
+  return steps.find(s => s.notch === moderateLabel) ?? upcoming[0] ?? steps[0];
 }
 
 export function selectActiveStep(
@@ -322,6 +522,11 @@ export function planBrake(
 
   if (targetKind === 'STATION') {
     reaction *= scheduleReactionScale(distanceToTargetM, speedMs, scheduleEta, now);
+    const terminalM = resolveAgentConfig(profile).station.terminalApproachDistanceM;
+    if (distanceToTargetM < terminalM) {
+      const t = Math.max(0, distanceToTargetM / terminalM);
+      reaction *= 0.45 + 0.55 * t;
+    }
   } else if (targetKind !== 'SIGNAL') {
     reaction *= lowSpeedReactionScale(speedMs, targetSpeedMs);
   }
@@ -427,35 +632,20 @@ export function planBrakeForLimit(
   );
 }
 
-export function planStationFinalStop(
-  snapshot: {
-    speedMs: number;
-    station: { distanceM: number };
-  },
-  ctx: SnapshotBrakeContext = {},
-): BrakePlan | null {
-  const { distanceM } = snapshot.station;
-  const agent = resolveAgentConfig(ctx.commandProfile ?? ctx.profile);
-  const { station: stationCfg } = agent;
-  if (distanceM > stationCfg.dwellMaxDistanceM || distanceM < stationCfg.platformTailM) return null;
-  if (snapshot.speedMs <= stationCfg.finalStopSpeedMs) return null;
-  // Salida del andén con distancia aún en 0 (Lua no actualizó) — no frenar de nuevo.
-  if (
-    distanceM <= 5
-    && snapshot.speedMs > stationCfg.departureSpeedMs
-  ) {
-    return null;
-  }
-
-  const profile = ctx.profile;
-  const notches = profile?.specs?.notches_throttle_brake
-    ?.filter(n => n.value < 0 && n.value > -1.0)
-    .sort((a, b) => a.value - b.value) ?? [];
+function pickFinalStopNotch(speedMs: number, notches: { label: string }[]): string {
   const strongest = notches[0]?.label ?? 'B3';
-  const notch = snapshot.speedMs > 4 ? strongest
-    : snapshot.speedMs > 1.5 ? (notches[1]?.label ?? 'B2')
-      : (notches[2]?.label ?? 'B1');
+  if (speedMs > 4) return strongest;
+  if (speedMs > 1.5) return notches[1]?.label ?? 'B2';
+  return notches[2]?.label ?? 'B1';
+}
 
+function buildImmediateStopPlan(
+  targetKind: 'STATION' | 'SIGNAL',
+  distanceM: number,
+  speedMs: number,
+  profile?: BrakePlanProfile | null,
+): BrakePlan {
+  const notch = pickFinalStopNotch(speedMs, listServiceNotches(profile));
   const step: BrakePlanStepDetail = {
     notch,
     phase: 'stop',
@@ -466,9 +656,8 @@ export function planStationFinalStop(
     usingLearned: false,
     applyNow: true,
   };
-
   return {
-    targetKind: 'STATION',
+    targetKind,
     distanceToTargetM: distanceM,
     targetSpeedMs: 0,
     reactionMarginM: 0,
@@ -478,15 +667,53 @@ export function planStationFinalStop(
   };
 }
 
+export function planStationFinalStop(
+  snapshot: {
+    speedMs: number;
+    station: { distanceM: number };
+    brake?: { combined: number };
+  },
+  ctx: SnapshotBrakeContext = {},
+): BrakePlan | null {
+  const { distanceM } = snapshot.station;
+  const agent = resolveAgentConfig(ctx.commandProfile ?? ctx.profile);
+  const { station: stationCfg } = agent;
+  if (distanceM > stationCfg.finalStopMaxDistanceM || distanceM < stationCfg.platformTailM) return null;
+  if (snapshot.speedMs <= stationCfg.finalStopSpeedMs) return null;
+  const throttle = hasThrottleApplied(snapshot.brake);
+  // Salida del andén con distancia aún en 0 — no frenar de nuevo (giro de cabina / reverser).
+  if (
+    distanceM <= stationCfg.finalStopMaxDistanceM
+    && throttle
+    && snapshot.speedMs > stationCfg.finalStopSpeedMs
+  ) {
+    return null;
+  }
+  // Salida rápida (Lua no actualizó distancia).
+  if (
+    distanceM <= 5
+    && snapshot.speedMs > stationCfg.departureSpeedMs
+  ) {
+    return null;
+  }
+
+  return buildImmediateStopPlan('STATION', distanceM, snapshot.speedMs, ctx.profile);
+}
+
 export function planBrakeForStation(
   snapshot: {
     speedMs: number;
     gradient: number;
     train: { massT: number; lengthM: number; consistType?: number };
-    station: { distanceM: number; eta?: string };
+    station: { distanceM: number; eta?: string; traveledM?: number; anchorM?: number };
+    brake?: { combined: number };
   },
   ctx: SnapshotBrakeContext = {},
 ): BrakePlan | null {
+  const agent = resolveAgentConfig(ctx.commandProfile ?? ctx.profile);
+  if (snapshot.station.distanceM < 0) return null;
+  if (shouldSuppressStationBrakingForDeparture(snapshot, agent.station)) return null;
+
   const finalStop = planStationFinalStop(snapshot, ctx);
   if (finalStop) return finalStop;
 
@@ -522,38 +749,10 @@ export function planSignalFinalStop(
   const { distanceM } = snapshot.signaling;
   const agent = resolveAgentConfig(ctx.commandProfile ?? ctx.profile);
   const { station: stationCfg } = agent;
-  if (distanceM > stationCfg.dwellMaxDistanceM || distanceM < stationCfg.platformTailM) return null;
+  if (distanceM > stationCfg.finalStopMaxDistanceM || distanceM < stationCfg.platformTailM) return null;
   if (snapshot.speedMs <= stationCfg.finalStopSpeedMs) return null;
 
-  const profile = ctx.profile;
-  const notches = profile?.specs?.notches_throttle_brake
-    ?.filter(n => n.value < 0 && n.value > -1.0)
-    .sort((a, b) => a.value - b.value) ?? [];
-  const strongest = notches[0]?.label ?? 'B3';
-  const notch = snapshot.speedMs > 4 ? strongest
-    : snapshot.speedMs > 1.5 ? (notches[1]?.label ?? 'B2')
-      : (notches[2]?.label ?? 'B1');
-
-  const step: BrakePlanStepDetail = {
-    notch,
-    phase: 'stop',
-    distanceM: 0,
-    applyAtRemainingM: distanceM,
-    distStart: 0,
-    metersUntilActionM: 0,
-    usingLearned: false,
-    applyNow: true,
-  };
-
-  return {
-    targetKind: 'SIGNAL',
-    distanceToTargetM: distanceM,
-    targetSpeedMs: 0,
-    reactionMarginM: 0,
-    steps: [step],
-    activeStep: step,
-    isRealTarget: true,
-  };
+  return buildImmediateStopPlan('SIGNAL', distanceM, snapshot.speedMs, ctx.profile);
 }
 
 export function planBrakeForSignal(

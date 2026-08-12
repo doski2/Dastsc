@@ -28,6 +28,18 @@ MID_LEG_MAX_CAPTURES = 3
 MID_LEG_MIN_SPEED_MS = 10.0 / 3.6  # ~10 km/h
 MID_LEG_COOLDOWN_S = 60.0
 OCR_REJECT_JUMP_M = 40.0
+# Tras parada en andén: OCR < 200 m con distancia calculada ~0 es lectura residual (giro de cabina).
+PLATFORM_RESIDUAL_MAX_M = 50.0
+TURNAROUND_SUSPICIOUS_OCR_MAX_M = 200.0
+# Al cambiar cabina o reverser cerca del andén, limpiar ancla OCR.
+TURNAROUND_CLEAR_MAX_DIST_M = 150.0
+TURNAROUND_CLEAR_MAX_SPEED_MS = 3.0
+# Tras giro/clear, el HUD suele leer la parada anterior (~80–130 m) — exigir ancla larga.
+MIN_NEW_LEG_ANCHOR_M = 400.0
+NEAR_CORRECTION_MAX_UPWARD_M = 15.0
+PLATFORM_NEAR_CORRECTION_MAX_M = 80.0
+REV_FORWARD = 0.05
+REV_REVERSE = -0.05
 
 
 def mid_leg_checkpoint_count(anchor_m: float) -> int:
@@ -102,6 +114,54 @@ def speed_ms_from_telemetry(data: Dict[str, Any]) -> float:
     return 0.0
 
 
+def should_clear_on_turnaround(
+    *,
+    speed_ms: float,
+    tracked_dist_m: Optional[float],
+    active_cab: int,
+    reversal: float,
+    last_active_cab: Optional[int],
+    last_reversal: Optional[float],
+) -> bool:
+    """Limpia ancla OCR al girar en cabecera (cambio de cabina o reverser)."""
+    if last_active_cab is None and last_reversal is None:
+        return False
+    if speed_ms > TURNAROUND_CLEAR_MAX_SPEED_MS:
+        return False
+    if tracked_dist_m is not None and tracked_dist_m > TURNAROUND_CLEAR_MAX_DIST_M:
+        return False
+
+    cab_flipped = (
+        last_active_cab is not None
+        and active_cab in (1, 2)
+        and last_active_cab in (1, 2)
+        and active_cab != last_active_cab
+    )
+    rev_flipped = False
+    if last_reversal is not None:
+        was_fwd = last_reversal > REV_FORWARD
+        was_rev = last_reversal < REV_REVERSE
+        now_fwd = reversal > REV_FORWARD
+        now_rev = reversal < REV_REVERSE
+        rev_flipped = (was_fwd and now_rev) or (was_rev and now_fwd)
+
+    return cab_flipped or rev_flipped
+
+
+def should_clear_on_departure_intent(
+    *,
+    speed_ms: float,
+    tracked_dist_m: Optional[float],
+    combined_control: float,
+) -> bool:
+    """En cabecera (dist ~0), tracción + movimiento = salida tras giro — borrar ancla."""
+    if tracked_dist_m is None or tracked_dist_m > TURNAROUND_CLEAR_MAX_DIST_M:
+        return False
+    if combined_control <= 0.05:
+        return False
+    return speed_ms > 0.5
+
+
 class StationDistanceTracker:
     """Ancla OCR + odómetro para distancia monótona a la próxima estación."""
 
@@ -117,6 +177,7 @@ class StationDistanceTracker:
         self._leg_initial_anchor_m: Optional[float] = None
         self._mid_leg_captures_done = 0
         self._last_ocr_capture_at: float = 0.0
+        self._awaiting_far_anchor = False
 
     @property
     def has_anchor(self) -> bool:
@@ -126,9 +187,6 @@ class StationDistanceTracker:
         if not self.has_anchor:
             return 0.0
         return max(0.0, self._odometer_m - self._anchor_odometer_m)
-
-    def anchor_distance_m(self) -> Optional[float]:
-        return self._anchor_distance_m
 
     def integrate(self, speed_ms: float, now: float) -> None:
         if self._last_tick_time is not None:
@@ -154,12 +212,26 @@ class StationDistanceTracker:
 
     def should_accept_ocr_distance(self, ocr_distance_m: float, event: SampleEvent) -> bool:
         """Rechaza lecturas que suben la distancia de forma implausible."""
+        ocr_value = max(0.0, float(ocr_distance_m))
         if event == "door_anchor":
+            computed = self.distance_m()
+            if self._awaiting_far_anchor and ocr_value < MIN_NEW_LEG_ANCHOR_M:
+                return False
+            # Tras parada en andén, OCR residual (~50–150 m) no es la siguiente estación.
+            if computed is not None and computed < PLATFORM_RESIDUAL_MAX_M:
+                if ocr_value < TURNAROUND_SUSPICIOUS_OCR_MAX_M:
+                    return False
             return True
         computed = self.distance_m()
         if computed is None:
             return True
-        ocr_value = max(0.0, float(ocr_distance_m))
+        if event in ("near_correction", "mid_leg_correction"):
+            # OCR más corto que el odómetro → acercarse a la estación; aceptar.
+            if ocr_value <= computed:
+                return True
+            # En andén (poca distancia), permitir pequeño ajuste al alza.
+            if computed <= PLATFORM_NEAR_CORRECTION_MAX_M and ocr_value <= computed + NEAR_CORRECTION_MAX_UPWARD_M:
+                return True
         if ocr_value > computed + OCR_REJECT_JUMP_M:
             return False
         if event in ("mid_leg_correction", "near_correction") and ocr_value > computed + 5.0:
@@ -195,6 +267,8 @@ class StationDistanceTracker:
             self._last_drift_m = None
             self._leg_initial_anchor_m = ocr_value
             self._mid_leg_captures_done = 0
+            if ocr_value >= MIN_NEW_LEG_ANCHOR_M:
+                self._awaiting_far_anchor = False
         elif event == "mid_leg_correction":
             self._mid_leg_captures_done += 1
 
@@ -287,6 +361,11 @@ class StationDistanceTracker:
             and self.traveled_m() >= MIN_TRAVELED_FOR_CORRECTION_M
         )
 
+    def mark_near_correction_attempted(self, now: float) -> None:
+        """Un intento por tramo (aunque falle el OCR) — evita spam de capturas."""
+        self._near_correction_done = True
+        self._last_ocr_capture_at = now
+
     def maybe_record_sample(self, now: float, speed_ms: float) -> None:
         if not self.has_anchor:
             return
@@ -297,6 +376,10 @@ class StationDistanceTracker:
             return
 
         event: SampleEvent = "arrival" if dist <= 30.0 and speed_ms < 1.0 else "tick"
+        if event == "arrival":
+            self._awaiting_far_anchor = True
+            if dist > 15.0:
+                self._near_correction_done = False
         self._append_sample(StationDistanceSample(
             t=now,
             event=event,
@@ -323,13 +406,6 @@ class StationDistanceTracker:
             "samples": [s.to_dict() for s in self._samples[-40:]],
         }
 
-    def last_drift_m(self) -> Optional[float]:
-        return self._last_drift_m
-
-    @property
-    def near_correction_done(self) -> bool:
-        return self._near_correction_done
-
     def telemetry_fields(self) -> Dict[str, float]:
         """Campos opcionales para enriquecer telemetría WS."""
         if not self.has_anchor:
@@ -354,3 +430,4 @@ class StationDistanceTracker:
         self._leg_initial_anchor_m = None
         self._mid_leg_captures_done = 0
         self._last_ocr_capture_at = 0.0
+        self._awaiting_far_anchor = True

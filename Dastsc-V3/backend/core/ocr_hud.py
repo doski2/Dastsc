@@ -172,6 +172,15 @@ def _normalize_unit(unit: str) -> str:
     return unicodedata.normalize("NFKD", unit).encode("ascii", "ignore").decode().lower()
 
 
+def _distance_match_score(raw_value: str) -> int:
+    score = 1
+    if re.search(r"[.,]", raw_value):
+        score += 2
+    if re.search(r"[.,]\d{2}", raw_value):
+        score += 1
+    return score
+
+
 def _collect_distance_candidates(text: str) -> list[tuple[float, str, str, int]]:
     candidates: list[tuple[float, str, str, int]] = []
     for line in [ln.strip() for ln in text.splitlines() if ln.strip()]:
@@ -181,12 +190,7 @@ def _collect_distance_candidates(text: str) -> list[tuple[float, str, str, int]]
         if best is None:
             continue
         dist, raw_value, unit_raw = best
-        score = 1
-        if re.search(r"[.,]", raw_value):
-            score += 2
-        if re.search(r"[.,]\d{2}", raw_value):
-            score += 1
-        candidates.append((dist, raw_value, unit_raw, score))
+        candidates.append((dist, raw_value, unit_raw, _distance_match_score(raw_value)))
     return candidates
 
 
@@ -198,6 +202,8 @@ def _pick_distance_from_text(text: str) -> Optional[tuple[float, str, str]]:
     tied = [item for item in candidates if item[3] == top_score]
     best = min(tied, key=lambda item: item[0])
     return best[0], best[1], best[2]
+
+
 def _best_distance_match(line: str) -> Optional[tuple[float, str, str]]:
     """Elige la lectura de distancia más fiable en una línea."""
     candidates: list[tuple[float, str, str, int]] = []
@@ -212,13 +218,8 @@ def _best_distance_match(line: str) -> Optional[tuple[float, str, str]]:
         dist = _distance_to_meters(m.group(1), m.group(2))
         if dist is None:
             continue
-        score = 1
         token = m.group(1)
-        if re.search(r"[.,]", token):
-            score += 2
-        if re.search(r"[.,]\d{2}", token):
-            score += 1
-        candidates.append((dist, token, m.group(2), score))
+        candidates.append((dist, token, m.group(2), _distance_match_score(token)))
 
     if not candidates:
         return None

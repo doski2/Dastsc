@@ -3,12 +3,16 @@ import { createMockSnapshot } from '@nexus/kernel';
 import {
   brakingDistanceM,
   decelForNotch,
+  formatClusteredBrakeDetail,
   planBrake,
   planBrakeForLimit,
   planBrakeForStation,
   reactionMarginM,
+  brakePlanUrgencyScore,
   selectActiveStep,
   selectStationActiveStep,
+  selectUrgentBrakePlan,
+  targetsAreClustered,
 } from './planBrake';
 import { gravityAcceleration, G_MSS } from './physics';
 import type { BrakePlanProfile } from './types';
@@ -219,5 +223,89 @@ describe('snapshot helpers', () => {
     const plan = planBrakeForLimit(snapshot, { profile: CLASS323_PROFILE });
     expect(plan?.activeStep?.distStart).toBeLessThan(0);
     expect(plan?.activeStep?.notch).toBe('B3');
+  });
+});
+
+describe('selectUrgentBrakePlan', () => {
+  it('detects clustered limit and station targets', () => {
+    expect(targetsAreClustered(300, 400)).toBe(true);
+    expect(targetsAreClustered(300, 800)).toBe(false);
+  });
+
+  it('prefers station plan when 45 limit is just before stop', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 31.3,
+      speedDisplay: 70,
+      speedUnit: 'MPH',
+      limits: {
+        effective: 70,
+        frontal: 70,
+        next: { speed: 45, distanceM: 300 },
+        upcoming: [],
+      },
+      station: { distanceM: 400, nameOcr: 'University', eta: '' },
+      gradient: 0,
+      train: { lengthM: 120, massT: 180, consistType: 1, profileId: 'class323', name: '323' },
+    });
+    const ctx = { profile: CLASS323_PROFILE };
+    const limitPlan = planBrakeForLimit(snapshot, ctx);
+    const stationPlan = planBrakeForStation(snapshot, ctx);
+    expect(limitPlan).not.toBeNull();
+    expect(stationPlan).not.toBeNull();
+
+    const selected = selectUrgentBrakePlan([limitPlan!, stationPlan!], snapshot);
+    expect(selected?.targetKind).toBe('STATION');
+    expect(brakePlanUrgencyScore(stationPlan!)).toBeLessThan(
+      brakePlanUrgencyScore(limitPlan!),
+    );
+  });
+
+  it('keeps limit plan when station is far beyond the sign', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 31.3,
+      speedDisplay: 70,
+      speedUnit: 'MPH',
+      limits: {
+        effective: 70,
+        frontal: 70,
+        next: { speed: 45, distanceM: 300 },
+        upcoming: [],
+      },
+      station: { distanceM: 1200, nameOcr: 'Far', eta: '' },
+      gradient: 0,
+      train: { lengthM: 120, massT: 180, consistType: 1, profileId: 'class323', name: '323' },
+    });
+    const ctx = { profile: CLASS323_PROFILE };
+    const limitPlan = planBrakeForLimit(snapshot, ctx);
+    const stationPlan = planBrakeForStation(snapshot, ctx);
+    expect(limitPlan).not.toBeNull();
+    expect(stationPlan).not.toBeNull();
+
+    const selected = selectUrgentBrakePlan([limitPlan!, stationPlan!], snapshot);
+    expect(selected?.targetKind).toBe('SPEED_LIMIT');
+  });
+
+  it('formats clustered detail with both distances', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 31.3,
+      speedDisplay: 70,
+      speedUnit: 'MPH',
+      limits: {
+        effective: 70,
+        frontal: 70,
+        next: { speed: 45, distanceM: 280 },
+        upcoming: [],
+      },
+      station: { distanceM: 350, nameOcr: 'Selly Oak', eta: '' },
+      gradient: 0,
+      train: { lengthM: 120, massT: 180, consistType: 1, profileId: 'class323', name: '323' },
+    });
+    const plan = planBrakeForStation(snapshot, { profile: CLASS323_PROFILE });
+    expect(plan).not.toBeNull();
+    const detail = formatClusteredBrakeDetail(snapshot, plan!);
+    expect(detail).toContain('70→45');
+    expect(detail).toContain('280 m');
+    expect(detail).toContain('Selly Oak');
+    expect(detail).toContain('350 m');
   });
 });

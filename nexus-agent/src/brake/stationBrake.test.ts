@@ -95,6 +95,94 @@ describe('station braking', () => {
     expect(planStationFinalStop(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
   });
 
+  it('does not plan final stop with stale OCR distance while creeping off platform', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 2.5,
+      speedDisplay: 6,
+      station: { distanceM: 48, nameOcr: 'University', eta: '' },
+      brake: { combined: 0.5, position: 0, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+    });
+    expect(planStationFinalStop(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
+    expect(planBrakeForStation(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
+  });
+
+  it('does not plan final stop when leaving terminus at distance 0 with power', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 3.35,
+      speedDisplay: 7,
+      station: { distanceM: 0, nameOcr: 'Terminus', eta: '', traveledM: 0 },
+      brake: { combined: 0.25, position: 0.25, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+    });
+    expect(planStationFinalStop(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
+    expect(planBrakeForStation(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
+  });
+
+  it('ignores short turnaround anchor (129 m) for station braking', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 6,
+      station: {
+        distanceM: 97,
+        anchorM: 129,
+        traveledM: 30,
+        nameOcr: 'OldStop',
+        eta: '',
+      },
+      brake: { combined: 0.25, position: 0.25, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+    });
+    expect(planBrakeForStation(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
+  });
+
+  it('does not brake toward phantom station after turnaround (97 m residual OCR)', () => {
+    const stopped = createMockSnapshot({
+      speedMs: 0,
+      station: { distanceM: 97, nameOcr: 'Terminus', eta: '', traveledM: 0 },
+      brake: { combined: -0.75, position: -0.75, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+    });
+    expect(planBrakeForStation(stopped, { profile: CLASS323_PROFILE })).toBeNull();
+
+    const departing = createMockSnapshot({
+      speedMs: 4,
+      station: { distanceM: 85, nameOcr: 'Terminus', eta: '', traveledM: 25 },
+      brake: { combined: 0.25, position: 0.25, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+    });
+    expect(planBrakeForStation(departing, { profile: CLASS323_PROFILE })).toBeNull();
+  });
+
+  it('still plans station brake when genuinely approaching at 97 m on long leg', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 15,
+      station: { distanceM: 97, nameOcr: 'Next', eta: '14:38', traveledM: 2800 },
+      brake: { combined: -0.25, position: -0.25, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+    });
+    expect(planBrakeForStation(snapshot, { profile: CLASS323_PROFILE })).not.toBeNull();
+  });
+
+  it('still plans final stop within last 20 m of platform', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 3,
+      speedDisplay: 7,
+      station: { distanceM: 15, nameOcr: 'University', eta: '' },
+    });
+    const plan = planStationFinalStop(snapshot, { profile: CLASS323_PROFILE });
+    expect(plan?.activeStep?.applyNow).toBe(true);
+  });
+
+  it('plans final stop at 29 m with Class 323 extended platform zone', () => {
+    const profile = {
+      ...CLASS323_PROFILE,
+      agent_config: {
+        station: { final_stop_max_distance_m: 35 },
+      },
+    };
+    const snapshot = createMockSnapshot({
+      speedMs: 2,
+      speedDisplay: 4,
+      station: { distanceM: 29, nameOcr: 'University', eta: '' },
+    });
+    const plan = planStationFinalStop(snapshot, { profile, commandProfile: profile });
+    expect(plan?.activeStep?.applyNow).toBe(true);
+  });
+
   it('prefers strongest notch near station', () => {
     const steps = [
       { notch: 'B3', distStart: 8, applyAtRemainingM: 200, applyNow: false } as const,
@@ -119,6 +207,7 @@ describe('station braking', () => {
     expect(plan?.activeStep?.distStart).toBeGreaterThan(0);
     expect(scheduleSlackSec(900, 20, '14:38', now)).toBeGreaterThan(30);
     expect(scheduleCoastAllowanceM(900, 20, '14:38', now)).toBeGreaterThan(100);
+    expect(scheduleCoastAllowanceM(80, 20, '14:38', now)).toBe(0);
   });
 
   it('delays brake point when early vs no schedule ETA', () => {

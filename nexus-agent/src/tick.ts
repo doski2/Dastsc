@@ -2,11 +2,20 @@ import type { AgentAction, AgentBrakeContext, AgentTick, BrakePlanStep, PolicyMo
 import { formatDistance, formatSpeed } from '@nexus/kernel';
 import { resolveAgentConfig } from './brake/agentConfig';
 import { applyZoneMarginM, isInApplyZone, LIMIT_PLANNING_HORIZON_M } from './brake/physics';
-import { planBrakeForLimit, planBrakeForSignal, planBrakeForStation, toAgentBrakeContext, toKernelBrakeSteps } from './brake/planBrake';
+import {
+  formatClusteredBrakeDetail,
+  planBrakeForLimit,
+  planBrakeForSignal,
+  planBrakeForStation,
+  selectUrgentBrakePlan,
+  toAgentBrakeContext,
+  toKernelBrakeSteps,
+} from './brake/planBrake';
 import { signalRequiresFullStop } from './brake/signalUtils';
 import type { BrakePlan, BrakePlanProfile, SnapshotBrakeContext } from './brake/types';
 import { resolveSuggestedAction } from './command/commandBus';
 import { buildHorizon } from './horizon';
+
 const DEFAULT_MODE: PolicyMode = 'SUGGEST';
 
 const DEFAULT_BRAKE_PROFILE: BrakePlanProfile = {
@@ -19,6 +28,30 @@ const DEFAULT_BRAKE_PROFILE: BrakePlanProfile = {
     ],
   },
 };
+
+function buildSnapshotBrakeCtx(brakeCtx: SnapshotBrakeContext): SnapshotBrakeContext {
+  return {
+    profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
+    commandProfile: brakeCtx.commandProfile,
+    brakeStats: brakeCtx.brakeStats,
+  };
+}
+
+function resolveStationHorizonM(brakeCtx: SnapshotBrakeContext): number {
+  return resolveAgentConfig(
+    brakeCtx.commandProfile ?? brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
+  ).station.planHorizonM;
+}
+
+function wrapBrakePlanPresentation(plan: BrakePlan, gradient: number): {
+  brakePlan: BrakePlanStep[];
+  brakeContext: AgentBrakeContext;
+} {
+  return {
+    brakePlan: toKernelBrakeSteps(plan),
+    brakeContext: toAgentBrakeContext(plan, gradient),
+  };
+}
 
 function estimateMarginS(distanceM: number, speedMs: number): number {
   return speedMs > 0.5 ? distanceM / speedMs : 0;
@@ -42,16 +75,18 @@ function formatBrakeAction(
   const applyZoneM = applyZoneMarginM(speedMs, step.applyAtRemainingM);
   const pastDue = step.distStart < -applyZoneM;
   const applyNow = step.applyNow || isInApplyZone(step.distStart, applyZoneM);
+  const isFinalStop = (plan.targetKind === 'STATION' || plan.targetKind === 'SIGNAL')
+    && step.phase === 'stop';
 
   if (applyNow || pastDue) {
-    const headline = plan.targetKind === 'STATION' && step.phase === 'stop'
+    const headline = plan.targetKind === 'STATION' && isFinalStop
       ? `${step.notch} — parada final`
-      : plan.targetKind === 'SIGNAL' && step.phase === 'stop'
+      : plan.targetKind === 'SIGNAL' && isFinalStop
         ? `${step.notch} — parada en señal`
         : `${step.notch} — aplicar ahora`;
     return {
       headline,
-      detail: (plan.targetKind === 'STATION' || plan.targetKind === 'SIGNAL') && step.phase === 'stop'
+      detail: isFinalStop
         ? `Objetivo a ${plan.distanceToTargetM.toFixed(0)} m · reducir a 0 ${speedUnit}`
         : `Frenada ${step.distanceM.toFixed(0)} m + ${plan.reactionMarginM.toFixed(0)} m margen${learned}`,
       urgency: pastDue ? 'critical' : 'warn',
@@ -70,12 +105,8 @@ function resolveActiveBrakePlan(
   snapshot: TelemetrySnapshot,
   brakeCtx: SnapshotBrakeContext,
 ): { plan: BrakePlan | null; brakePlan?: BrakePlanStep[]; brakeContext?: AgentBrakeContext } {
-  const ctx = {
-    profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
-    commandProfile: brakeCtx.commandProfile,
-    brakeStats: brakeCtx.brakeStats,
-  };
-  const stationHorizonM = resolveAgentConfig(brakeCtx.commandProfile ?? ctx.profile).station.planHorizonM;
+  const ctx = buildSnapshotBrakeCtx(brakeCtx);
+  const stationHorizonM = resolveStationHorizonM(brakeCtx);
 
   const limit = snapshot.limits.next;
   const stationDist = snapshot.station.distanceM;
@@ -100,8 +131,7 @@ function resolveActiveBrakePlan(
 
   const wrap = (plan: BrakePlan) => ({
     plan,
-    brakePlan: toKernelBrakeSteps(plan),
-    brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
+    ...wrapBrakePlanPresentation(plan, snapshot.gradient),
   });
 
   const candidates = [limitPlan, stationPlan, signalPlan].filter(
@@ -109,11 +139,11 @@ function resolveActiveBrakePlan(
   );
   if (!candidates.length) return { plan: null };
 
-  const closest = candidates.reduce((best, plan) =>
-    plan.distanceToTargetM < best.distanceToTargetM ? plan : best,
-  );
-  return wrap(closest);
+  const selected = selectUrgentBrakePlan(candidates, snapshot);
+  if (!selected) return { plan: null };
+  return wrap(selected);
 }
+
 function pickHeadline(
   snapshot: TelemetrySnapshot,
   horizon: ReturnType<typeof buildHorizon>,
@@ -126,6 +156,9 @@ function pickHeadline(
   brakePlan?: BrakePlanStep[];
   brakeContext?: AgentBrakeContext;
 } {
+  const ctx = buildSnapshotBrakeCtx(brakeCtx);
+  const stationHorizonM = resolveStationHorizonM(brakeCtx);
+
   const safety = horizon.find(e => e.kind === 'SAFETY');
   if (safety) {
     return {
@@ -135,10 +168,6 @@ function pickHeadline(
       marginM: 0,
     };
   }
-
-  const stationHorizonM = resolveAgentConfig(
-    brakeCtx.commandProfile ?? brakeCtx.profile,
-  ).station.planHorizonM;
 
   const signalStop = signalRequiresFullStop(snapshot.signaling.aspect)
     && snapshot.signaling.distanceM >= 0
@@ -156,11 +185,7 @@ function pickHeadline(
   if (preferSignal && signalStop != null) {
     const signal = horizon.find(e => e.kind === 'SIGNAL');
     const marginM = signalStop;
-    const plan = planBrakeForSignal(snapshot, {
-      profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
-      commandProfile: brakeCtx.commandProfile,
-      brakeStats: brakeCtx.brakeStats,
-    });
+    const plan = planBrakeForSignal(snapshot, ctx);
     if (plan?.activeStep) {
       const action = formatBrakeAction(plan, snapshot.speedUnit, snapshot.speedMs);
       return {
@@ -168,8 +193,7 @@ function pickHeadline(
         detail: action.detail,
         urgency: action.urgency,
         marginM: plan.activeStep.metersUntilActionM || marginM,
-        brakePlan: toKernelBrakeSteps(plan),
-        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
+        ...wrapBrakePlanPresentation(plan, snapshot.gradient),
       };
     }
     return {
@@ -182,26 +206,19 @@ function pickHeadline(
 
   if (stationStop != null) {
     const marginM = stationStop;
-    const plan = planBrakeForStation(snapshot, {
-      profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
-      commandProfile: brakeCtx.commandProfile,
-      brakeStats: brakeCtx.brakeStats,
-    });
+    const plan = planBrakeForStation(snapshot, ctx);
     if (plan?.activeStep) {
       const action = formatBrakeAction(plan, snapshot.speedUnit, snapshot.speedMs);
       const station = snapshot.station.nameOcr || 'estación';
-      const scheduleHint = snapshot.station.eta
-        ? ` · horario ${snapshot.station.eta}`
-        : '';
+      const detail = snapshot.station.eta
+        ? `${action.detail} · horario ${snapshot.station.eta}`
+        : action.detail;
       return {
         headline: `${station}: ${action.headline}`,
-        detail: snapshot.station.eta
-          ? `${action.detail}${scheduleHint}`
-          : action.detail,
+        detail,
         urgency: action.urgency,
         marginM: plan.activeStep.metersUntilActionM || marginM,
-        brakePlan: toKernelBrakeSteps(plan),
-        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
+        ...wrapBrakePlanPresentation(plan, snapshot.gradient),
       };
     }
     return {
@@ -218,17 +235,13 @@ function pickHeadline(
   if (limit && limit.distanceM < LIMIT_PLANNING_HORIZON_M) {
     const marginM = limit.distanceM;
     const target = limit.targetSpeedDisplay ?? snapshot.limits.effective;
-    const plan = planBrakeForLimit(snapshot, {
-      profile: brakeCtx.profile ?? DEFAULT_BRAKE_PROFILE,
-      brakeStats: brakeCtx.brakeStats,
-    });
+    const plan = planBrakeForLimit(snapshot, ctx);
     if (plan?.activeStep) {
       const action = formatBrakeAction(plan, snapshot.speedUnit, snapshot.speedMs);
       return {
         ...action,
         marginM: plan.activeStep.metersUntilActionM || marginM,
-        brakePlan: toKernelBrakeSteps(plan),
-        brakeContext: toAgentBrakeContext(plan, snapshot.gradient),
+        ...wrapBrakePlanPresentation(plan, snapshot.gradient),
       };
     }
     return {
@@ -255,6 +268,9 @@ export function tickAgent(
   const horizon = buildHorizon(snapshot);
   const brakePresentation = resolveActiveBrakePlan(snapshot, brakeCtx);
   const picked = pickHeadline(snapshot, horizon, brakeCtx);
+  const clusteredDetail = brakePresentation.plan
+    ? formatClusteredBrakeDetail(snapshot, brakePresentation.plan)
+    : null;
   const hasSafetyEvent = horizon.some(e => e.kind === 'SAFETY');
   const suggestedAction = resolveSuggestedAction(
     mode,
@@ -275,7 +291,7 @@ export function tickAgent(
     t: snapshot.t,
     mode,
     headline: picked.headline,
-    detail: picked.detail,
+    detail: clusteredDetail ?? picked.detail,
     urgency: picked.urgency,
     marginM: picked.marginM,
     marginS: estimateMarginS(picked.marginM, snapshot.speedMs),

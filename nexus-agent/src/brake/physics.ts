@@ -5,6 +5,8 @@ export const APPLY_NOW_MARGIN_M = 150;
 export const APPLY_NOW_MARGIN_MIN_M = 25;
 /** Distancia máxima para planificar frenado ante un cartel de límite. */
 export const LIMIT_PLANNING_HORIZON_M = 2500;
+/** Límite y estación a menos de esta separación se planifican como un solo bloque de frenada. */
+export const TARGET_CLUSTER_GAP_M = 350;
 /** Tras soltar OFF en un límite, no volver a frenar hasta superar objetivo + este margen. */
 export const COAST_REBRAKE_MARGIN_MPH = 5;
 export const COAST_REBRAKE_MARGIN_KMH = 8;
@@ -13,6 +15,12 @@ export const COAST_CLEAR_OVERSHOOT_MPH = 8;
 export const COAST_CLEAR_OVERSHOOT_KMH = 13;
 /** Mínima velocidad (m/s) para considerar parada en andén. */
 export const STATION_DWELL_MAX_DISTANCE_M = 80;
+/** Parada final (applyNow): últimos metros del andén (override en `agent_config`). */
+export const STATION_FINAL_STOP_MAX_DISTANCE_M = 20;
+/** Por debajo de esta distancia no aplica holgura de horario al planificar frenada. */
+export const STATION_COAST_CUTOFF_M = 100;
+/** Aproximación terminal: reducir margen de reacción por debajo de esta distancia. */
+export const STATION_TERMINAL_APPROACH_M = 80;
 export const STATION_FINAL_STOP_SPEED_MS = 0.2;
 /** Velocidad máxima (m/s) para mantener freno de servicio en andén (~2 mph). */
 export const STATION_HOLD_MAX_SPEED_MS = 1.0;
