@@ -32,6 +32,16 @@ from core.profile_checklist import (  # noqa: E402
     STATUS_WARN,
     build_profile_checklist,
 )
+from core.notch_capture import (  # noqa: E402
+    PRESET_LABELS,
+    apply_notches_to_profile,
+    brake_control_candidates,
+    capture_notch,
+    default_brake_control,
+    read_brake_control_value,
+    sort_notches,
+    suggest_next_label,
+)
 from core.profile_draft import (  # noqa: E402
     apply_extends_template,
     build_profile_draft,
@@ -53,6 +63,214 @@ STATUS_TAGS = {
     STATUS_MISSING: "missing",
     STATUS_INHERITED: "inherited",
 }
+
+
+class NotchCaptureDialog(tk.Toplevel):
+    """Captura manual muesca a muesca leyendo GetControllerValue en cabina."""
+
+    def __init__(self, parent: ProfileWizardApp) -> None:
+        super().__init__(parent.root)
+        self.app = parent
+        self.title("Capturar muescas de freno")
+        self.geometry("640x520")
+        self.minsize(560, 460)
+        self.transient(parent.root)
+        self.grab_set()
+
+        self.notches: List[Dict[str, Any]] = []
+        self.last_control = ""
+        self._build_ui()
+        self._load_from_profile()
+        self._refresh_controls()
+
+    def _build_ui(self) -> None:
+        intro = ttk.Label(
+            self,
+            text=(
+                "1) Coloca la palanca en la posición deseada.\n"
+                "2) Escribe la etiqueta (B1, B2, OFF, EMG…).\n"
+                "3) Pulsa «Capturar esta muesca».\n"
+                "Repite para cada muesca y luego «Aplicar al perfil»."
+            ),
+            justify=tk.LEFT,
+            padding=8,
+        )
+        intro.pack(fill=tk.X)
+
+        form = ttk.Frame(self, padding=(8, 0))
+        form.pack(fill=tk.X)
+
+        ttk.Label(form, text="Mando:").grid(row=0, column=0, sticky=tk.W, padx=(0, 4))
+        self.control_var = tk.StringVar()
+        self.control_combo = ttk.Combobox(form, textvariable=self.control_var, width=28, state="readonly")
+        self.control_combo.grid(row=0, column=1, sticky=tk.W)
+        ttk.Button(form, text="Actualizar mandos", command=self._refresh_controls).grid(row=0, column=2, padx=(8, 0))
+
+        ttk.Label(form, text="Etiqueta:").grid(row=1, column=0, sticky=tk.W, pady=(8, 0))
+        self.label_var = tk.StringVar(value="EMG")
+        self.label_combo = ttk.Combobox(
+            form,
+            textvariable=self.label_var,
+            width=12,
+            values=list(PRESET_LABELS),
+        )
+        self.label_combo.grid(row=1, column=1, sticky=tk.W, pady=(8, 0))
+
+        ttk.Button(form, text="Capturar esta muesca", command=self._capture_one).grid(
+            row=1, column=2, padx=(8, 0), pady=(8, 0),
+        )
+
+        self.live_var = tk.StringVar(value="Valor en cabina: —")
+        ttk.Label(form, textvariable=self.live_var).grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=(8, 0))
+        ttk.Button(form, text="Leer valor actual", command=self._preview_value).grid(row=2, column=2, sticky=tk.E, pady=(8, 0))
+
+        list_frame = ttk.LabelFrame(self, text="Muescas capturadas", padding=4)
+        list_frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+
+        cols = ("label", "value", "control")
+        self.tree = ttk.Treeview(list_frame, columns=cols, show="headings", height=12)
+        self.tree.heading("label", text="Etiqueta")
+        self.tree.heading("value", text="Value")
+        self.tree.heading("control", text="Mando")
+        self.tree.column("label", width=90, anchor=tk.CENTER)
+        self.tree.column("value", width=90, anchor=tk.CENTER)
+        self.tree.column("control", width=220)
+        scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll.set)
+        self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        btn_row = ttk.Frame(self, padding=8)
+        btn_row.pack(fill=tk.X)
+        ttk.Button(btn_row, text="Quitar seleccionada", command=self._remove_selected).pack(side=tk.LEFT)
+        ttk.Button(btn_row, text="Vaciar lista", command=self._clear_all).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(btn_row, text="Aplicar al perfil", command=self._apply_to_profile).pack(side=tk.RIGHT)
+        ttk.Button(btn_row, text="Cerrar", command=self.destroy).pack(side=tk.RIGHT, padx=(0, 8))
+
+    def _load_from_profile(self) -> None:
+        existing = (self.app.profile.get("specs") or {}).get("notches_throttle_brake") or []
+        self.notches = sort_notches(existing)
+        mappings = self.app.profile.get("mappings") or {}
+        self.last_control = (
+            mappings.get("combined_control")
+            or mappings.get("train_brake")
+            or mappings.get("brake")
+            or ""
+        )
+        self._refresh_tree()
+        self.label_var.set(suggest_next_label(self.notches))
+
+    def _refresh_controls(self) -> None:
+        rd = get_raildriver_client()
+        if not rd.available:
+            messagebox.showerror(
+                "RailDriver",
+                f"No se encuentra RailDriver64.dll:\n{rd.dll_path}",
+                parent=self,
+            )
+            return
+        snap = rd.snapshot()
+        if snap is None or not snap.controllers:
+            messagebox.showwarning(
+                "Sin telemetría",
+                "Entra en cabina con TSC en marcha.",
+                parent=self,
+            )
+            return
+
+        candidates = brake_control_candidates(snap, self.app.profile)
+        self.control_combo["values"] = candidates
+        preferred = self.last_control or default_brake_control(snap, self.app.profile)
+        if preferred and preferred in candidates:
+            self.control_var.set(preferred)
+        elif candidates:
+            self.control_var.set(candidates[0])
+        self.app.last_controls = [c.name for c in snap.controllers]
+        self._preview_value()
+
+    def _selected_control(self) -> str:
+        control = self.control_var.get().strip()
+        if not control:
+            raise ValueError("Selecciona el mando de freno/acelerador.")
+        return control
+
+    def _preview_value(self) -> None:
+        try:
+            rd = get_raildriver_client()
+            control = self._selected_control()
+            value, ctrl = read_brake_control_value(rd, control)
+            self.live_var.set(
+                f"Valor en cabina: {value:+.4f}  ({control}  min={ctrl.min_value:g} max={ctrl.max_value:g})",
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.live_var.set(f"Valor en cabina: — ({exc})")
+
+    def _capture_one(self) -> None:
+        try:
+            rd = get_raildriver_client()
+            if not rd.available:
+                raise RuntimeError("RailDriver no disponible.")
+            control = self._selected_control()
+            value, ctrl = read_brake_control_value(rd, control)
+            label = self.label_var.get().strip()
+            self.notches = capture_notch(label, value, control, self.notches)
+            self.last_control = control
+            self._refresh_tree()
+            self.label_var.set(suggest_next_label(self.notches))
+            self.live_var.set(
+                f"Capturada {label.upper()} = {value:+.4f}  ({control}  min={ctrl.min_value:g} max={ctrl.max_value:g})",
+            )
+        except (RuntimeError, ValueError) as exc:
+            messagebox.showerror("Captura", str(exc), parent=self)
+
+    def _refresh_tree(self) -> None:
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+        control = self.last_control or self.control_var.get().strip()
+        for notch in sort_notches(self.notches):
+            self.tree.insert(
+                "",
+                tk.END,
+                values=(notch["label"], f"{notch['value']:+.4f}", control),
+            )
+
+    def _remove_selected(self) -> None:
+        selected = self.tree.selection()
+        if not selected:
+            return
+        labels = {self.tree.item(item, "values")[0].upper() for item in selected}
+        self.notches = [n for n in self.notches if str(n.get("label", "")).upper() not in labels]
+        self._refresh_tree()
+        self.label_var.set(suggest_next_label(self.notches))
+
+    def _clear_all(self) -> None:
+        if self.notches and not messagebox.askyesno(
+            "Vaciar",
+            "¿Borrar todas las muescas capturadas?",
+            parent=self,
+        ):
+            return
+        self.notches = []
+        self._refresh_tree()
+        self.label_var.set("EMG")
+
+    def _apply_to_profile(self) -> None:
+        if not self.notches:
+            messagebox.showwarning("Sin muescas", "Captura al menos una muesca.", parent=self)
+            return
+        control = self.control_var.get().strip() or self.last_control or None
+        self.app.profile = apply_notches_to_profile(self.app.profile, self.notches, control)
+        self.app._write_json_to_editor()
+        self.app._refresh_checklist()
+        self.app.status_var.set(
+            f"Muescas aplicadas al perfil ({len(self.notches)} entradas · mando {control or '?'})",
+        )
+        messagebox.showinfo(
+            "Aplicado",
+            f"{len(self.notches)} muescas escritas en specs.notches_throttle_brake.\n"
+            "Revisa el JSON y guarda el perfil.",
+            parent=self,
+        )
 
 
 class ProfileWizardApp:
@@ -112,6 +330,7 @@ class ProfileWizardApp:
         btn_row.pack(fill=tk.X)
         ttk.Button(btn_row, text="Nuevo", command=self._new_profile).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_row, text="Capturar cabina", command=self._capture_cab).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_row, text="Capturar muescas…", command=self._open_notch_capture).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_row, text="Cargar JSON…", command=self._load_json).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_row, text="Heredar class323", command=lambda: self._apply_extends("class323")).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_row, text="Actualizar checklist", command=self._refresh_checklist).pack(side=tk.LEFT, padx=2)
@@ -260,6 +479,9 @@ class ProfileWizardApp:
             self.status_var.set("JSON del editor aplicado")
         except (json.JSONDecodeError, ValueError) as exc:
             messagebox.showerror("JSON inválido", str(exc))
+
+    def _open_notch_capture(self) -> None:
+        NotchCaptureDialog(self)
 
     def _capture_cab(self) -> None:
         rd = get_raildriver_client()

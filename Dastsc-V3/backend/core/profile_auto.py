@@ -136,13 +136,26 @@ def _auto_priority(profile: Profile) -> int:
         return 50
 
 
-def _is_auto_candidate(profile: Profile) -> bool:
+def is_auto_detectable_profile(profile: Profile) -> bool:
+    """
+    Perfil elegible para AUTO y selector V4.
+
+    Incluye JSON legacy en /profiles (aliases o fingerprint) además de nexus/trains.
+    Excluye genres ocultos (passenger) y perfiles sin metadatos de detección.
+    """
     nexus = profile.get("nexus") or {}
     if nexus.get("hidden"):
         return False
     if nexus.get("tier") == "genre":
         return False
-    return True
+    if profile.get("aliases"):
+        return True
+    required = (profile.get("fingerprint") or {}).get("required_controls") or []
+    return len(required) >= 1
+
+
+def _is_auto_candidate(profile: Profile) -> bool:
+    return is_auto_detectable_profile(profile)
 
 
 def _pick_generic_fallback(profiles: List[Profile], controller_names: List[str]) -> Optional[Profile]:
@@ -168,11 +181,8 @@ def _pick_generic_fallback(profiles: List[Profile], controller_names: List[str])
 
 
 def _auto_profile_pool(profiles: List[Profile]) -> List[Profile]:
-    nexus_pool = [p for p in profiles if p.get("nexus") and _is_auto_candidate(p)]
-    if nexus_pool:
-        return nexus_pool
-    legacy_pool = [p for p in profiles if _is_auto_candidate(p)]
-    return legacy_pool if legacy_pool else profiles
+    pool = [p for p in profiles if is_auto_detectable_profile(p)]
+    return pool if pool else list(profiles)
 
 
 def resolve_auto_profile(

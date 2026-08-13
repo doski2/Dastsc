@@ -198,6 +198,84 @@ class TestStationDistanceTracker(unittest.TestCase):
             ),
         )
 
+    def test_should_not_clear_on_departure_during_approach(self):
+        """Tracción ligera a >35 m no debe borrar ancla (sesión 2026-08-13)."""
+        self.assertFalse(
+            should_clear_on_departure_intent(
+                speed_ms=9.15,
+                tracked_dist_m=134.0,
+                combined_control=0.25,
+            ),
+        )
+        self.assertFalse(
+            should_clear_on_departure_intent(
+                speed_ms=1.35,
+                tracked_dist_m=80.0,
+                combined_control=0.25,
+            ),
+        )
+
+    def test_accepts_near_correction_moderate_upward_drift(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(1867.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 15.0, 98.0)
+        computed = tracker.distance_m()
+        assert computed is not None
+        accepted = tracker.anchor_from_ocr(computed + 24.3, event="near_correction", now=98.0)
+        self.assertTrue(accepted)
+
+    def test_accepts_near_correction_brincliffe_session_drift(self):
+        """Sesión 2026-08-13: OCR 499 m vs odómetro 385 m (+114 m)."""
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(1287.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 20.0, 45.0)
+        computed = tracker.distance_m()
+        assert computed is not None
+        self.assertAlmostEqual(computed, 387.0, delta=5.0)
+        accepted = tracker.anchor_from_ocr(499.0, event="near_correction", now=45.0, speed_ms=20.0)
+        self.assertTrue(accepted)
+        self.assertAlmostEqual(tracker.distance_m() or 0, 499.0, delta=0.5)
+
+    def test_accepts_near_correction_when_stopped_short(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(1287.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 20.0, 61.0)
+        computed = tracker.distance_m()
+        assert computed is not None
+        self.assertTrue(
+            tracker.should_accept_ocr_distance(161.0, "near_correction", speed_ms=0.0),
+        )
+
+    def test_should_retry_near_correction_on_moderate_rejection(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(500.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 15.0, 7.7)
+        computed = tracker.distance_m()
+        assert computed is not None
+        self.assertAlmostEqual(computed, 385.0, delta=5.0)
+        self.assertTrue(tracker.should_retry_near_correction(computed + 24.0))
+        self.assertTrue(tracker.should_retry_near_correction(computed + 114.0, speed_ms=20.0))
+        self.assertFalse(tracker.should_retry_near_correction(computed + 130.0, speed_ms=20.0))
+
+    def test_rejects_platform_near_correction_spike(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(500.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 15.0, 31.0)
+        self.assertFalse(tracker.should_accept_ocr_distance(97.0, "near_correction", speed_ms=0.5))
+
+    def test_short_stop_requests_near_correction(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(1287.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 20.0, 61.0)
+        tracker.mark_near_correction_attempted(61.0)
+        self.assertTrue(tracker.should_request_near_correction(speed_ms=0.0, now=80.0))
+
     def test_rejects_short_door_anchor_after_turnaround_clear(self):
         tracker = StationDistanceTracker()
         tracker.clear()

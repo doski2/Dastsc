@@ -64,6 +64,7 @@ _RE_ETA = re.compile(r"ETA[:\s]+(\d{1,2}:\d{2}(?::\d{2})?)", re.IGNORECASE)
 _RE_SCHED = re.compile(r"@\s*(\d{1,2}:\d{2}(?::\d{2})?)", re.IGNORECASE)
 _RE_PURE_TIME = re.compile(r"^\d{1,2}:\d{2}(?::\d{2})?$")
 _RE_LEADING_JUNK = re.compile(r"^[^A-Za-zÀ-ÿ0-9]+", re.UNICODE)
+_RE_STATION_X_PREFIX = re.compile(r"^[xX]\s+")
 
 _MILES_TO_M = 1609.34
 _MAX_STATION_DISTANCE_M = 150_000.0  # 150 km — más allá suele ser OCR sin decimal
@@ -342,6 +343,7 @@ def _parse(text: str) -> Optional[Dict]:
             and len(line) > 3
         ):
             clean = _RE_LEADING_JUNK.sub("", line).strip()
+            clean = _RE_STATION_X_PREFIX.sub("", clean).strip()
             if len(clean) > 3:
                 result["station_name"] = clean
             break

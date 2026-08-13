@@ -7,6 +7,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 import core.brake_log as brake_log
+from core.profile_auto import is_auto_detectable_profile
 from core.profile_completeness import assess_profile_completeness
 
 Profile = Dict[str, Any]
@@ -53,14 +54,6 @@ def _iter_profile_files(profiles_dir: str) -> List[str]:
     return paths
 
 
-def _is_nexus_ui_profile(profile: Profile) -> bool:
-    nexus = profile.get("nexus") or {}
-    if nexus.get("hidden"):
-        return False
-    tier = nexus.get("tier")
-    return tier in {"train", "generic"}
-
-
 class ProfileManager:
     def __init__(self, profiles_dir: str):
         self.profiles_dir = profiles_dir
@@ -90,12 +83,10 @@ class ProfileManager:
         return any(p.get("nexus") for p in self.profiles)
 
     def get_all_profiles(self) -> List[ProfileSummary]:
-        """Lista simplificada para el selector de la UI."""
-        sources = (
-            [p for p in self.profiles if _is_nexus_ui_profile(p)]
-            if self.has_nexus_profiles()
-            else self.profiles
-        )
+        """Lista simplificada para el selector de la UI (legacy + nexus detectables)."""
+        sources = [p for p in self.profiles if is_auto_detectable_profile(p)]
+        if not sources:
+            sources = self.profiles
         return [
             {
                 "id": p["id"],

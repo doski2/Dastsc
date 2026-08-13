@@ -6,6 +6,7 @@ import {
   formatClusteredBrakeDetail,
   planBrake,
   planBrakeForLimit,
+  planBrakeForSignal,
   planBrakeForStation,
   reactionMarginM,
   brakePlanUrgencyScore,
@@ -232,7 +233,7 @@ describe('selectUrgentBrakePlan', () => {
     expect(targetsAreClustered(300, 800)).toBe(false);
   });
 
-  it('prefers station plan when 45 limit is just before stop', () => {
+  it('prefers limit plan when 45 limit is just before stop', () => {
     const snapshot = createMockSnapshot({
       speedMs: 31.3,
       speedDisplay: 70,
@@ -254,10 +255,33 @@ describe('selectUrgentBrakePlan', () => {
     expect(stationPlan).not.toBeNull();
 
     const selected = selectUrgentBrakePlan([limitPlan!, stationPlan!], snapshot);
-    expect(selected?.targetKind).toBe('STATION');
-    expect(brakePlanUrgencyScore(stationPlan!)).toBeLessThan(
-      brakePlanUrgencyScore(limitPlan!),
-    );
+    expect(selected?.targetKind).toBe('SPEED_LIMIT');
+  });
+
+  it('prefers signal plan over limit when clustered at stop', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 20,
+      speedDisplay: 45,
+      speedUnit: 'MPH',
+      limits: {
+        effective: 45,
+        frontal: 45,
+        next: { speed: 20, distanceM: 300 },
+        upcoming: [],
+      },
+      signaling: { aspect: 'DANGER', distanceM: 350 },
+      station: { distanceM: 800, nameOcr: 'Far', eta: '' },
+      gradient: 0,
+      train: { lengthM: 120, massT: 180, consistType: 1, profileId: 'class323', name: '323' },
+    });
+    const ctx = { profile: CLASS323_PROFILE };
+    const limitPlan = planBrakeForLimit(snapshot, ctx);
+    const signalPlan = planBrakeForSignal(snapshot, ctx);
+    expect(limitPlan).not.toBeNull();
+    expect(signalPlan).not.toBeNull();
+
+    const selected = selectUrgentBrakePlan([limitPlan!, signalPlan!], snapshot);
+    expect(selected?.targetKind).toBe('SIGNAL');
   });
 
   it('keeps limit plan when station is far beyond the sign', () => {

@@ -100,6 +100,7 @@ class TestMainHelpers(unittest.TestCase):
         for _ in range(100):
             now += 0.05
             tracker.integrate(20.0, now)
+        data.pop("StationDistance", None)
         _apply_station_distance(data, tracker)
         self.assertLess(data["StationDistance"], 1234.6)
         self.assertGreater(data["StationTraveledM"], 0)

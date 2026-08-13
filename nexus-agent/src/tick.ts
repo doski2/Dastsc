@@ -204,6 +204,27 @@ function pickHeadline(
     };
   }
 
+  const limit = horizon.find(e => e.kind === 'SPEED_LIMIT');
+  if (limit && limit.distanceM < LIMIT_PLANNING_HORIZON_M) {
+    const marginM = limit.distanceM;
+    const target = limit.targetSpeedDisplay ?? snapshot.limits.effective;
+    const plan = planBrakeForLimit(snapshot, ctx);
+    if (plan?.activeStep) {
+      const action = formatBrakeAction(plan, snapshot.speedUnit, snapshot.speedMs);
+      return {
+        ...action,
+        marginM: plan.activeStep.metersUntilActionM || marginM,
+        ...wrapBrakePlanPresentation(plan, snapshot.gradient),
+      };
+    }
+    return {
+      headline: `Reducir a ${Math.round(target)} ${snapshot.speedUnit} en ~${formatDistance(marginM, snapshot.speedUnit)}`,
+      detail: `Límite ${Math.round(snapshot.limits.effective)} → ${Math.round(target)} ${snapshot.speedUnit} · gradiente ${snapshot.gradient > 0 ? '+' : ''}${(snapshot.gradient / 10).toFixed(2)}%`,
+      urgency: marginM < 300 ? 'warn' : 'info',
+      marginM,
+    };
+  }
+
   if (stationStop != null) {
     const marginM = stationStop;
     const plan = planBrakeForStation(snapshot, ctx);
@@ -231,32 +252,11 @@ function pickHeadline(
     };
   }
 
-  const limit = horizon.find(e => e.kind === 'SPEED_LIMIT');
-  if (limit && limit.distanceM < LIMIT_PLANNING_HORIZON_M) {
-    const marginM = limit.distanceM;
-    const target = limit.targetSpeedDisplay ?? snapshot.limits.effective;
-    const plan = planBrakeForLimit(snapshot, ctx);
-    if (plan?.activeStep) {
-      const action = formatBrakeAction(plan, snapshot.speedUnit, snapshot.speedMs);
-      return {
-        ...action,
-        marginM: plan.activeStep.metersUntilActionM || marginM,
-        ...wrapBrakePlanPresentation(plan, snapshot.gradient),
-      };
-    }
-    return {
-      headline: `Reducir a ${Math.round(target)} ${snapshot.speedUnit} en ~${formatDistance(marginM, snapshot.speedUnit)}`,
-      detail: `Límite ${Math.round(snapshot.limits.effective)} → ${Math.round(target)} ${snapshot.speedUnit} · gradiente ${snapshot.gradient > 0 ? '+' : ''}${(snapshot.gradient / 10).toFixed(2)}%`,
-      urgency: marginM < 300 ? 'warn' : 'info',
-      marginM,
-    };
-  }
-
   return {
     headline: 'Circulación supervisada',
     detail: `Velocidad ${formatSpeed(snapshot.speedDisplay)} ${snapshot.speedUnit} · límite actual ${Math.round(snapshot.limits.effective)}`,
     urgency: 'info',
-    marginM: limit?.distanceM ?? 9999,
+    marginM: snapshot.limits.next?.distanceM ?? 9999,
   };
 }
 

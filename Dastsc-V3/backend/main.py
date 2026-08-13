@@ -442,6 +442,8 @@ async def telemetry_reader() -> None:
         capture_time: float = 0.0,
     ) -> None:
         nonlocal ocr_last_result, ocr_is_capturing
+        anchored = False
+        result = None
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
@@ -474,8 +476,12 @@ async def telemetry_reader() -> None:
             print(f"[OCR] Error ({event}): {exc}")
             _log_ocr_session_event(event, station_tracker, error=str(exc))
         finally:
-            if event == "near_correction":
-                station_tracker.mark_near_correction_attempted(capture_time or time.time())
+            if event == "near_correction" and not anchored:
+                ocr_m = result.get("distance_m") if result else None
+                if ocr_m is None or not station_tracker.should_retry_near_correction(
+                    float(ocr_m), capture_speed_ms,
+                ):
+                    station_tracker.mark_near_correction_attempted(capture_time or time.time())
             ocr_is_capturing = False
 
     while True:
@@ -542,7 +548,7 @@ async def telemetry_reader() -> None:
                                 asyncio.create_task(
                                     run_ocr_capture("door_anchor", speed_ms, now),
                                 )
-                            elif station_tracker.should_request_near_correction():
+                            elif station_tracker.should_request_near_correction(speed_ms, now):
                                 ocr_is_capturing = True
                                 asyncio.create_task(
                                     run_ocr_capture("near_correction", speed_ms, now),

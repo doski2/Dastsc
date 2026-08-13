@@ -25,11 +25,33 @@ class TestNexusProfiles(unittest.TestCase):
         self.assertIn("passenger", ids)
         self.assertIn("generic", ids)
 
-    def test_ui_lists_only_trains_and_generic(self):
+    def test_ui_lists_detectable_profiles_from_full_folder(self):
         visible = self.manager.get_all_profiles()
         visible_ids = {p["id"] for p in visible}
-        self.assertEqual(visible_ids, {"class323", "icet", "generic"})
+        self.assertIn("class323", visible_ids)
+        self.assertIn("icet", visible_ids)
+        self.assertIn("generic", visible_ids)
+        self.assertIn("class390_expert", visible_ids)
         self.assertNotIn("passenger", visible_ids)
+
+    def test_auto_selects_class390_expert_from_legacy(self):
+        resolved = resolve_auto_profile(
+            self.manager.profiles,
+            ["[WCML-S] Class 390 A 692 Avanti"],
+            [
+                "ThrottleAndBrake",
+                "Regulator",
+                "TrainBrakeControl",
+                "DRA",
+                "DSDAlarm",
+                "AWS",
+                "UserVirtualReverser",
+                "Reverser",
+            ],
+        )
+        self.assertIsNotNone(resolved)
+        assert resolved is not None
+        self.assertEqual(resolved["id"], "class390_expert")
 
     def test_class323_extends_passenger(self):
         base = self.manager.get_by_id("class323")
@@ -38,7 +60,7 @@ class TestNexusProfiles(unittest.TestCase):
         self.assertEqual(base.get("extends"), "passenger")
         resolved = resolve_profile_chain(base, self.manager.get_by_id)
         self.assertTrue(resolved["specs"]["notches_throttle_brake"])
-        self.assertEqual(resolved["physics_config"]["station_reaction_time_s"], 1.2)
+        self.assertEqual(resolved["physics_config"]["station_reaction_time_s"], 0.9)
         self.assertEqual(resolved["physics_config"]["max_braking_decel"], 1.1)
 
     def test_icet_extends_passenger_with_german_notches(self):

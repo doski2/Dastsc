@@ -34,9 +34,19 @@ TURNAROUND_SUSPICIOUS_OCR_MAX_M = 200.0
 # Al cambiar cabina o reverser cerca del andén, limpiar ancla OCR.
 TURNAROUND_CLEAR_MAX_DIST_M = 150.0
 TURNAROUND_CLEAR_MAX_SPEED_MS = 3.0
+# Salida en cabecera tras parada: distancia casi 0 y velocidad baja — no confundir con aproximación.
+DEPARTURE_CLEAR_MAX_DIST_M = 35.0
+DEPARTURE_CLEAR_MAX_SPEED_MS = 5.0
 # Tras giro/clear, el HUD suele leer la parada anterior (~80–130 m) — exigir ancla larga.
 MIN_NEW_LEG_ANCHOR_M = 400.0
 NEAR_CORRECTION_MAX_UPWARD_M = 15.0
+NEAR_CORRECTION_MAX_UPWARD_APPROACH_M = 30.0
+NEAR_CORRECTION_MAX_UPWARD_RATIO = 0.30
+NEAR_CORRECTION_RETRY_MAX_UPWARD_M = 120.0
+NEAR_CORRECTION_MIN_INTERVAL_S = 15.0
+SHORT_STOP_RETRY_MIN_M = 40.0
+SHORT_STOP_RETRY_MAX_M = 120.0
+SHORT_STOP_MAX_UPWARD_M = 120.0
 PLATFORM_NEAR_CORRECTION_MAX_M = 80.0
 REV_FORWARD = 0.05
 REV_REVERSE = -0.05
@@ -154,10 +164,12 @@ def should_clear_on_departure_intent(
     tracked_dist_m: Optional[float],
     combined_control: float,
 ) -> bool:
-    """En cabecera (dist ~0), tracción + movimiento = salida tras giro — borrar ancla."""
-    if tracked_dist_m is None or tracked_dist_m > TURNAROUND_CLEAR_MAX_DIST_M:
+    """En cabecera (dist ~0), tracción lenta = salida tras giro — borrar ancla."""
+    if tracked_dist_m is None or tracked_dist_m > DEPARTURE_CLEAR_MAX_DIST_M:
         return False
     if combined_control <= 0.05:
+        return False
+    if speed_ms > DEPARTURE_CLEAR_MAX_SPEED_MS:
         return False
     return speed_ms > 0.5
 
@@ -178,6 +190,18 @@ class StationDistanceTracker:
         self._mid_leg_captures_done = 0
         self._last_ocr_capture_at: float = 0.0
         self._awaiting_far_anchor = False
+        self._near_correction_arrival_reset_used = False
+
+    def _near_correction_max_upward(self, computed: float, speed_ms: float = 0.0) -> float:
+        if computed <= PLATFORM_NEAR_CORRECTION_MAX_M:
+            return NEAR_CORRECTION_MAX_UPWARD_M
+        limit = max(
+            NEAR_CORRECTION_MAX_UPWARD_APPROACH_M,
+            computed * NEAR_CORRECTION_MAX_UPWARD_RATIO,
+        )
+        if speed_ms < 1.0 and computed >= SHORT_STOP_RETRY_MIN_M:
+            limit = max(limit, SHORT_STOP_MAX_UPWARD_M)
+        return min(limit, NEAR_CORRECTION_RETRY_MAX_UPWARD_M)
 
     @property
     def has_anchor(self) -> bool:
@@ -210,7 +234,12 @@ class StationDistanceTracker:
         leg = self._leg_initial_anchor_m
         return [leg * k / (count + 1) for k in range(1, count + 1)]
 
-    def should_accept_ocr_distance(self, ocr_distance_m: float, event: SampleEvent) -> bool:
+    def should_accept_ocr_distance(
+        self,
+        ocr_distance_m: float,
+        event: SampleEvent,
+        speed_ms: float = 0.0,
+    ) -> bool:
         """Rechaza lecturas que suben la distancia de forma implausible."""
         ocr_value = max(0.0, float(ocr_distance_m))
         if event == "door_anchor":
@@ -229,8 +258,21 @@ class StationDistanceTracker:
             # OCR más corto que el odómetro → acercarse a la estación; aceptar.
             if ocr_value <= computed:
                 return True
+            upward = ocr_value - computed
             # En andén (poca distancia), permitir pequeño ajuste al alza.
-            if computed <= PLATFORM_NEAR_CORRECTION_MAX_M and ocr_value <= computed + NEAR_CORRECTION_MAX_UPWARD_M:
+            if computed <= PLATFORM_NEAR_CORRECTION_MAX_M and upward <= NEAR_CORRECTION_MAX_UPWARD_M:
+                return True
+            # Aproximación: odómetro suele adelantarse vs millas del HUD (p. ej. +30%).
+            if event == "near_correction" and computed > PLATFORM_NEAR_CORRECTION_MAX_M:
+                if upward <= self._near_correction_max_upward(computed, speed_ms):
+                    return True
+            # Parada corta en vía: HUD confirma más distancia que el odómetro.
+            if (
+                event == "near_correction"
+                and speed_ms < 1.0
+                and SHORT_STOP_RETRY_MIN_M <= computed <= SHORT_STOP_RETRY_MAX_M
+                and 0 < upward <= SHORT_STOP_MAX_UPWARD_M
+            ):
                 return True
         if ocr_value > computed + OCR_REJECT_JUMP_M:
             return False
@@ -248,7 +290,7 @@ class StationDistanceTracker:
         ocr_raw_m: Optional[float] = None,
     ) -> bool:
         ocr_value = max(0.0, float(distance_m))
-        if not self.should_accept_ocr_distance(ocr_value, event):
+        if not self.should_accept_ocr_distance(ocr_value, event, speed_ms):
             return False
 
         computed_before = self.distance_m()
@@ -267,6 +309,7 @@ class StationDistanceTracker:
             self._last_drift_m = None
             self._leg_initial_anchor_m = ocr_value
             self._mid_leg_captures_done = 0
+            self._near_correction_arrival_reset_used = False
             if ocr_value >= MIN_NEW_LEG_ANCHOR_M:
                 self._awaiting_far_anchor = False
         elif event == "mid_leg_correction":
@@ -350,11 +393,20 @@ class StationDistanceTracker:
             return False
         return self.traveled_m() >= milestones[self._mid_leg_captures_done]
 
-    def should_request_near_correction(self) -> bool:
-        if not self.has_anchor or self._near_correction_done:
+    def should_request_near_correction(self, speed_ms: float = 0.0, now: float = 0.0) -> bool:
+        if not self.has_anchor:
             return False
         dist = self.distance_m()
         if dist is None:
+            return False
+        if now > 0 and now - self._last_ocr_capture_at < NEAR_CORRECTION_MIN_INTERVAL_S:
+            return False
+        if (
+            SHORT_STOP_RETRY_MIN_M < dist <= SHORT_STOP_RETRY_MAX_M
+            and speed_ms < 1.0
+        ):
+            return True
+        if self._near_correction_done:
             return False
         return (
             dist <= NEAR_CORRECTION_M
@@ -365,6 +417,17 @@ class StationDistanceTracker:
         """Un intento por tramo (aunque falle el OCR) — evita spam de capturas."""
         self._near_correction_done = True
         self._last_ocr_capture_at = now
+
+    def should_retry_near_correction(self, ocr_distance_m: float, speed_ms: float = 0.0) -> bool:
+        """Reintento si el OCR rechazado corrige deriva moderada al alza."""
+        computed = self.distance_m()
+        if computed is None:
+            return False
+        ocr_value = max(0.0, float(ocr_distance_m))
+        if ocr_value <= computed:
+            return True
+        upward = ocr_value - computed
+        return upward <= self._near_correction_max_upward(computed, speed_ms)
 
     def maybe_record_sample(self, now: float, speed_ms: float) -> None:
         if not self.has_anchor:
@@ -378,8 +441,12 @@ class StationDistanceTracker:
         event: SampleEvent = "arrival" if dist <= 30.0 and speed_ms < 1.0 else "tick"
         if event == "arrival":
             self._awaiting_far_anchor = True
-            if dist > 15.0:
+            if (
+                15.0 < dist <= PLATFORM_NEAR_CORRECTION_MAX_M
+                and not self._near_correction_arrival_reset_used
+            ):
                 self._near_correction_done = False
+                self._near_correction_arrival_reset_used = True
         self._append_sample(StationDistanceSample(
             t=now,
             event=event,
@@ -431,3 +498,4 @@ class StationDistanceTracker:
         self._mid_leg_captures_done = 0
         self._last_ocr_capture_at = 0.0
         self._awaiting_far_anchor = True
+        self._near_correction_arrival_reset_used = False

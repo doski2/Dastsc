@@ -110,6 +110,16 @@ class TestOCRHud(unittest.TestCase):
         result = self._parse_result("Far Station\n9999 km")
         self.assertIsNone(result["distance_m"])
 
+    def test_parse_leading_x_icon_as_station_prefix(self):
+        raw_text = """
+        13:49:55
+        x Lichfield, andén 2
+        1.16 millas
+        @ 13:53:00
+        """
+        result = self._parse_result(raw_text)
+        self.assertEqual(result["station_name"], "Lichfield, andén 2")
+
     def test_no_side_effects_on_import(self):
         self.assertFalse(ocr_hud._region_initialized)
 

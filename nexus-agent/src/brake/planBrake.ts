@@ -44,35 +44,28 @@ export function targetsAreClustered(
 
 function targetKindPriority(kind: BrakeTargetKind): number {
   if (kind === 'SIGNAL') return 0;
-  if (kind === 'STATION') return 1;
+  if (kind === 'SPEED_LIMIT') return 1;
   return 2;
 }
 
-function isFullStopTarget(kind: BrakeTargetKind): boolean {
-  return kind === 'STATION' || kind === 'SIGNAL';
-}
-
-/** Parada completa gana al cartel si está en el mismo bloque de frenada. */
-function shouldPreferStopTargetOverLimit(
+/** Señal en parada gana al cartel si comparten bloque de frenada. */
+function shouldPreferSignalOverLimit(
   plan: BrakePlan,
   other: BrakePlan,
   snapshot: {
     limits: { next: { distanceM: number } | null };
-    station: { distanceM: number };
     signaling: { distanceM: number };
   },
 ): boolean {
-  if (!isFullStopTarget(plan.targetKind) || other.targetKind !== 'SPEED_LIMIT') return false;
+  if (plan.targetKind !== 'SIGNAL' || other.targetKind !== 'SPEED_LIMIT') return false;
   const limitDist = snapshot.limits.next?.distanceM;
   if (limitDist == null || limitDist <= 0) return false;
-  const stopDist = plan.targetKind === 'SIGNAL'
-    ? snapshot.signaling.distanceM
-    : snapshot.station.distanceM;
-  if (stopDist <= 0) return false;
-  return stopDist <= limitDist + TARGET_CLUSTER_GAP_M;
+  const signalDist = snapshot.signaling.distanceM;
+  if (signalDist <= 0) return false;
+  return signalDist <= limitDist + TARGET_CLUSTER_GAP_M;
 }
 
-/** Elige el plan que exige frenar antes; si límite y estación están juntos, prioriza parada. */
+/** Elige el plan que exige frenar antes; desempate: señal → límite → estación. */
 export function selectUrgentBrakePlan(
   candidates: BrakePlan[],
   snapshot?: {
@@ -84,10 +77,29 @@ export function selectUrgentBrakePlan(
   if (!candidates.length) return null;
   if (candidates.length === 1) return candidates[0];
 
-  return candidates.reduce((best, plan) => {
+  let pool = candidates;
+  if (snapshot) {
+    const limitDist = snapshot.limits.next?.distanceM;
+    const stationDist = snapshot.station.distanceM;
+    const hasLimit = pool.some(p => p.targetKind === 'SPEED_LIMIT');
+    const hasStation = pool.some(p => p.targetKind === 'STATION');
+    if (
+      hasLimit
+      && hasStation
+      && limitDist != null
+      && limitDist > 0
+      && stationDist > 0
+      && targetsAreClustered(limitDist, stationDist)
+    ) {
+      pool = pool.filter(p => p.targetKind !== 'STATION');
+    }
+  }
+  if (pool.length === 1) return pool[0];
+
+  return pool.reduce((best, plan) => {
     if (snapshot) {
-      if (shouldPreferStopTargetOverLimit(plan, best, snapshot)) return plan;
-      if (shouldPreferStopTargetOverLimit(best, plan, snapshot)) return best;
+      if (shouldPreferSignalOverLimit(plan, best, snapshot)) return plan;
+      if (shouldPreferSignalOverLimit(best, plan, snapshot)) return best;
     }
     const bestScore = brakePlanUrgencyScore(best);
     const planScore = brakePlanUrgencyScore(plan);

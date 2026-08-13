@@ -4,6 +4,18 @@ import { signalRequiresFullStop } from './brake/signalUtils';
 export function buildHorizon(snapshot: TelemetrySnapshot): HorizonEvent[] {
   const events: HorizonEvent[] = [];
 
+  if (snapshot.signaling.distanceM > 0 && snapshot.signaling.aspect !== 'UNKNOWN') {
+    const stop = signalRequiresFullStop(snapshot.signaling.aspect);
+    events.push({
+      id: 'signal-next',
+      kind: 'SIGNAL',
+      distanceM: snapshot.signaling.distanceM,
+      label: snapshot.signaling.aspect,
+      requiredAction: stop ? 'STOP' : 'REDUCE_SPEED',
+      priority: stop ? 90 : 70,
+    });
+  }
+
   if (snapshot.limits.next && snapshot.limits.next.distanceM > 0) {
     events.push({
       id: 'limit-next',
@@ -13,18 +25,6 @@ export function buildHorizon(snapshot: TelemetrySnapshot): HorizonEvent[] {
       targetSpeedDisplay: snapshot.limits.next.speed,
       requiredAction: 'REDUCE_SPEED',
       priority: 80,
-    });
-  }
-
-  if (snapshot.signaling.distanceM > 0 && snapshot.signaling.aspect !== 'UNKNOWN') {
-    const stop = signalRequiresFullStop(snapshot.signaling.aspect);
-    events.push({
-      id: 'signal-next',
-      kind: 'SIGNAL',
-      distanceM: snapshot.signaling.distanceM,
-      label: snapshot.signaling.aspect,
-      requiredAction: stop ? 'STOP' : 'REDUCE_SPEED',
-      priority: stop ? 70 : 60,
     });
   }
 
