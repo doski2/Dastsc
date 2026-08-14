@@ -68,6 +68,23 @@ Busca el control `Ammeter` y `Current` en el archivo de `FullEngineData`.
 
   deceleración real medida en sesión.
 
+### E. Captura manual de muescas (asistente de perfil)
+
+Para trenes nuevos (p. ej. Class 390) cuando el volcado `debug.txt` no basta:
+
+1. Ejecutar `Asistente_Perfil.bat` o `python nexus-profile-wizard.py`.
+2. Cargar o crear el perfil JSON en `profiles/`.
+3. Pulsar **«Capturar muescas…»** — abre `NotchCaptureDialog`.
+4. Con TSC en cabina y RailDriver activo, mover el mando muesca a muesca; el backend lee
+
+   `GetControllerValue` vía `core/notch_capture.py` y escribe `notches_throttle_brake`.
+
+Las muescas capturadas se guardan en el JSON del perfil (EMG, OFF, P1–P4, B1–B6, etc.). El agente
+V4 y el aprendizaje `brakeStats` usan esas posiciones normalizadas — no se leen discretas desde la
+DLL en tiempo real.
+
+---
+
 ## 3. Mappings de Seguridad
 
 Asegúrate de que `aws`, `dsd` (Vigilancia) y `dra` apunten a los nombres exactos que aparecen en el

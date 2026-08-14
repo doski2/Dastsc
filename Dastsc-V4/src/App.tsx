@@ -6,8 +6,8 @@ import { ArmActionBar } from './components/ArmActionBar';
 import { AppShell, type AppView } from './components/AppShell';
 import { BrakePlanPanel } from './components/BrakePlanPanel';
 import { ConfigView } from './components/ConfigView';
+import { DriveHudBar } from './components/DriveHudBar';
 import { HorizonStrip } from './components/HorizonStrip';
-import { MiniHud } from './components/MiniHud';
 import { ProfileCompletenessPanel } from './components/ProfileCompletenessPanel';
 
 export default function App() {
@@ -47,6 +47,7 @@ export default function App() {
       gameLinked={isGameLinked}
       activeView={activeView}
       onViewChange={setActiveView}
+      driveHud={activeView === 'agent' ? <DriveHudBar snapshot={snapshot} /> : undefined}
     >
       {activeView === 'agent' ? (
         <>
@@ -75,12 +76,6 @@ export default function App() {
             onCabOverrideChange={setCabOverride}
           />
           <HorizonStrip events={agent.horizon} speedUnit={snapshot.speedUnit} />
-          <MiniHud
-            speed={snapshot.speedDisplay}
-            speedUnit={snapshot.speedUnit}
-            limit={snapshot.limits.effective}
-            tailActive={snapshot.tail.active}
-          />
         </>
       ) : (
         <ConfigView

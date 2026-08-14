@@ -128,6 +128,64 @@ class TestStationDistanceTracker(unittest.TestCase):
         )
         self.assertFalse(rejected)
 
+    def test_mid_leg_accepts_upward_odometer_drift(self):
+        """Sesión WCML 390: HUD ~13 mi vs odómetro ~13.0 mi (+150 m en tramo largo)."""
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(27825.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 25.0, 300.0)
+        computed = tracker.distance_m()
+        assert computed is not None
+        ocr_reading = computed + 146.0
+        self.assertTrue(
+            tracker.should_accept_ocr_distance(
+                ocr_reading,
+                "mid_leg_correction",
+                speed_ms=25.0,
+            ),
+        )
+        accepted = tracker.anchor_from_ocr(
+            ocr_reading,
+            event="mid_leg_correction",
+            now=300.0,
+            speed_ms=25.0,
+        )
+        self.assertTrue(accepted)
+        self.assertAlmostEqual(tracker.distance_m() or 0, ocr_reading, delta=0.5)
+
+    def test_mid_leg_rejects_excessive_upward_spike(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(20000.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 20.0, 500.0)
+        computed = tracker.distance_m()
+        assert computed is not None
+        self.assertFalse(
+            tracker.should_accept_ocr_distance(
+                computed + 800.0,
+                "mid_leg_correction",
+                speed_ms=20.0,
+            ),
+        )
+
+    def test_watford_leg_simulation_reduces_late_drift(self):
+        """Corrección mid-leg al alza recupera metros que el odómetro adelantó."""
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(27825.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 25.0, 280.0)
+        before = tracker.distance_m()
+        assert before is not None
+        tracker.anchor_from_ocr(
+            before + 120.0,
+            event="mid_leg_correction",
+            now=280.0,
+            speed_ms=25.0,
+        )
+        after = tracker.distance_m()
+        assert after is not None
+        self.assertAlmostEqual(after - before, 120.0, delta=0.5)
+
     def test_rejects_turnaround_door_anchor_at_platform(self):
         tracker = StationDistanceTracker()
         tracker.integrate(0.0, 0.0)

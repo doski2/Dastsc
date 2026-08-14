@@ -12,15 +12,15 @@ misma sesión.
 
 ## Mapa rápido del repo
 
-| Capa         | Ruta                                        | Semanas   |
-| ------------ | ------------------------------------------- | --------- |
-| Lua TSC      | `lua/Railworks_GetData_Script.lua`          | 01        |
-| Backend IPC  | `Dastsc-V3/backend/`                        | 01, 02    |
-| Kernel       | `nexus-kernel/`                             | 02, 03    |
-| Agente       | `nexus-agent/`                              | 04, 05    |
-| UI V4        | `Dastsc-V4/`                                | 06        |
-| Perfiles     | `profiles/nexus/`                           | 07, 08    |
-| Herramientas | `nexus-debug.py`, `nexus-profile-wizard.py` | 07        |
+| Capa         | Ruta                                                                | Semanas   |
+| ------------ | ------------------------------------------------------------------- | --------- |
+| Lua TSC      | `lua/Railworks_GetData_Script.lua`                                  | 01        |
+| Backend IPC  | `Dastsc-V3/backend/`                                                | 01, 02    |
+| Kernel       | `nexus-kernel/`                                                     | 02, 03    |
+| Agente       | `nexus-agent/`                                                      | 04, 05    |
+| UI V4        | `Dastsc-V4/`                                                        | 06        |
+| Perfiles     | `profiles/` (legacy + `profiles/nexus/`)                            | 07, 08    |
+| Herramientas | `nexus-debug.py`, `nexus-profile-wizard.py`, `Asistente_Perfil.bat` | 07        |
 
 ## Calendario sugerido
 
@@ -40,11 +40,10 @@ misma sesión.
 ## Tests antes de cada sesión TSC
 
 ```bash
-cd nexus-agent && npm test -- --run
-cd Dastsc-V3/backend && python -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-Guía detallada módulo frenado: [semana-04-agente-frenado/brake-module.md](./semana-04-agente-frenado/brake-module.md).
+Guía detallada módulo frenado:
+[semana-04-agente-frenado/brake-module.md](./semana-04-agente-frenado/brake-module.md).
 
 ## Logs automáticos de sesión V4
 
@@ -57,6 +56,13 @@ Cada vez que abres Nexus V4 con el backend activo se guarda un log en `logs/nexu
 
   `door_anchor` (cierre de puertas), `mid_leg_correction` (tramos > 5 km, hasta 3 checkpoints) y
   `near_correction` (≤ 400 m). Incluyen texto parseado, distancia en metros y estado del tracker.
+  Tras cada intento (éxito o rechazo) hay **cooldown 60 s**. En tramos largos se acepta OCR **por
+  encima** del odómetro hasta ~250 m / 8 % restante (`rejected_jump` = fuera de margen).
+
+- **UI Agent (V4):** barra fija `DriveHudBar` bajo el header (velocidad, límite, próximo límite,
+
+cola). El plan de frenada desplegado hace scroll interno — no empuja la telemetría fuera de
+pantalla.
 
 - Eventos **`backend_tick`**: respaldo cada ~2.5 s desde GetData si V4 no vuelca ticks (freno,
 

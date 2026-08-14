@@ -186,7 +186,7 @@ export function BrakePlanPanel({
         </div>
       )}
 
-      <div className="space-y-1">
+      <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
         {steps.map(step => {
           const stats = brakeStats[step.notch];
           const learned = step.usingLearned && stats;

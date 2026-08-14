@@ -11,6 +11,8 @@ interface AppShellProps {
   gameLinked: boolean;
   activeView: AppView;
   onViewChange: (view: AppView) => void;
+  /** Barra fija bajo el header (velocidad, límites, cola). */
+  driveHud?: ReactNode;
   children: ReactNode;
 }
 
@@ -28,11 +30,12 @@ export function AppShell({
   gameLinked,
   activeView,
   onViewChange,
+  driveHud,
   children,
 }: AppShellProps) {
   return (
-    <div className="h-screen flex flex-col bg-nexus-surface text-sm">
-      <header className="h-12 flex items-center justify-between px-6 border-b border-white/5 bg-nexus-raised shrink-0">
+    <div className="h-screen flex flex-col bg-nexus-surface text-sm overflow-hidden">
+      <header className="h-12 flex items-center justify-between px-6 border-b border-white/5 bg-nexus-raised shrink-0 z-20">
         <div className="flex items-center gap-3">
           <div className={`w-2 h-2 rounded-full ${linkDotClass(backendConnected, gameLinked)}`} />
           <span className="font-mono text-xs tracking-widest text-white/50 uppercase">
@@ -45,7 +48,9 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col gap-6 p-8 max-w-3xl mx-auto w-full overflow-y-auto justify-start">
+      {driveHud}
+
+      <main className="flex-1 flex flex-col gap-4 p-4 sm:p-6 max-w-3xl mx-auto w-full min-h-0 overflow-y-auto">
         {children}
       </main>
 

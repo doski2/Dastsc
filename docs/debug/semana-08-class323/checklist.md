@@ -1,6 +1,7 @@
 # Checklist — Semana 8 Class 323
 
-Perfil: `profiles/nexus/trains/class323.json` · plan: [brake-module.md](../semana-04-agente-frenado/brake-module.md).
+Perfil: `profiles/nexus/trains/class323.json` · plan:
+[brake-module.md](../semana-04-agente-frenado/brake-module.md).
 
 ## Pre-vuelo
 

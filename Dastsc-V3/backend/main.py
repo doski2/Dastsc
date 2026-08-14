@@ -476,12 +476,14 @@ async def telemetry_reader() -> None:
             print(f"[OCR] Error ({event}): {exc}")
             _log_ocr_session_event(event, station_tracker, error=str(exc))
         finally:
+            attempt_time = capture_time or time.time()
+            station_tracker.mark_ocr_capture_attempted(attempt_time)
             if event == "near_correction" and not anchored:
                 ocr_m = result.get("distance_m") if result else None
                 if ocr_m is None or not station_tracker.should_retry_near_correction(
                     float(ocr_m), capture_speed_ms,
                 ):
-                    station_tracker.mark_near_correction_attempted(capture_time or time.time())
+                    station_tracker.mark_near_correction_attempted(attempt_time)
             ocr_is_capturing = False
 
     while True:

@@ -91,10 +91,14 @@ señales de RailWorks:
 
   los puntos exactos de aplicación de freno por muesca.
 
-## Pipeline de StationDistance (v3 — Mayo 2026)
+## Pipeline de StationDistance (v3 — Mayo 2026; deriva al alza — ago 2026)
 
 ```text
 ```
+
+Tras cada intento OCR: cooldown **60 s**. En tramos > 5 km, `mid_leg_correction` acepta OCR hasta
+**min(250 m, max(40 m, 8 % restante))** por encima del odómetro. Detalle en
+`METRICAS_TELEMETRIA_V3.md` §4.
 
 ## Roadmap de Implementación
 

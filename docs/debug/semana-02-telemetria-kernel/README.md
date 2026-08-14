@@ -6,14 +6,14 @@
 
 ## Archivos
 
-| Archivo                                      | Rol                                |
-| -------------------------------------------- | ---------------------------------- |
-| `nexus-kernel/src/DataNormalizer.ts`         | Normalización raw → TelemetryData  |
-| `nexus-kernel/src/dataNormalizerUtils.ts`    | `stickyStationDistance`, combined  |
-| `nexus-kernel/src/toSnapshot.ts`             | `brake.position`, estación         |
-| `nexus-kernel/src/tests/normalize.test.ts`   | Tests                              |
-| `Dastsc-V3/backend/core/station_distance.py` | OCR tracker + `mid_leg_correction` |
-| `Dastsc-V3/backend/core/cab_inference.py`    | Cabina activa + latch              |
+| Archivo                                      | Rol                                                            |
+| -------------------------------------------- | -------------------------------------------------------------- |
+| `nexus-kernel/src/DataNormalizer.ts`         | Normalización raw → TelemetryData                              |
+| `nexus-kernel/src/dataNormalizerUtils.ts`    | `stickyStationDistance`, combined                              |
+| `nexus-kernel/src/toSnapshot.ts`             | `brake.position`, estación                                     |
+| `nexus-kernel/src/tests/normalize.test.ts`   | Tests                                                          |
+| `Dastsc-V3/backend/core/station_distance.py` | OCR tracker + `mid_leg_correction` + tolerancia deriva al alza |
+| `Dastsc-V3/backend/core/cab_inference.py`    | Cabina activa + latch                                          |
 
 ## Checklist → [checklist.md](./checklist.md)
 

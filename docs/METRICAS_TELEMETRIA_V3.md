@@ -187,7 +187,9 @@ El backend enriquece el dict antes del WebSocket (`backend/main.py` → `_apply_
 | `StationScheduled` | OCR                                   | Hora programada                |
 | `timestamp`        | `time.time()`                         | Marca del mensaje WS           |
 
-#### OCR:** no hay captura periódica por timer. El backend sondea `GetData.txt` cada **10 ms
+## OCR
+
+**OCR:** no hay captura periódica por timer. El backend sondea `GetData.txt` cada **10 ms
 (`_POLL_INTERVAL_S`) y dispara `ocr_hud.capture_next_stop` solo en estos casos:
 
 | Evento               | Cuándo                                                                                                                                                                        | Frecuencia típica                |
@@ -201,6 +203,24 @@ Entre capturas, `StationDistance` se integra con odómetro (velocidad × Δt) en
 `core/station_distance.py`. El tracker guarda muestras internas cada **5 s** (`SAMPLE_INTERVAL_S`;
 eventos `tick`/`arrival` en debug), pero **no** vuelve a leer pantalla.
 
+**Cooldown:** tras **cualquier** intento OCR (éxito, rechazo o error de parseo), no se dispara otra
+captura durante **60 s** (`MID_LEG_COOLDOWN_S` / `mark_ocr_capture_attempted`).
+
+**Deriva al alza (odómetro adelantado vs millas HUD):** en tramos largos el HUD suele mostrar más
+metros restantes que la integración. Correcciones `mid_leg_correction` y `near_correction`
+
+## aceptan
+
+OCR por encima del odómetro hasta un techo dinámico:
+
+| Evento               | Tolerancia al alza (resumen)                                              |
+| -------------------- | ------------------------------------------------------------------------- |
+| `mid_leg_correction` | min(250 m, max(40 m, 8 % distancia restante)) en tramos > 5 km            |
+| `near_correction`    | 15–120 m según distancia restante, velocidad y reintentos en parada corta |
+
+Rechazos con `rejected_jump` en log indican OCR fuera de ese margen (p. ej. spike > 250 m en tramo
+largo). Ver `tests/test_station_distance.py` (`test_mid_leg_accepts_upward_odometer_drift`).
+
 Solo una captura OCR a la vez (`ocr_is_capturing`). Requiere `mss` + `pytesseract` en el backend.
 
 ---
@@ -209,7 +229,7 @@ Solo una captura OCR a la vez (`ocr_is_capturing`). Requiere `mss` + `pytesserac
 
 Salida de `DataNormalizer.ts` — lo que consumen los componentes React.
 
-### 5.1 Derivados de velocidad
+## 5.1 Derivados de velocidad
 
 | Campo HUD        | Origen                       | Unidad             |
 | ---------------- | ---------------------------- | ------------------ |
@@ -221,7 +241,7 @@ Salida de `DataNormalizer.ts` — lo que consumen los componentes React.
 | `LateralG`       | Curvatura o Δ rumbo          | g (suavizado)      |
 | `ProjectedSpeed` | `Speed + Acceleration × 5 s` | unidad display     |
 
-### 5.2 Límites y señalización
+## 5.2 Límites y señalización
 
 | Campo HUD                                 | Descripción                                  |
 | ----------------------------------------- | -------------------------------------------- |
@@ -234,7 +254,7 @@ Salida de `DataNormalizer.ts` — lo que consumen los componentes React.
 | `NextSignalAspect`                        | `DANGER`, `CAUTION`, `CLEAR`, …              |
 | `DistToNextSignal`                        | m (−1 si no hay señal)                       |
 
-### 5.3 Freno y tracción
+## 5.3 Freno y tracción
 
 | Campo HUD                                 | Descripción                                          |
 | ----------------------------------------- | ---------------------------------------------------- |
@@ -251,7 +271,7 @@ Salida de `DataNormalizer.ts` — lo que consumen los componentes React.
 | `BrakingPercent`                          | % del cilindro                                       |
 | `ProjectedBrakingDistance`                | m (física simplificada + gradiente)                  |
 
-### 5.4 Estación y cola
+## 5.4 Estación y cola
 
 | Campo HUD                                            | Origen                                     |
 | ---------------------------------------------------- | ------------------------------------------ |
@@ -262,7 +282,7 @@ Salida de `DataNormalizer.ts` — lo que consumen los componentes React.
 | `TailDistanceRemaining`                              | Lua o odómetro de cola                     |
 | `TailSecondsRemaining`                               | `distancia / velocidad`                    |
 
-### 5.5 Tren y escenario
+## 5.5 Tren y escenario
 
 | Campo HUD                                                         | Origen                                         |
 | ----------------------------------------------------------------- | ---------------------------------------------- |
@@ -275,7 +295,7 @@ Salida de `DataNormalizer.ts` — lo que consumen los componentes React.
 | `LocoName` / `RVNumber` / `RouteID` / `ScenarioPath` / `location` | Metadatos Lua                                  |
 | `Gradient` / `RawGradient`                                        | Con / sin corrección de cabina                 |
 
-### 5.6 Seguridad (passthrough)
+## 5.6 Seguridad (passthrough)
 
 `AWS*`, `DSD`, `VigilAlarm`, `Vigilance`, `DVDAlarm`, `DRA`, `Sander`, `DoorsOpen`, `IsEmergency`,
 `TimeOfDay`.

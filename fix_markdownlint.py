@@ -2,7 +2,7 @@
 """
 Corrige avisos auto-reparables de markdownlint en archivos .md.
 
-Reglas auto-fix: MD009, MD012, MD013, MD022, MD026, MD031, MD032, MD036, MD040, MD047, MD058, MD060.
+Reglas auto-fix: MD009, MD012, MD013, MD022, MD026, MD031, MD032, MD036, MD037, MD040, MD047, MD058, MD060.
 Índice completo: docs/MARKDOWNLINT.md · oficial: github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
 
 Uso:
@@ -34,6 +34,11 @@ MD036_ITALIC_STAR = re.compile(r"^\*([^*]+)\*$")
 MD036_ITALIC_UNDER = re.compile(r"^_([^_]+)_$")
 MD036_PUNCT_END = re.compile(r"[.,;:!?。，；：！？]$")
 HEADING = re.compile(r"^(#{1,6})\s+")
+HEADING_BOLD_COLON = re.compile(r"^(#{1,6})\s+([^:\n]+):\*\*\s*(.+)$")
+MD037_EMPHASIS_STAR = re.compile(r"(?<!\*)\*([^*\n]+?)\*(?!\*)")
+MD037_EMPHASIS_DBL = re.compile(r"(?<!\*)\*\*([^*\n]+?)\*\*(?!\*)")
+MD037_EMPHASIS_UNDER = re.compile(r"(?<!_)_([^_\n]+?)_(?!_)")
+MD037_EMPHASIS_DUNDER = re.compile(r"(?<!_)__([^_\n]+?)__(?!_)")
 FENCE = re.compile(r"^```(\w*)$")
 DELIMITER_CELL = re.compile(r"^:?-{1,}:?$")
 TRAILING_PUNCT = re.compile(r"[:.,;!?]+$")
@@ -189,6 +194,89 @@ def parse_emphasis_heading(line: str) -> str | None:
     return None
 
 
+def fix_heading_bold_colon_artifacts(text: str) -> tuple[str, int]:
+    """
+    Encabezados corruptos tipo `## OCR:** párrafo` → título + párrafo con **OCR:**.
+    Corrige MD022 (línea en blanco bajo el heading) y MD037 (marcadores `: **`).
+    """
+    lines = text.splitlines()
+    out: list[str] = []
+    fixes = 0
+    in_fence = False
+    for line in lines:
+        if FENCE.match(line.strip()):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+        if in_fence:
+            out.append(line)
+            continue
+        match = HEADING_BOLD_COLON.match(line)
+        if not match:
+            out.append(line)
+            continue
+        level, title, body = match.groups()
+        title = title.strip()
+        out.append(f"{level} {title}")
+        out.append("")
+        out.append(f"**{title}:** {body}")
+        fixes += 1
+    return "\n".join(out), fixes
+
+
+def _replace_emphasis_if_spaced(marker: str, inner: str) -> str | None:
+    trimmed = inner.strip()
+    if trimmed == inner:
+        return None
+    return f"{marker}{trimmed}{marker}"
+
+
+def fix_emphasis_spaces(text: str) -> tuple[str, int]:
+    """MD037 — espacios dentro de marcadores de énfasis (* foo * → *foo*)."""
+    lines = text.splitlines()
+    out: list[str] = []
+    fixes = 0
+    in_fence = False
+    for line in lines:
+        if FENCE.match(line.strip()):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+        if in_fence or is_heading_line(line):
+            out.append(line)
+            continue
+        new_line = line
+
+        def repl_star(match: re.Match[str]) -> str:
+            replaced = _replace_emphasis_if_spaced("*", match.group(1))
+            return replaced if replaced is not None else match.group(0)
+
+        def repl_dbl(match: re.Match[str]) -> str:
+            replaced = _replace_emphasis_if_spaced("**", match.group(1))
+            return replaced if replaced is not None else match.group(0)
+
+        def repl_under(match: re.Match[str]) -> str:
+            replaced = _replace_emphasis_if_spaced("_", match.group(1))
+            return replaced if replaced is not None else match.group(0)
+
+        def repl_dunder(match: re.Match[str]) -> str:
+            replaced = _replace_emphasis_if_spaced("__", match.group(1))
+            return replaced if replaced is not None else match.group(0)
+
+        for pattern, repl in (
+            (MD037_EMPHASIS_DBL, repl_dbl),
+            (MD037_EMPHASIS_STAR, repl_star),
+            (MD037_EMPHASIS_DUNDER, repl_dunder),
+            (MD037_EMPHASIS_UNDER, repl_under),
+        ):
+            updated = pattern.sub(repl, new_line)
+            if updated != new_line:
+                fixes += 1
+                new_line = updated
+        out.append(new_line)
+    return "\n".join(out), fixes
+
+
 def fix_emphasis_headings(text: str) -> tuple[str, int]:
     lines = text.splitlines()
     out: list[str] = []
@@ -257,15 +345,14 @@ def fix_blanks_around_blocks(text: str) -> tuple[str, int]:
         if is_heading_line(line):
             before = len(lines)
             ensure_blank_before(lines, i)
-            i += len(lines) - before + 1
+            heading_idx = i + (len(lines) - before)
             if len(lines) != before:
                 fixes += 1
-            if i < len(lines):
-                after_before = len(lines)
-                ensure_blank_after(lines, i)
-                if len(lines) != after_before:
-                    fixes += 1
-                i += len(lines) - after_before
+            after_before = len(lines)
+            ensure_blank_after(lines, heading_idx)
+            if len(lines) != after_before:
+                fixes += 1
+            i = heading_idx + 1 + (len(lines) - after_before)
             continue
 
         if is_fence_line(line):
@@ -432,8 +519,12 @@ def fix_markdown(text: str) -> tuple[str, dict[str, int]]:
     stats["MD009"] = n
     text, n = fix_line_length(text)
     stats["MD013"] = n
+    text, n = fix_heading_bold_colon_artifacts(text)
+    stats["MD022/037-heading"] = n
     text, n = fix_emphasis_headings(text)
     stats["MD036"] = n
+    text, n = fix_emphasis_spaces(text)
+    stats["MD037"] = n
     text, n = fix_fenced_code_language_v2(text)
     stats["MD040"] = n
     text, n = fix_tables(text)

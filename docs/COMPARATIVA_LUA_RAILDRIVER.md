@@ -65,7 +65,7 @@ integran en Nexus** — la telemetría equivalente (o mejor) ya viene por Lua.
 | `GetControllerList()`           | Lectura      | Listar mandos de la cabina activa (nombres separados por `::`) |
 | `GetControllerValue(id, 0)`     | Lectura      | Valor actual de un mando de cabina                             |
 | `GetControllerValue(id, 1/2)`   | Lectura      | Min/máx del mando — escalar bien al mandar (no todo es 0–1)    |
-| `SetControllerValue(id, valor)` | Escritura 🔜  | **IA copiloto:** muescas, ETCS, mandos que Lua no reenvía     |
+| `SetControllerValue(id, valor)` | Escritura 🔜 | **IA copiloto:** muescas, ETCS, mandos que Lua no reenvía      |
 
 ### 4.2 Qué controles de cabina nos interesan
 

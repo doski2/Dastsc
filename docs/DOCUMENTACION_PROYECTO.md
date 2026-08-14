@@ -7,7 +7,25 @@ asistencia para Train Simulator Classic.
 
 ---
 
-### Última Actualización: 3 de Mayo de 2026
+### Última Actualización: 14 de Agosto de 2026
+
+* **Nexus V4 — barra fija de marcha:** `DriveHudBar` muestra velocidad, límite efectivo, próximo
+
+  límite y cola bajo el header (siempre visible). El contenido central hace scroll aparte.
+
+* **Prioridad de frenado agente:** Señal → Límite → Estación (`selectUrgentBrakePlan`); en cluster
+
+  límite+estación gana el cartel.
+
+* **OCR estación — deriva en tramos largos:** `mid_leg_correction` acepta OCR por encima del
+
+  odómetro (hasta 250 m / 8 %); cooldown 60 s tras cualquier intento OCR.
+
+* **Perfiles AUTO ampliado:** detección incluye JSON legacy en `profiles/` además de
+
+  `profiles/nexus/`.
+
+* **Asistente de perfil:** botón «Capturar muescas…» (`notch_capture.py`) para perfiles como Class 390.
 
 * **Fases 2, 3 y 4 Completadas:** Extracción avanzada, lógica de dashboard, físicas, cola de tren,
 
@@ -82,7 +100,23 @@ asistencia para Train Simulator Classic.
   opcionalmente
   en `mid_leg_correction` (tramos > 5 km) y en `near_correction` (≤ 400 m, una vez por tramo); el
 odómetro lo decrementa entre capturas; el backend sobreescribe el `-1` del Lua antes de enviarlo al
-  frontend.
+  frontend. Tras cada intento OCR, cooldown **60 s**. Correcciones intermedias toleran odómetro
+  adelantado vs HUD (ver `METRICAS_TELEMETRIA_V3.md` §4).
+
+### 3b. Frontend Nexus V4 (Vite, puerto 5175)
+
+* **`AppShell.tsx`** — layout de pantalla completa: header fijo, `driveHud`, área central con
+
+  scroll,
+  footer de navegación.
+
+* **`DriveHudBar.tsx`** — telemetría en marcha: velocidad, límite, próximo límite (+ distancia),
+
+  cola.
+
+* **`BrakePlanPanel.tsx`** — plan de frenada del agente; pasos con scroll interno al desplegar.
+* **`useAgent.ts` / `useAutoCommand.ts`** — tick del agente, política SUGGEST/ARM/AUTO, mandos WS.
+* Documentación de arquitectura: `docs/NEXUS_V4_ARQUITECTURA.md`.
 
 ### 3. Frontend React + TypeScript (Vite, puerto 5173)
 
