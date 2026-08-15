@@ -13,6 +13,17 @@ export type {
 
 export { createMockSnapshot } from './mock';
 export { formatDistance, formatSpeed, type DisplaySpeedUnit } from './format';
+export {
+  LIMIT_CHAIN_CLUSTER_GAP_M,
+  describeLimitChain,
+  formatLimitChainHint,
+  isClusteredLimitChain,
+  limitChainGapM,
+  resolveChainedLimitTarget,
+  secondUpcomingLimit,
+  type LimitChainInfo,
+  type SpeedLimitPoint,
+} from './limitUtils';
 export { DataNormalizer } from './DataNormalizer';
 export { TelemetryHub } from './TelemetryHub';
 export { toTelemetrySnapshot } from './toSnapshot';

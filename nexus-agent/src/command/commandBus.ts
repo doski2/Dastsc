@@ -1,7 +1,9 @@
 import type { AgentAction, TelemetrySnapshot } from '@nexus/kernel';
+import { resolveChainedLimitTarget } from '@nexus/kernel';
 import {
   APPLY_NOW_MARGIN_M,
   applyZoneMarginM,
+  DOWNHILL_LIMIT_GRADIENT_PERMILLE,
   isInApplyZone,
 } from '../brake/physics';
 import { resolveAgentConfig } from '../brake/agentConfig';
@@ -16,6 +18,8 @@ const BLOCKED_NOTCH_LABELS = new Set(['EMG', 'EMERGENCY', 'EMERGENCY_BRAKE']);
 export function usesSplitBrakeLayout(profile?: CommandProfile | null): boolean {
   const mappings = profile?.mappings;
   if (!mappings?.brake && !mappings?.train_brake) return false;
+  const brakes = (profile as { brakes?: { train_control?: string } } | null)?.brakes;
+  if (mappings.train_brake && brakes?.train_control) return true;
   return !mappings.combined_control;
 }
 
@@ -173,6 +177,7 @@ function shouldInhibitLimitRebrake(
   profile?: CommandProfile | null,
 ): boolean {
   if (!speedLimitCoast || plan?.targetKind !== 'SPEED_LIMIT') return false;
+  if (isDownhillLimitApproach(snapshot)) return false;
   const next = snapshot.limits.next;
   if (!next || next.speed !== speedLimitCoast.limitSpeed) return false;
   if (isBrakeApplied(snapshot, profile)) return false;
@@ -191,7 +196,15 @@ function targetSpeedDisplay(snapshot: TelemetrySnapshot, plan: BrakePlan | null)
   if (plan?.targetKind === 'STATION' || plan?.targetKind === 'SIGNAL') {
     return 0;
   }
-  return snapshot.limits.next?.speed ?? snapshot.limits.effective;
+  return resolveChainedLimitTarget(snapshot.limits)?.speed
+    ?? snapshot.limits.next?.speed
+    ?? snapshot.limits.effective;
+}
+
+/** En bajada el tren no puede mantener el límite con OFF — no coast ni re-brake inhibido. */
+function isDownhillLimitApproach(snapshot: TelemetrySnapshot): boolean {
+  return snapshot.gradient < DOWNHILL_LIMIT_GRADIENT_PERMILLE
+    && (snapshot.limits.next?.distanceM ?? 0) > 0;
 }
 
 function stepInApplyZone(
@@ -328,6 +341,10 @@ export function resolveReleaseAction(
 
   if (shouldBlockAutoReleaseForStation(snapshot, plan, profile)) return undefined;
 
+  if (plan?.targetKind === 'SPEED_LIMIT' && isDownhillLimitApproach(snapshot)) {
+    return undefined;
+  }
+
   const target = targetSpeedDisplay(snapshot, plan);
   if (snapshot.speedDisplay > target + releaseSpeedMargin(snapshot.speedUnit, profile)) return undefined;
 
@@ -341,6 +358,7 @@ export function resolveSuggestedAction(
   profile?: CommandProfile | null,
   snapshot?: TelemetrySnapshot,
   hasSafetyEvent = false,
+  alternatePlans: BrakePlan[] = [],
 ): AgentAction | undefined {
   if (mode !== 'ARM' && mode !== 'AUTO') return undefined;
   if (mode === 'AUTO' && hasSafetyEvent) return undefined;
@@ -350,7 +368,10 @@ export function resolveSuggestedAction(
 
     const release = resolveReleaseAction(snapshot, plan, profile);
     if (release) {
-      if (plan?.targetKind === 'SPEED_LIMIT' || snapshot.limits.next) {
+      if (
+        (plan?.targetKind === 'SPEED_LIMIT' || snapshot.limits.next)
+        && !isDownhillLimitApproach(snapshot)
+      ) {
         latchSpeedLimitCoast(snapshot);
       }
       return release;
@@ -362,11 +383,14 @@ export function resolveSuggestedAction(
     if (stationHold) return stationHold;
   }
 
-  if (!plan?.activeStep) return undefined;
-
-  const step = plan.activeStep;
-  if (!stepInApplyZone(snapshot, step, plan)) return undefined;
-
-  const action = buildBrakeCommand(step.notch, profile);
-  return action ?? undefined;
+  const candidates = [plan, ...alternatePlans].filter(
+    (candidate): candidate is BrakePlan => Boolean(candidate?.activeStep),
+  );
+  for (const candidate of candidates) {
+    const step = candidate.activeStep!;
+    if (!stepInApplyZone(snapshot, step, candidate)) continue;
+    const action = buildBrakeCommand(step.notch, profile);
+    if (action) return action;
+  }
+  return undefined;
 }

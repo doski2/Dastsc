@@ -368,6 +368,54 @@ class TestStationDistanceTracker(unittest.TestCase):
         tracker.maybe_record_sample(47.0, 0.0)
         self.assertTrue(tracker.should_request_near_correction())
 
+    def test_initial_anchor_request_when_stationary_without_anchor(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        self.assertTrue(
+            tracker.should_request_initial_anchor(
+                0.0,
+                6.0,
+                doors_open=False,
+                stationary_since=0.0,
+            ),
+        )
+
+    def test_initial_anchor_not_requested_when_moving(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        self.assertFalse(
+            tracker.should_request_initial_anchor(
+                5.0,
+                10.0,
+                doors_open=False,
+                stationary_since=0.0,
+            ),
+        )
+
+    def test_initial_anchor_accepts_far_signal_start(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        accepted = tracker.anchor_from_ocr(4023.0, event="initial_anchor", now=0.0)
+        self.assertTrue(accepted)
+        self.assertAlmostEqual(tracker.distance_m() or 0, 4023.0, delta=0.1)
+
+    def test_initial_anchor_rejects_platform_residual_008_miles(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        # ~0.08 mi en andén con puertas cerradas sin abrir
+        residual_m = 0.08 * 1609.34
+        accepted = tracker.anchor_from_ocr(residual_m, event="initial_anchor", now=0.0)
+        self.assertFalse(accepted)
+        self.assertFalse(tracker.has_anchor)
+
+    def test_door_anchor_after_open_close_at_platform(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.note_doors_opened()
+        accepted = tracker.anchor_from_ocr(3218.0, event="door_anchor", now=1.0)
+        self.assertTrue(accepted)
+        self.assertAlmostEqual(tracker.distance_m() or 0, 3218.0, delta=0.1)
+
 
 if __name__ == "__main__":
     unittest.main()

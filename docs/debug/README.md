@@ -54,7 +54,8 @@ Cada vez que abres Nexus V4 con el backend activo se guarda un log en `logs/nexu
 - Pásale el JSON al asistente para análisis comparativo entre sesiones.
 - Eventos **`ocr_capture`**: lectura OCR bajo demanda (no hay intervalo fijo). Se registran en
 
-  `door_anchor` (cierre de puertas), `mid_leg_correction` (tramos > 5 km, hasta 3 checkpoints) y
+`door_anchor` (cierre de puertas), `initial_anchor` (inicio de tramo en señal/siding, OCR ≥ 400 m),
+  `mid_leg_correction` (tramos > 5 km, hasta 3 checkpoints) y
   `near_correction` (≤ 400 m). Incluyen texto parseado, distancia en metros y estado del tracker.
   Tras cada intento (éxito o rechazo) hay **cooldown 60 s**. En tramos largos se acepta OCR **por
   encima** del odómetro hasta ~250 m / 8 % restante (`rejected_jump` = fuera de margen).

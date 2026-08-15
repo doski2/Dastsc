@@ -1,6 +1,8 @@
 import type { AgentBrakeContext, BrakePlanStep } from '@nexus/kernel';
+import { resolveChainedLimitTarget } from '@nexus/kernel';
 import {
   DEFAULT_MAX_BRAKE_DECEL,
+  DOWNHILL_LIMIT_GRADIENT_PERMILLE,
   MIN_LEARNED_SAMPLES,
   PLANNING_DECEL_AVG_WEIGHT,
   PLANNING_DECEL_STATION_AVG_WEIGHT,
@@ -40,6 +42,16 @@ export function targetsAreClustered(
 ): boolean {
   if (limitDistM <= 0 || stationDistM <= 0) return false;
   return Math.abs(stationDistM - limitDistM) <= clusterGapM;
+}
+
+/** Unifica límite+estación solo si el cartel está en/no después del andén (misma frenada). */
+export function shouldMergeLimitAndStationPlans(
+  limitDistM: number,
+  stationDistM: number,
+  clusterGapM = TARGET_CLUSTER_GAP_M,
+): boolean {
+  if (!targetsAreClustered(limitDistM, stationDistM)) return false;
+  return limitDistM <= stationDistM;
 }
 
 function targetKindPriority(kind: BrakeTargetKind): number {
@@ -89,7 +101,7 @@ export function selectUrgentBrakePlan(
       && limitDist != null
       && limitDist > 0
       && stationDist > 0
-      && targetsAreClustered(limitDist, stationDist)
+      && shouldMergeLimitAndStationPlans(limitDist, stationDist)
     ) {
       pool = pool.filter(p => p.targetKind !== 'STATION');
     }
@@ -428,7 +440,8 @@ export function selectStationActiveStep(
     candidates.filter(s => notchStrength(s.notch, profile) >= 2);
 
   const lateForSchedule = slackSec != null && slackSec < -12;
-  const finalApproach = distanceToTargetM < 280;
+  const finalApproach = distanceToTargetM < 280
+    || (distanceToTargetM < 800 && speedMs > 22);
   const terminalZone = distanceToTargetM < 50;
 
   if (terminalZone) {
@@ -452,14 +465,96 @@ export function selectStationActiveStep(
     const pool = [...due, ...inZone];
     const service = moderateOrStronger(pool);
     if (service.length) {
+      if (distanceToTargetM < 800 && speedMs > 22) {
+        return preferStrongestStep(service, profile);
+      }
       const moderate = service.filter(s => s.notch === moderateLabel);
       if (moderate.length) return preferWeakestStep(moderate, profile);
       return preferStrongestStep(service, profile);
+    }
+    if (distanceToTargetM < 800 && speedMs > 22) {
+      return preferStrongestStep(pool, profile);
     }
     return preferWeakestStep(pool, profile);
   }
 
   return steps.find(s => s.notch === moderateLabel) ?? upcoming[0] ?? steps[0];
+}
+
+/** Límite en bajada: muesca fuerte; en plano/subida conservar escalado progresivo. */
+function selectLimitActiveStep(
+  steps: BrakePlanStepDetail[],
+  speedMs: number,
+  targetSpeedMs: number,
+  gradientPermille: number,
+  profile?: BrakePlanProfile | null,
+): BrakePlanStepDetail | null {
+  if (!steps.length) return null;
+
+  const late = steps.filter(s => s.distStart < 0);
+  if (late.length) return preferStrongestStep(late, profile);
+
+  const upcoming = steps
+    .filter(s => {
+      const zone = applyZoneForStep(speedMs, s);
+      return s.distStart > zone;
+    })
+    .sort((a, b) => a.distStart - b.distStart);
+
+  const applicable = steps.filter(s => {
+    const zone = applyZoneForStep(speedMs, s);
+    return s.distStart <= zone;
+  });
+
+  const downhill = gradientPermille < DOWNHILL_LIMIT_GRADIENT_PERMILLE;
+  const speedMarginMs = Math.max(1.5, speedMs * 0.06);
+
+  if (downhill) {
+    if (applicable.length) {
+      if (speedMs > targetSpeedMs + speedMarginMs) {
+        return preferStrongestStep(applicable, profile);
+      }
+      const moderatePlus = applicable.filter(s => notchStrength(s.notch, profile) >= 2);
+      if (moderatePlus.length) return preferStrongestStep(moderatePlus, profile);
+      return preferStrongestStep(applicable, profile);
+    }
+    if (upcoming.length) return preferStrongestStep(upcoming, profile);
+    return preferStrongestStep(steps, profile);
+  }
+
+  if (applicable.length > 0) return preferWeakestStep(applicable, profile);
+  if (upcoming.length > 0) return preferWeakestStep(upcoming, profile);
+  return steps[steps.length - 1] ?? null;
+}
+
+/** Horizonte de plan estación: al menos `plan_horizon_m`, ampliado por distancia de parada a v actual. */
+export function stationPlanHorizonM(
+  speedMs: number,
+  profile?: BrakePlanProfile | null,
+  massT = 200,
+  consistType = 1,
+  gradientPermille = 0,
+): number {
+  const base = resolveAgentConfig(profile).station.planHorizonM;
+  if (speedMs < 0.5) return base;
+
+  const plan = planBrake(
+    {
+      speedMs,
+      distanceToTargetM: 100_000,
+      targetSpeedMs: 0,
+      massT,
+      lengthM: 120,
+      gradientPermille,
+      consistType,
+      profile,
+    },
+    'STATION',
+  );
+  if (!plan?.steps.length) return base;
+
+  const furthestApplyM = Math.max(...plan.steps.map(s => s.applyAtRemainingM));
+  return Math.min(8000, Math.max(base, Math.ceil(furthestApplyM * 1.15)));
 }
 
 export function selectActiveStep(
@@ -470,6 +565,8 @@ export function selectActiveStep(
   scheduleEta?: string,
   now = new Date(),
   profile?: BrakePlanProfile | null,
+  gradientPermille = 0,
+  targetSpeedMs = 0,
 ): BrakePlanStepDetail | null {
   if (!steps.length) return null;
 
@@ -477,30 +574,7 @@ export function selectActiveStep(
     return selectStationActiveStep(steps, speedMs, distanceToTargetM, scheduleEta, now, profile);
   }
 
-  const late = steps.filter(s => s.distStart < 0);
-  if (late.length) {
-    return preferStrongestStep(late, profile);
-  }
-
-  const applicable = steps.filter(s => {
-    const zone = applyZoneForStep(speedMs, s);
-    return s.distStart <= zone;
-  });
-  if (applicable.length > 0) {
-    return preferWeakestStep(applicable, profile);
-  }
-
-  const upcoming = steps
-    .filter(s => {
-      const zone = applyZoneForStep(speedMs, s);
-      return s.distStart > zone;
-    })
-    .sort((a, b) => a.distStart - b.distStart);
-  if (upcoming.length > 0) {
-    return preferWeakestStep(upcoming, profile);
-  }
-
-  return steps[steps.length - 1] ?? null;
+  return selectLimitActiveStep(steps, speedMs, targetSpeedMs, gradientPermille, profile);
 }
 
 export function planBrake(
@@ -586,7 +660,17 @@ export function planBrake(
     steps,
     activeStep: targetKind === 'STATION' || targetKind === 'SIGNAL'
       ? selectStationActiveStep(steps, speedMs, distanceToTargetM, scheduleEta, now, profile)
-      : selectActiveStep(steps, speedMs, targetKind, distanceToTargetM, scheduleEta, now, profile),
+      : selectActiveStep(
+        steps,
+        speedMs,
+        targetKind,
+        distanceToTargetM,
+        scheduleEta,
+        now,
+        profile,
+        gradientPermille,
+        targetSpeedMs,
+      ),
     isRealTarget,
   };
 }
@@ -620,18 +704,21 @@ export function planBrakeForLimit(
     speedUnit: 'MPH' | 'km/h';
     gradient: number;
     train: { massT: number; lengthM: number; consistType?: number };
-    limits: { next: { speed: number; distanceM: number } | null };
+    limits: {
+      next: { speed: number; distanceM: number } | null;
+      upcoming: { speed: number; distanceM: number }[];
+    };
   },
   ctx: SnapshotBrakeContext = {},
 ): BrakePlan | null {
-  const next = snapshot.limits.next;
-  if (!next || next.distanceM <= 0) return null;
+  const target = resolveChainedLimitTarget(snapshot.limits);
+  if (!target || target.distanceM <= 0) return null;
 
   return planBrake(
     {
       speedMs: snapshot.speedMs,
-      distanceToTargetM: next.distanceM,
-      targetSpeedMs: displaySpeedToMs(next.speed, snapshot.speedUnit),
+      distanceToTargetM: target.distanceM,
+      targetSpeedMs: displaySpeedToMs(target.speed, snapshot.speedUnit),
       massT: snapshot.train.massT,
       lengthM: snapshot.train.lengthM,
       gradientPermille: snapshot.gradient,

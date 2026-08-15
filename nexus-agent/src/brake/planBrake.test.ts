@@ -13,6 +13,8 @@ import {
   selectActiveStep,
   selectStationActiveStep,
   selectUrgentBrakePlan,
+  shouldMergeLimitAndStationPlans,
+  stationPlanHorizonM,
   targetsAreClustered,
 } from './planBrake';
 import { gravityAcceleration, G_MSS } from './physics';
@@ -175,13 +177,38 @@ describe('planBrake', () => {
 });
 
 describe('selectActiveStep', () => {
-  it('prefers weakest service notch for speed limits', () => {
+  it('prefers weakest service notch for speed limits on flat', () => {
     const steps = [
       { notch: 'B3', distStart: 120, applyAtRemainingM: 200, applyNow: false } as const,
       { notch: 'B2', distStart: 5, applyAtRemainingM: 240, applyNow: false } as const,
       { notch: 'B1', distStart: -200, applyAtRemainingM: 270, applyNow: false } as const,
     ];
     expect(selectActiveStep(steps as never, 30, 'SPEED_LIMIT')?.notch).toBe('B1');
+  });
+
+  it('prefers strongest notch for speed limits on downhill when above target', () => {
+    const steps = [
+      { notch: 'B3', distStart: 35, applyAtRemainingM: 300, applyNow: false } as const,
+      { notch: 'B2', distStart: 20, applyAtRemainingM: 260, applyNow: false } as const,
+      { notch: 'B1', distStart: 5, applyAtRemainingM: 230, applyNow: false } as const,
+    ];
+    const targetMs = 8.94;
+    expect(
+      selectActiveStep(steps as never, 16, 'SPEED_LIMIT', 0, undefined, new Date(), undefined, -8, targetMs)?.notch,
+    ).toBe('B3');
+  });
+});
+
+describe('stationPlanHorizonM', () => {
+  it('extends base horizon at high approach speed', () => {
+    const mph90 = 40.2;
+    const horizon = stationPlanHorizonM(mph90, CLASS323_PROFILE);
+    expect(horizon).toBeGreaterThan(1500);
+    expect(horizon).toBeLessThanOrEqual(8000);
+  });
+
+  it('keeps profile base horizon when nearly stopped', () => {
+    expect(stationPlanHorizonM(0.2, CLASS323_PROFILE)).toBe(1500);
   });
 });
 
@@ -209,6 +236,27 @@ describe('snapshot helpers', () => {
     expect(plan!.targetSpeedMs).toBeGreaterThan(0);
   });
 
+  it('plans chained UK limits toward the lower second target', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 40.2,
+      speedDisplay: 90,
+      speedUnit: 'MPH',
+      limits: {
+        effective: 90,
+        frontal: 90,
+        next: { speed: 75, distanceM: 800 },
+        upcoming: [
+          { speed: 75, distanceM: 800 },
+          { speed: 25, distanceM: 860 },
+        ],
+      },
+    });
+    const plan = planBrakeForLimit(snapshot, { profile: CLASS323_PROFILE });
+    expect(plan?.targetKind).toBe('SPEED_LIMIT');
+    expect(plan?.distanceToTargetM).toBe(860);
+    expect(plan?.targetSpeedMs).toBeCloseTo(11.176, 2);
+  });
+
   it('selects strong notch when limit braking is late', () => {
     const snapshot = createMockSnapshot({
       speedMs: 27.8,
@@ -231,6 +279,37 @@ describe('selectUrgentBrakePlan', () => {
   it('detects clustered limit and station targets', () => {
     expect(targetsAreClustered(300, 400)).toBe(true);
     expect(targetsAreClustered(300, 800)).toBe(false);
+  });
+
+  it('merges limit+station only when the sign is at or before the platform', () => {
+    expect(shouldMergeLimitAndStationPlans(300, 400)).toBe(true);
+    expect(shouldMergeLimitAndStationPlans(800, 500)).toBe(false);
+  });
+
+  it('prefers station when limit sign is beyond the platform', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 43.83,
+      speedDisplay: 99,
+      speedUnit: 'MPH',
+      limits: {
+        effective: 90,
+        frontal: 90,
+        next: { speed: 90, distanceM: 800 },
+        upcoming: [],
+      },
+      station: { distanceM: 500, nameOcr: 'Leighton', eta: '' },
+      gradient: 0,
+      train: { lengthM: 80, massT: 200, consistType: 1, profileId: 'class377', name: '377' },
+    });
+    const ctx = { profile: CLASS323_PROFILE };
+    const limitPlan = planBrakeForLimit(snapshot, ctx);
+    const stationPlan = planBrakeForStation(snapshot, ctx);
+    expect(limitPlan).not.toBeNull();
+    expect(stationPlan).not.toBeNull();
+
+    const selected = selectUrgentBrakePlan([limitPlan!, stationPlan!], snapshot);
+    expect(selected?.targetKind).toBe('STATION');
+    expect(['B2', 'B3']).toContain(selected?.activeStep?.notch);
   });
 
   it('prefers limit plan when 45 limit is just before stop', () => {

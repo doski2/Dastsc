@@ -3,7 +3,14 @@
     "source_file": "Class350_Expert_WCML.txt",
     "fingerprint": {
         "required_controls": [
-            "ThrottleAndBrake"
+            "ThrottleAndBrake",
+            "Regulator",
+            "TrainBrakeControl",
+            "DRA",
+            "DSDAlarm",
+            "AWS",
+            "UserVirtualReverser",
+            "Reverser"
         ]
     },
     "mappings": {
@@ -11,10 +18,95 @@
         "reverser": "UserVirtualReverser",
         "current": "Current",
         "effort": "TractiveEffort",
-        "dra": "DRA"
+        "dra": "DRA",
+        "regulator": "Regulator",
+        "train_brake": "TrainBrakeControl",
+        "ammeter": "Ammeter",
+        "aws": "AWS",
+        "aws_warning": "AWSWarnCount",
+        "aws_reset": "AWSReset",
+        "dsd": "DSDAlarm",
+        "doors_left": "DoorsOpenCloseLeft",
+        "doors_right": "DoorsOpenCloseRight",
+        "master_key": "MasterKey",
+        "pantograph": "PantographControl"
+    },
+    "brakes": {
+        "system": "AIR_SERVICE",
+        "train_control": "TrainBrakeControl",
+        "response_speed": "GRADUATED_PERCENT"
     },
     "visuals": {
         "unit": "MPH",
         "color": "#3498db"
-    }
+    },
+    "aliases": [
+        "350",
+        "DTG",
+        "WCML-South",
+        "[WCML-S] Class 350/2 DMSO(B)"
+    ],
+    "specs": {
+        "max_ammeter": 1000.0,
+        "max_current": 1500.0,
+        "notches_throttle_brake": [
+            {
+                "value": -1.0,
+                "label": "EMG"
+            },
+            {
+                "value": -0.85,
+                "label": "100%"
+            },
+            {
+                "value": -0.8,
+                "label": "80%"
+            },
+            {
+                "value": -0.7,
+                "label": "70%"
+            },
+            {
+                "value": -0.6,
+                "label": "60%"
+            },
+            {
+                "value": -0.5,
+                "label": "50%"
+            },
+            {
+                "value": -0.4,
+                "label": "40%"
+            },
+            {
+                "value": -0.3,
+                "label": "30%"
+            },
+            {
+                "value": -0.25,
+                "label": "INIT"
+            },
+            {
+                "value": 0.0,
+                "label": "OFF"
+            },
+            {
+                "value": 0.25,
+                "label": "S1"
+            },
+            {
+                "value": 0.5,
+                "label": "S2"
+            },
+            {
+                "value": 0.75,
+                "label": "S3"
+            },
+            {
+                "value": 1.0,
+                "label": "S4"
+            }
+        ]
+    },
+    "extends": "icet"
 }

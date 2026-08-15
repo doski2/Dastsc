@@ -3,6 +3,8 @@ notch_capture.py — Lectura manual de muescas desde RailDriver (GetControllerVa
 """
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Set
 
 from core.raildriver import ControllerInfo, RailDriverClient, RailDriverSnapshot
@@ -26,6 +28,106 @@ PRESET_LABELS = (
     "P1", "P2", "P3", "P4", "PMAX",
     "S7", "S6", "S5", "S4", "S3", "S2", "S1", "NEU",
 )
+
+# Class 350 Expert (TrainBrakeControl): release → initial → % → máximo → emergencia
+CLASS350_EXPERT_CAPTURE_ORDER = (
+    "OFF",
+    "INIT",
+    "10%",
+    "20%",
+    "30%",
+    "40%",
+    "50%",
+    "60%",
+    "70%",
+    "80%",
+    "90%",
+    "100%",
+    "EMG",
+)
+
+PROFILE_CAPTURE_SEQUENCES: Dict[str, tuple[str, ...]] = {
+    "class350_expert_wcml": CLASS350_EXPERT_CAPTURE_ORDER,
+    "class350_expert": CLASS350_EXPERT_CAPTURE_ORDER,
+}
+
+EXPERT_FIXED_LABELS = frozenset({"OFF", "INIT", "EMG"})
+_PERCENT_LABEL_RE = re.compile(r"^(\d+)\s*%?$", re.IGNORECASE)
+
+
+def _profile_match_key(profile: Optional[Profile]) -> Optional[str]:
+    if not profile:
+        return None
+    pid = str(profile.get("id") or "").lower().replace(" ", "_")
+    name = str(profile.get("name") or "").lower()
+    haystack = f"{pid} {name}"
+    for key in PROFILE_CAPTURE_SEQUENCES:
+        if key in haystack or key.replace("_", " ") in haystack:
+            return key
+    if "350" in haystack and "expert" in haystack:
+        return "class350_expert_wcml"
+    return None
+
+
+def capture_sequence_for_profile(profile: Optional[Profile] = None) -> tuple[str, ...]:
+    key = _profile_match_key(profile)
+    if key and key in PROFILE_CAPTURE_SEQUENCES:
+        return PROFILE_CAPTURE_SEQUENCES[key]
+    return PRESET_LABELS
+
+
+def preset_labels_for_profile(profile: Optional[Profile] = None) -> tuple[str, ...]:
+    """Etiquetas sugeridas en el combo del asistente (secuencia + presets genéricos)."""
+    seq = capture_sequence_for_profile(profile)
+    merged: List[str] = []
+    seen: set[str] = set()
+    for label in seq + PRESET_LABELS:
+        upper = label.upper()
+        if upper in seen:
+            continue
+        seen.add(upper)
+        merged.append(label)
+    return tuple(merged)
+
+
+def is_expert_percent_brake_profile(profile: Optional[Profile] = None) -> bool:
+    return _profile_match_key(profile) is not None
+
+
+def normalize_notch_label(label: str, profile: Optional[Profile] = None) -> str:
+    """
+    Canonicaliza etiquetas de muesca.
+
+    Class 350 Expert: 10 / 10% → «10%»; OFF, INIT, EMG en mayúsculas.
+    Resto: mayúsculas estándar (B1, OFF, EMG…).
+    """
+    raw = str(label).strip()
+    if not raw:
+        return raw
+    if not is_expert_percent_brake_profile(profile):
+        return raw.upper()
+    upper = raw.upper()
+    if upper in EXPERT_FIXED_LABELS:
+        return upper
+    match = _PERCENT_LABEL_RE.fullmatch(raw)
+    if match:
+        return f"{int(match.group(1))}%"
+    return upper
+
+
+def canonicalize_notches(
+    notches: Sequence[NotchEntry],
+    profile: Optional[Profile] = None,
+) -> List[NotchEntry]:
+    """Reescribe etiquetas al formato canónico del perfil (p. ej. añade %)."""
+    return sort_notches([
+        {
+            "value": round(float(n.get("value", 0)), 4),
+            "label": normalize_notch_label(str(n.get("label", "")), profile),
+        }
+        for n in notches
+        if str(n.get("label", "")).strip()
+    ])
 
 
 def _controller_by_name(snapshot: RailDriverSnapshot, name: str) -> Optional[ControllerInfo]:
@@ -66,6 +168,10 @@ def default_brake_control(
     profile: Optional[Profile] = None,
 ) -> Optional[str]:
     candidates = brake_control_candidates(snapshot, profile)
+    if is_expert_percent_brake_profile(profile):
+        for preferred in ("TrainBrakeControl", "VirtualBrake"):
+            if preferred in candidates:
+                return preferred
     return candidates[0] if candidates else None
 
 
@@ -109,30 +215,54 @@ def read_brake_control_value(
     return normalize_captured_notch_value(current, ctrl), ctrl
 
 
+@dataclass(frozen=True)
+class CaptureNotchResult:
+    notches: List[NotchEntry]
+    evicted_labels: tuple[str, ...] = ()
+    duplicate_value_labels: tuple[str, ...] = ()
+
+
 def capture_notch(
     label: str,
     value: float,
     control_name: str,
     existing: Sequence[NotchEntry],
-) -> List[NotchEntry]:
-    """Añade o sustituye una muesca por etiqueta; descarta duplicados de valor."""
-    clean_label = str(label).strip().upper()
+    profile: Optional[Profile] = None,
+) -> CaptureNotchResult:
+    """
+    Añade o sustituye una muesca por etiqueta.
+
+    Perfiles genéricos: descarta otras muescas con valor muy parecido (±NOTCH_VALUE_TOLERANCE).
+    Class 350 Expert: conserva todas las etiquetas aunque RailDriver repita el mismo valor
+    (el simulador puede exponer ~8 detentes aunque la cabina muestre más posiciones).
+    """
+    clean_label = normalize_notch_label(label, profile)
     if not clean_label:
         raise ValueError("Indica una etiqueta (B1, OFF, EMG…).")
 
     rounded = round(float(value), 4)
+    dedupe_by_value = not is_expert_percent_brake_profile(profile)
     merged: List[NotchEntry] = []
+    evicted: List[str] = []
+    duplicate_labels: List[str] = []
     for entry in existing:
-        entry_label = str(entry.get("label", "")).strip().upper()
+        entry_label = normalize_notch_label(str(entry.get("label", "")), profile)
         entry_value = round(float(entry.get("value", 0)), 4)
         if entry_label == clean_label:
             continue
         if abs(entry_value - rounded) <= NOTCH_VALUE_TOLERANCE:
-            continue
-        merged.append({"value": entry_value, "label": str(entry.get("label", "")).strip()})
+            if dedupe_by_value:
+                evicted.append(entry_label)
+                continue
+            duplicate_labels.append(entry_label)
+        merged.append({"value": entry_value, "label": entry_label})
 
     merged.append({"value": rounded, "label": clean_label})
-    return sort_notches(merged)
+    return CaptureNotchResult(
+        notches=sort_notches(merged),
+        evicted_labels=tuple(evicted),
+        duplicate_value_labels=tuple(duplicate_labels),
+    )
 
 
 def sort_notches(notches: Sequence[NotchEntry]) -> List[NotchEntry]:
@@ -142,15 +272,28 @@ def sort_notches(notches: Sequence[NotchEntry]) -> List[NotchEntry]:
     )
 
 
-def existing_labels(notches: Sequence[NotchEntry]) -> Set[str]:
-    return {str(n.get("label", "")).strip().upper() for n in notches if n.get("label")}
+def existing_labels(
+    notches: Sequence[NotchEntry],
+    profile: Optional[Profile] = None,
+) -> Set[str]:
+    return {
+        normalize_notch_label(str(n.get("label", "")), profile)
+        for n in notches
+        if str(n.get("label", "")).strip()
+    }
 
 
-def suggest_next_label(notches: Sequence[NotchEntry]) -> str:
-    used = existing_labels(notches)
-    for preset in PRESET_LABELS:
-        if preset not in used:
-            return preset
+def suggest_next_label(
+    notches: Sequence[NotchEntry],
+    profile: Optional[Profile] = None,
+) -> str:
+    used = existing_labels(notches, profile)
+    for preset in capture_sequence_for_profile(profile):
+        canonical = normalize_notch_label(preset, profile)
+        if canonical not in used:
+            return canonical
+    if is_expert_percent_brake_profile(profile):
+        return ""
     brake_count = sum(
         1 for n in notches
         if float(n.get("value", 0)) < -NOTCH_VALUE_TOLERANCE
@@ -167,18 +310,22 @@ def apply_notches_to_profile(
     """Escribe muescas en specs y refuerza mapping del mando capturado."""
     updated = dict(profile)
     specs = dict(updated.get("specs") or {})
-    specs["notches_throttle_brake"] = sort_notches(notches)
+    specs["notches_throttle_brake"] = canonicalize_notches(notches, updated)
     updated["specs"] = specs
 
     if brake_control:
         mappings = dict(updated.get("mappings") or {})
-        ctrl = _controller_by_name_from_mappings(brake_control, mappings)
-        if ctrl == brake_control:
-            pass
-        elif brake_control == "ThrottleAndBrake":
+        if brake_control == "ThrottleAndBrake":
             mappings["combined_control"] = brake_control
         elif brake_control in ("TrainBrakeControl", "VirtualBrake", "DynamicBrake"):
             mappings["train_brake"] = brake_control
+            brakes = dict(updated.get("brakes") or {})
+            brakes["train_control"] = brake_control
+            brakes.setdefault("system", "AIR_SERVICE")
+            brakes.setdefault("response_speed", "GRADUATED_PERCENT")
+            updated["brakes"] = brakes
+        else:
+            mappings["brake"] = brake_control
         updated["mappings"] = mappings
 
     return updated

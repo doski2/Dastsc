@@ -190,14 +190,26 @@ El backend enriquece el dict antes del WebSocket (`backend/main.py` → `_apply_
 ## OCR
 
 **OCR:** no hay captura periódica por timer. El backend sondea `GetData.txt` cada **10 ms
-(`_POLL_INTERVAL_S`) y dispara `ocr_hud.capture_next_stop` solo en estos casos:
+(`_POLL_INTERVAL_S`) y dispara `ocr_hud.capture_next_stop` solo en estos casos.
+
+**Nota:** `GetNextStation` en Lua **no** aporta distancia fiable en estos mapas; la distancia a
+parada viene **solo del OCR del HUD** (+ odómetro integrado).
 
 | Evento               | Cuándo                                                                                                                                                                        | Frecuencia típica                |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
 | `door_anchor`        | Puertas pasan de abiertas a cerradas (`DoorL`/`DoorR` > 0.5 → ≤ 0.5)                                                                                                          | **1× por parada**                |
+| `initial_anchor`     | Sin ancla previa, puertas cerradas, parado ≥ **5 s** (< 1 m/s), OCR ≥ **400 m** (rechaza ~0.08 mi en andén sin abrir puertas)                                                 | **1× al inicio de tramo**        |
 | `mid_leg_correction` | Tramo inicial **> 5 km**: checkpoints al recorrer fracciones del tramo (máx. **3**; p. ej. 20 km → ~5 km, 10 km, 15 km). Velocidad ≥ 10 km/h, puertas cerradas, cooldown 60 s | **0–3× por tramo**               |
 | `near_correction`    | Distancia estimada ≤ **400 m**, recorrido ≥ **200 m** desde el ancla, y aún no corregido en ese tramo                                                                         | **0–1× por tramo** entre paradas |
 | Debug manual         | `GET /api/ocr/debug`                                                                                                                                                          | Bajo demanda                     |
+
+### Cuándo usar cada ancla
+
+| Situación de escenario                               | Qué ocurre                                                                                 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Parado en **señal roja** al inicio (sin andén)       | Tras 5 s parado → `initial_anchor` si el HUD muestra millas reales (≥ 400 m)               |
+| **Andén**, puertas cerradas al cargar (HUD ~0.08 mi) | `initial_anchor` **rechaza** la lectura corta → abrir puertas → cerrar → **`door_anchor`** |
+| Parada normal en servicio                            | **`door_anchor`** al cerrar puertas tras embarque                                          |
 
 Entre capturas, `StationDistance` se integra con odómetro (velocidad × Δt) en
 `core/station_distance.py`. El tracker guarda muestras internas cada **5 s** (`SAMPLE_INTERVAL_S`;

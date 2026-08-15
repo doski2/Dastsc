@@ -435,6 +435,7 @@ async def telemetry_reader() -> None:
     _active_station_tracker = station_tracker
     last_active_cab: Optional[int] = None
     last_reversal: Optional[float] = None
+    stationary_since: Optional[float] = None
 
     async def run_ocr_capture(
         event: station_distance.SampleEvent = "door_anchor",
@@ -459,11 +460,18 @@ async def telemetry_reader() -> None:
                 if anchored:
                     _log_ocr_session_event(event, station_tracker, result=result)
                 else:
+                    reject_error = "rejected_jump"
+                    if (
+                        event == "initial_anchor"
+                        and result.get("distance_m") is not None
+                        and float(result["distance_m"]) < station_distance.MIN_NEW_LEG_ANCHOR_M
+                    ):
+                        reject_error = "rejected_platform_residual"
                     _log_ocr_session_event(
                         event,
                         station_tracker,
                         result=result,
-                        error="rejected_jump",
+                        error=reject_error,
                     )
             else:
                 _log_ocr_session_event(
@@ -504,10 +512,18 @@ async def telemetry_reader() -> None:
                         door_r = float(data.get("DoorR") or 0.0)
 
                         doors_open_now = _doors_open(door_l, door_r)
+                        if doors_open_now:
+                            station_tracker.note_doors_opened()
                         door_just_closed = ocr_door_was_open and not doors_open_now
                         ocr_door_was_open = doors_open_now
 
                         speed_ms = station_distance.speed_ms_from_telemetry(data)
+                        if speed_ms < station_distance.INITIAL_ANCHOR_MAX_SPEED_MS:
+                            if stationary_since is None:
+                                stationary_since = now
+                        else:
+                            stationary_since = None
+
                         lua_station_raw = float(data.get("StationDistance") or -1)
                         station_tracker.integrate(speed_ms, now)
                         if lua_station_raw > 0:
@@ -549,6 +565,16 @@ async def telemetry_reader() -> None:
                                 ocr_is_capturing = True
                                 asyncio.create_task(
                                     run_ocr_capture("door_anchor", speed_ms, now),
+                                )
+                            elif station_tracker.should_request_initial_anchor(
+                                speed_ms,
+                                now,
+                                doors_open=doors_open_now,
+                                stationary_since=stationary_since,
+                            ):
+                                ocr_is_capturing = True
+                                asyncio.create_task(
+                                    run_ocr_capture("initial_anchor", speed_ms, now),
                                 )
                             elif station_tracker.should_request_near_correction(speed_ms, now):
                                 ocr_is_capturing = True

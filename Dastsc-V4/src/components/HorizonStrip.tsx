@@ -25,18 +25,25 @@ export function HorizonStrip({
         Horizonte
       </h2>
       <ul className="space-y-2">
-        {events.map((event) => (
+        {events.map((event) => {
+          const isChainedLimit = event.id === 'limit-next-2' && event.label.includes('Cadena');
+          return (
           <li
             key={event.id}
             className="flex items-center gap-3 font-mono text-sm text-white/70"
           >
-            <span className="w-2 h-2 rounded-full bg-cyan-500/80 shrink-0" />
+            <span
+              className={`w-2 h-2 rounded-full shrink-0 ${
+                isChainedLimit ? 'bg-amber-400/90' : 'bg-cyan-500/80'
+              }`}
+            />
             <span className="text-white/40 w-20 shrink-0 tabular-nums">
               {formatDistance(event.distanceM, speedUnit)}
             </span>
-            <span>{event.label}</span>
+            <span className={isChainedLimit ? 'text-amber-300/90' : undefined}>{event.label}</span>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </section>
   );

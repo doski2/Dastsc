@@ -27,6 +27,9 @@ MID_LEG_INTERVAL_M = 5000.0
 MID_LEG_MAX_CAPTURES = 3
 MID_LEG_MIN_SPEED_MS = 10.0 / 3.6  # ~10 km/h
 MID_LEG_COOLDOWN_S = 60.0
+# Ancla OCR al inicio de tramo (señal / siding), sin GetNextStation en Lua.
+INITIAL_ANCHOR_MAX_SPEED_MS = 1.0
+INITIAL_ANCHOR_STATIONARY_S = 5.0
 OCR_REJECT_JUMP_M = 40.0
 # Odómetro adelantado vs millas HUD en tramos largos (WCML, etc.).
 MID_LEG_MAX_UPWARD_M = 250.0
@@ -73,6 +76,7 @@ def normalize_lua_station_distance(raw: float) -> Optional[float]:
 
 SampleEvent = Literal[
     "door_anchor",
+    "initial_anchor",
     "mid_leg_correction",
     "near_correction",
     "lua_sync",
@@ -195,6 +199,11 @@ class StationDistanceTracker:
         self._last_ocr_capture_at: float = 0.0
         self._awaiting_far_anchor = False
         self._near_correction_arrival_reset_used = False
+        self._doors_opened_since_clear = False
+
+    def note_doors_opened(self) -> None:
+        """Puertas abiertas al menos una vez desde el último clear (ciclo andén)."""
+        self._doors_opened_since_clear = True
 
     def _near_correction_max_upward(self, computed: float, speed_ms: float = 0.0) -> float:
         if computed <= PLATFORM_NEAR_CORRECTION_MAX_M:
@@ -285,6 +294,9 @@ class StationDistanceTracker:
     ) -> bool:
         """Rechaza lecturas que suben la distancia de forma implausible."""
         ocr_value = max(0.0, float(ocr_distance_m))
+        if event == "initial_anchor":
+            # Andén con puertas cerradas sin abrir: HUD ~0.08 mi (residual) — no anclar aquí.
+            return ocr_value >= MIN_NEW_LEG_ANCHOR_M
         if event == "door_anchor":
             computed = self.distance_m()
             if self._awaiting_far_anchor and ocr_value < MIN_NEW_LEG_ANCHOR_M:
@@ -329,7 +341,7 @@ class StationDistanceTracker:
         self._anchor_distance_m = ocr_value
         self._anchor_odometer_m = self._odometer_m
 
-        if event == "door_anchor":
+        if event in ("door_anchor", "initial_anchor"):
             self._near_correction_done = False
             self._last_drift_m = None
             self._leg_initial_anchor_m = ocr_value
@@ -400,6 +412,35 @@ class StationDistanceTracker:
         if self._anchor_distance_m is None:
             return None
         return max(0.0, self._anchor_distance_m - self.traveled_m())
+
+    def should_request_initial_anchor(
+        self,
+        speed_ms: float,
+        now: float,
+        *,
+        doors_open: bool,
+        stationary_since: Optional[float],
+    ) -> bool:
+        """
+        Primera ancla del tramo vía OCR (escenario en señal/siding, sin parada previa).
+
+        No sustituye door_anchor: en andén con ~0.08 mi y puertas cerradas, el OCR corto
+        se rechaza en should_accept_ocr_distance; la distancia buena llega al cerrar tras abrir.
+        """
+        if self.has_anchor:
+            return False
+        if doors_open:
+            return False
+        if speed_ms >= INITIAL_ANCHOR_MAX_SPEED_MS:
+            return False
+        if stationary_since is None or now - stationary_since < INITIAL_ANCHOR_STATIONARY_S:
+            return False
+        if (
+            self._last_ocr_capture_at > 0
+            and now - self._last_ocr_capture_at < MID_LEG_COOLDOWN_S
+        ):
+            return False
+        return True
 
     def should_request_mid_leg_correction(self, speed_ms: float, now: float) -> bool:
         if not self.has_anchor or self._leg_initial_anchor_m is None:
@@ -498,6 +539,7 @@ class StationDistanceTracker:
             "mid_leg_captures_done": self._mid_leg_captures_done,
             "mid_leg_milestones_m": [round(m, 1) for m in self._mid_leg_milestones_m()],
             "last_drift_m": self._last_drift_m,
+            "doors_opened_since_clear": self._doors_opened_since_clear,
             "sample_count": len(self._samples),
             "samples": [s.to_dict() for s in self._samples[-40:]],
         }
@@ -527,4 +569,5 @@ class StationDistanceTracker:
         self._mid_leg_captures_done = 0
         self._last_ocr_capture_at = 0.0
         self._awaiting_far_anchor = True
+        self._doors_opened_since_clear = False
         self._near_correction_arrival_reset_used = False

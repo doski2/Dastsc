@@ -3,15 +3,90 @@
     "source_file": "Class377.txt",
     "fingerprint": {
         "required_controls": [
-            "ThrottleAndBrake"
+            "ThrottleAndBrake",
+            "Regulator",
+            "TrainBrakeControl",
+            "DRAButton",
+            "DSD",
+            "DSDAlarm",
+            "AWS",
+            "Reverser"
         ]
     },
     "mappings": {
         "combined_control": "ThrottleAndBrake",
-        "reverser": "Reverser"
+        "reverser": "Reverser",
+        "regulator": "Regulator",
+        "train_brake": "TrainBrakeControl",
+        "brake_cylinder": "TrainBrakeCylinderPressureBAR",
+        "main_reservoir": "MainReservoirPressureBAR",
+        "ammeter": "Ammeter",
+        "current": "Current",
+        "effort": "TractiveEffort",
+        "aws": "AWS",
+        "aws_warning": "AWSWarnCount",
+        "aws_reset": "AWSReset",
+        "dsd": "DSD",
+        "dra": "DRAButton",
+        "doors_left": "DoorsOpenCloseLeft",
+        "doors_right": "DoorsOpenCloseRight",
+        "emergency_brake": "EmergencyBrake",
+        "master_key": "MasterKey",
+        "pantograph": "PantographControl"
     },
     "visuals": {
         "unit": "MPH",
         "color": "#3498db"
-    }
+    },
+    "aliases": [
+        "377",
+        "Class 377/2 DMOC Southern",
+        "DTG",
+        "WCML-South"
+    ],
+    "specs": {
+        "max_brake_cyl": 7.0,
+        "max_main_res": 10.0,
+        "max_ammeter": 500.0,
+        "max_current": 2000.0,
+        "notches_throttle_brake": [
+            {
+                "value": -1.0,
+                "label": "EMG"
+            },
+            {
+                "value": -0.75,
+                "label": "B3"
+            },
+            {
+                "value": -0.5,
+                "label": "B2"
+            },
+            {
+                "value": -0.25,
+                "label": "B1"
+            },
+            {
+                "value": 0.0,
+                "label": "OFF"
+            },
+            {
+                "value": 0.25,
+                "label": "S1"
+            },
+            {
+                "value": 0.5,
+                "label": "S2"
+            },
+            {
+                "value": 0.75,
+                "label": "S3"
+            },
+            {
+                "value": 1.0,
+                "label": "S4"
+            }
+        ]
+    },
+    "extends": "passenger"
 }

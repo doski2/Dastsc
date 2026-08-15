@@ -481,6 +481,88 @@ describe('commandBus', () => {
     expect(resolveSuggestedAction('AUTO', plan, CLASS323, coasting)).toBeUndefined();
   });
 
+  it('does not release OFF on downhill speed limit at target', () => {
+    const plan = {
+      targetKind: 'SPEED_LIMIT' as const,
+      activeStep: {
+        notch: 'B2',
+        applyNow: true,
+        distStart: 0,
+        applyAtRemainingM: 80,
+      },
+    } as BrakePlan;
+    const snapshot = createMockSnapshot({
+      gradient: -8,
+      brake: testBrake(-0.5, { cylinder: 2, effortKn: 40, projectedStopM: 120 }),
+      speedMs: 8.94,
+      speedDisplay: 20,
+      limits: { effective: 25, frontal: 25, next: { speed: 20, distanceM: 400 }, upcoming: [] },
+    });
+    expect(resolveReleaseAction(snapshot, plan as never, CLASS323)).toBeUndefined();
+  });
+
+  it('allows re-brake on downhill without coast latch inhibition', () => {
+    const plan = {
+      targetKind: 'SPEED_LIMIT' as const,
+      activeStep: { notch: 'B2', applyNow: true, distStart: 0, applyAtRemainingM: 40 },
+    } as BrakePlan;
+
+    const atTarget = createMockSnapshot({
+      gradient: -8,
+      brake: testBrake(-0.5, { cylinder: 2, effortKn: 40, projectedStopM: 80 }),
+      speedMs: 8.94,
+      speedDisplay: 20,
+      limits: { effective: 25, frontal: 25, next: { speed: 20, distanceM: 400 }, upcoming: [] },
+    });
+    expect(resolveReleaseAction(atTarget, plan as never, CLASS323)).toBeUndefined();
+
+    const reaccel = createMockSnapshot({
+      gradient: -8,
+      brake: testBrake(0.25, { projectedStopM: 300 }),
+      speedMs: 14.3,
+      speedDisplay: 32,
+      limits: { effective: 25, frontal: 25, next: { speed: 20, distanceM: 350 }, upcoming: [] },
+    });
+    expect(resolveSuggestedAction('AUTO', plan, CLASS323, reaccel)?.value).toBe(-0.5);
+  });
+
+  it('falls back to alternate plan when primary step is not in apply zone', () => {
+    const limitPlan = {
+      targetKind: 'SPEED_LIMIT' as const,
+      activeStep: {
+        notch: 'B1',
+        applyNow: false,
+        distStart: 120,
+        applyAtRemainingM: 400,
+      },
+    } as BrakePlan;
+    const stationPlan = {
+      targetKind: 'STATION' as const,
+      activeStep: {
+        notch: 'B2',
+        applyNow: true,
+        distStart: -40,
+        applyAtRemainingM: 540,
+      },
+    } as BrakePlan;
+    const snapshot = createMockSnapshot({
+      brake: testBrake(1.0, { projectedStopM: 400 }),
+      speedMs: 43.83,
+      speedDisplay: 99,
+      station: { distanceM: 500, nameOcr: 'Leighton', eta: '' },
+      limits: { effective: 90, frontal: 90, next: { speed: 90, distanceM: 800 }, upcoming: [] },
+    });
+    const action = resolveSuggestedAction(
+      'AUTO',
+      limitPlan,
+      CLASS323,
+      snapshot,
+      false,
+      [stationPlan],
+    );
+    expect(action?.value).toBe(-0.5);
+  });
+
   it('allows braking again after coast latch when clearly above target', () => {
     const plan = {
       targetKind: 'SPEED_LIMIT' as const,

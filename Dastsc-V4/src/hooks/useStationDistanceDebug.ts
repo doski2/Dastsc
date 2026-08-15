@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 export interface StationDistanceSample {
   t: number;
-  event: 'door_anchor' | 'mid_leg_correction' | 'near_correction' | 'tick' | 'arrival';
+  event: 'door_anchor' | 'initial_anchor' | 'mid_leg_correction' | 'near_correction' | 'tick' | 'arrival';
   distance_m: number;
   traveled_m: number;
   speed_ms: number;

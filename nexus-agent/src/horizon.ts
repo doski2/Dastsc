@@ -1,4 +1,9 @@
 import type { HorizonEvent, TelemetrySnapshot } from '@nexus/kernel';
+import {
+  describeLimitChain,
+  formatLimitChainHint,
+  secondUpcomingLimit,
+} from '@nexus/kernel';
 import { signalRequiresFullStop } from './brake/signalUtils';
 
 export function buildHorizon(snapshot: TelemetrySnapshot): HorizonEvent[] {
@@ -26,6 +31,22 @@ export function buildHorizon(snapshot: TelemetrySnapshot): HorizonEvent[] {
       requiredAction: 'REDUCE_SPEED',
       priority: 80,
     });
+
+    const chain = describeLimitChain(snapshot.limits, snapshot.speedUnit);
+    const second = secondUpcomingLimit(snapshot.limits);
+    if (second && second.distanceM > 0) {
+      events.push({
+        id: 'limit-next-2',
+        kind: 'SPEED_LIMIT',
+        distanceM: second.distanceM,
+        label: chain
+          ? formatLimitChainHint(chain, snapshot.speedUnit)
+          : `2.º límite → ${Math.round(second.speed)} ${snapshot.speedUnit}`,
+        targetSpeedDisplay: second.speed,
+        requiredAction: 'REDUCE_SPEED',
+        priority: chain?.clustered ? 85 : 72,
+      });
+    }
   }
 
   if (snapshot.station.distanceM > 0) {

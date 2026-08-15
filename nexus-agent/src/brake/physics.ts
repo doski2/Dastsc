@@ -5,6 +5,8 @@ export const APPLY_NOW_MARGIN_M = 150;
 export const APPLY_NOW_MARGIN_MIN_M = 25;
 /** Distancia máxima para planificar frenado ante un cartel de límite. */
 export const LIMIT_PLANNING_HORIZON_M = 2500;
+/** Por debajo (‰ negativo) la política de límite escala muesca y no suelta OFF. */
+export const DOWNHILL_LIMIT_GRADIENT_PERMILLE = -3;
 /** Límite y estación a menos de esta separación se planifican como un solo bloque de frenada. */
 export const TARGET_CLUSTER_GAP_M = 350;
 /** Tras soltar OFF en un límite, no volver a frenar hasta superar objetivo + este margen. */

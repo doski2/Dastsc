@@ -1,4 +1,4 @@
-import { formatDistance, formatSpeed, type DisplaySpeedUnit, type TelemetrySnapshot } from '@nexus/kernel';
+import { describeLimitChain, formatDistance, formatSpeed, type DisplaySpeedUnit, type TelemetrySnapshot } from '@nexus/kernel';
 
 interface DriveHudBarProps {
   snapshot: TelemetrySnapshot;
@@ -40,6 +40,7 @@ function Metric({
 export function DriveHudBar({ snapshot }: DriveHudBarProps) {
   const unit: DisplaySpeedUnit = snapshot.speedUnit;
   const next = snapshot.limits.next;
+  const chain = describeLimitChain(snapshot.limits, unit);
   const tail = snapshot.tail;
 
   const nextLabel = next
@@ -48,6 +49,13 @@ export function DriveHudBar({ snapshot }: DriveHudBarProps) {
   const nextDetail = next
     ? formatDistance(next.distanceM, unit)
     : '';
+
+  const secondLabel = chain
+    ? `${Math.round(chain.second.speed)} ${unit}`
+    : null;
+  const secondGap = chain && chain.gapM > 0
+    ? formatDistance(chain.gapM, unit)
+    : null;
 
   const tailValue = tail.active
     ? formatDistance(Math.max(0, tail.distanceM), unit)
@@ -85,6 +93,16 @@ export function DriveHudBar({ snapshot }: DriveHudBarProps) {
           {nextDetail && (
             <div className="text-[10px] font-mono text-white/40 tabular-nums truncate">
               en {nextDetail}
+            </div>
+          )}
+          {secondLabel && secondGap && (
+            <div
+              className={`text-[10px] font-mono tabular-nums truncate ${
+                chain?.clustered ? 'text-amber-400/90' : 'text-white/35'
+              }`}
+            >
+              → {secondLabel}
+              {chain?.clustered ? ` en +${secondGap}` : ` · +${secondGap}`}
             </div>
           )}
         </div>

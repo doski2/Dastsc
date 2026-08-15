@@ -33,11 +33,16 @@ from core.profile_checklist import (  # noqa: E402
     build_profile_checklist,
 )
 from core.notch_capture import (  # noqa: E402
-    PRESET_LABELS,
     apply_notches_to_profile,
     brake_control_candidates,
+    canonicalize_notches,
     capture_notch,
+    capture_sequence_for_profile,
     default_brake_control,
+    existing_labels,
+    is_expert_percent_brake_profile,
+    normalize_notch_label,
+    preset_labels_for_profile,
     read_brake_control_value,
     sort_notches,
     suggest_next_label,
@@ -84,18 +89,15 @@ class NotchCaptureDialog(tk.Toplevel):
         self._refresh_controls()
 
     def _build_ui(self) -> None:
+        self.intro_var = tk.StringVar()
         intro = ttk.Label(
             self,
-            text=(
-                "1) Coloca la palanca en la posición deseada.\n"
-                "2) Escribe la etiqueta (B1, B2, OFF, EMG…).\n"
-                "3) Pulsa «Capturar esta muesca».\n"
-                "Repite para cada muesca y luego «Aplicar al perfil»."
-            ),
+            textvariable=self.intro_var,
             justify=tk.LEFT,
             padding=8,
         )
         intro.pack(fill=tk.X)
+        self._refresh_intro_text()
 
         form = ttk.Frame(self, padding=(8, 0))
         form.pack(fill=tk.X)
@@ -112,9 +114,13 @@ class NotchCaptureDialog(tk.Toplevel):
             form,
             textvariable=self.label_var,
             width=12,
-            values=list(PRESET_LABELS),
+            values=list(preset_labels_for_profile(self.app.profile)),
         )
         self.label_combo.grid(row=1, column=1, sticky=tk.W, pady=(8, 0))
+
+        ttk.Button(form, text="Secuencia sugerida", command=self._load_suggested_sequence).grid(
+            row=1, column=3, padx=(8, 0), pady=(8, 0),
+        )
 
         ttk.Button(form, text="Capturar esta muesca", command=self._capture_one).grid(
             row=1, column=2, padx=(8, 0), pady=(8, 0),
@@ -124,18 +130,18 @@ class NotchCaptureDialog(tk.Toplevel):
         ttk.Label(form, textvariable=self.live_var).grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=(8, 0))
         ttk.Button(form, text="Leer valor actual", command=self._preview_value).grid(row=2, column=2, sticky=tk.E, pady=(8, 0))
 
-        list_frame = ttk.LabelFrame(self, text="Muescas capturadas", padding=4)
-        list_frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+        self.list_frame = ttk.LabelFrame(self, text="Muescas capturadas", padding=4)
+        self.list_frame.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
 
         cols = ("label", "value", "control")
-        self.tree = ttk.Treeview(list_frame, columns=cols, show="headings", height=12)
+        self.tree = ttk.Treeview(self.list_frame, columns=cols, show="headings", height=12)
         self.tree.heading("label", text="Etiqueta")
         self.tree.heading("value", text="Value")
         self.tree.heading("control", text="Mando")
         self.tree.column("label", width=90, anchor=tk.CENTER)
         self.tree.column("value", width=90, anchor=tk.CENTER)
         self.tree.column("control", width=220)
-        scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        scroll = ttk.Scrollbar(self.list_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll.set)
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scroll.pack(side=tk.RIGHT, fill=tk.Y)
@@ -149,7 +155,7 @@ class NotchCaptureDialog(tk.Toplevel):
 
     def _load_from_profile(self) -> None:
         existing = (self.app.profile.get("specs") or {}).get("notches_throttle_brake") or []
-        self.notches = sort_notches(existing)
+        self.notches = canonicalize_notches(existing, self.app.profile)
         mappings = self.app.profile.get("mappings") or {}
         self.last_control = (
             mappings.get("combined_control")
@@ -158,7 +164,35 @@ class NotchCaptureDialog(tk.Toplevel):
             or ""
         )
         self._refresh_tree()
-        self.label_var.set(suggest_next_label(self.notches))
+        self.label_var.set(suggest_next_label(self.notches, self.app.profile))
+        self.label_combo.configure(values=list(preset_labels_for_profile(self.app.profile)))
+
+    def _refresh_intro_text(self) -> None:
+        if is_expert_percent_brake_profile(self.app.profile):
+            seq = " → ".join(capture_sequence_for_profile(self.app.profile))
+            self.intro_var.set(
+                "Class 350 Expert — freno en TrainBrakeControl (no ThrottleAndBrake).\n"
+                "1) OFF/release → INIT → 10%…100% → EMG.\n"
+                "2) Pulsa «Secuencia sugerida» o elige la etiqueta en orden.\n"
+                "3) «Capturar esta muesca» en cada posición · «Aplicar al perfil» al terminar.\n"
+                f"Orden: {seq}"
+            )
+        else:
+            self.intro_var.set(
+                "1) Coloca la palanca en la posición deseada.\n"
+                "2) Escribe la etiqueta (B1, B2, OFF, EMG…).\n"
+                "3) Pulsa «Capturar esta muesca».\n"
+                "Repite para cada muesca y luego «Aplicar al perfil»."
+            )
+
+    def _load_suggested_sequence(self) -> None:
+        seq = capture_sequence_for_profile(self.app.profile)
+        used = existing_labels(self.notches, self.app.profile)
+        for label in seq:
+            if normalize_notch_label(label, self.app.profile) not in used:
+                self.label_var.set(normalize_notch_label(label, self.app.profile))
+                return
+        self.label_var.set(suggest_next_label(self.notches, self.app.profile))
 
     def _refresh_controls(self) -> None:
         rd = get_raildriver_client()
@@ -213,17 +247,42 @@ class NotchCaptureDialog(tk.Toplevel):
             control = self._selected_control()
             value, ctrl = read_brake_control_value(rd, control)
             label = self.label_var.get().strip()
-            self.notches = capture_notch(label, value, control, self.notches)
+            result = capture_notch(label, value, control, self.notches, self.app.profile)
+            self.notches = result.notches
+            captured_label = normalize_notch_label(label, self.app.profile)
             self.last_control = control
             self._refresh_tree()
-            self.label_var.set(suggest_next_label(self.notches))
+            self.label_var.set(suggest_next_label(self.notches, self.app.profile))
             self.live_var.set(
-                f"Capturada {label.upper()} = {value:+.4f}  ({control}  min={ctrl.min_value:g} max={ctrl.max_value:g})",
+                f"Capturada {captured_label} = {value:+.4f}  ({control}  min={ctrl.min_value:g} max={ctrl.max_value:g})",
             )
+            if result.evicted_labels:
+                messagebox.showwarning(
+                    "Valor duplicado",
+                    (
+                        f"La lectura {value:+.4f} coincide con: {', '.join(result.evicted_labels)}.\n"
+                        "Se han sustituido (deduplicación estándar).\n"
+                        "En Class 350 Expert usa el perfil correcto para conservar todas las etiquetas."
+                    ),
+                    parent=self,
+                )
+            elif result.duplicate_value_labels:
+                messagebox.showinfo(
+                    "Mismo valor en cabina",
+                    (
+                        f"El valor {value:+.4f} ya aparece en: {', '.join(result.duplicate_value_labels)}.\n"
+                        "Muesca guardada igualmente — el juego puede tener menos detentes "
+                        "físicos que posiciones en la palanca."
+                    ),
+                    parent=self,
+                )
         except (RuntimeError, ValueError) as exc:
             messagebox.showerror("Captura", str(exc), parent=self)
 
     def _refresh_tree(self) -> None:
+        expected = len(capture_sequence_for_profile(self.app.profile))
+        count = len(self.notches)
+        self.list_frame.configure(text=f"Muescas capturadas ({count}/{expected})")
         for row in self.tree.get_children():
             self.tree.delete(row)
         control = self.last_control or self.control_var.get().strip()
@@ -241,7 +300,7 @@ class NotchCaptureDialog(tk.Toplevel):
         labels = {self.tree.item(item, "values")[0].upper() for item in selected}
         self.notches = [n for n in self.notches if str(n.get("label", "")).upper() not in labels]
         self._refresh_tree()
-        self.label_var.set(suggest_next_label(self.notches))
+        self.label_var.set(suggest_next_label(self.notches, self.app.profile))
 
     def _clear_all(self) -> None:
         if self.notches and not messagebox.askyesno(
@@ -252,7 +311,7 @@ class NotchCaptureDialog(tk.Toplevel):
             return
         self.notches = []
         self._refresh_tree()
-        self.label_var.set("EMG")
+        self.label_var.set(suggest_next_label(self.notches, self.app.profile))
 
     def _apply_to_profile(self) -> None:
         if not self.notches:
