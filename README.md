@@ -19,6 +19,8 @@ Backend (otra terminal):
 
 ## Documentación
 
+- [DOCUMENTACION_PROYECTO.md](docs/DOCUMENTACION_PROYECTO.md) — **índice** y enlaces canónicos
+- [PENDIENTES_V4.md](docs/PENDIENTES_V4.md) — backlog priorizado (P0–P3)
 - [NEXUS_V4_ARQUITECTURA.md](docs/NEXUS_V4_ARQUITECTURA.md) — agente, UI, perfiles, AUTO
 - [METRICAS_TELEMETRIA_V3.md](docs/METRICAS_TELEMETRIA_V3.md) — campos Lua/backend/HUD
 - [GUIA_PERFILES_V3.md](docs/GUIA_PERFILES_V3.md) — perfiles JSON y captura de muescas

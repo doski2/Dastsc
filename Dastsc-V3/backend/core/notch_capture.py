@@ -46,9 +46,34 @@ CLASS350_EXPERT_CAPTURE_ORDER = (
     "EMG",
 )
 
+
+def _percent_notch_labels(step: int = 10) -> tuple[str, ...]:
+    return tuple(f"{i}%" for i in range(step, 101, step))
+
+
+# Acela Express Expert (VirtualBrake): detentes RailDriver 0, 0.2 … 0.8, 0.99, 1
+ACELA_EXPERT_BRAKE_CAPTURE_ORDER = (
+    "OFF",
+    "20%",
+    "40%",
+    "60%",
+    "80%",
+    "99%",
+    "EMG",
+)
+
+# VirtualBrake genérico sin detentes fijos conocidos (captura 10 %…100 %)
+VIRTUAL_GRADUATED_PERCENT_CAPTURE_ORDER = (
+    "OFF",
+) + _percent_notch_labels() + (
+    "EMG",
+)
+
 PROFILE_CAPTURE_SEQUENCES: Dict[str, tuple[str, ...]] = {
     "class350_expert_wcml": CLASS350_EXPERT_CAPTURE_ORDER,
     "class350_expert": CLASS350_EXPERT_CAPTURE_ORDER,
+    "acelaexpress_expert": ACELA_EXPERT_BRAKE_CAPTURE_ORDER,
+    "graduated_percent_virtual": VIRTUAL_GRADUATED_PERCENT_CAPTURE_ORDER,
 }
 
 EXPERT_FIXED_LABELS = frozenset({"OFF", "INIT", "EMG"})
@@ -66,7 +91,54 @@ def _profile_match_key(profile: Optional[Profile]) -> Optional[str]:
             return key
     if "350" in haystack and "expert" in haystack:
         return "class350_expert_wcml"
+    if "acela" in haystack and "expert" in haystack:
+        return "acelaexpress_expert"
+
+    brakes = profile.get("brakes") or {}
+    if str(brakes.get("response_speed", "")).upper() == "GRADUATED_PERCENT":
+        mappings = profile.get("mappings") or {}
+        brake_ctrl = str(
+            brakes.get("train_control")
+            or mappings.get("train_brake")
+            or mappings.get("brake")
+            or ""
+        )
+        if brake_ctrl == "VirtualBrake":
+            return "graduated_percent_virtual"
+        if brake_ctrl == "TrainBrakeControl" or "350" in haystack:
+            return "class350_expert_wcml"
+        return "graduated_percent_virtual"
     return None
+
+
+def describe_graduated_capture(profile: Optional[Profile] = None) -> Optional[Dict[str, str]]:
+    """Texto de ayuda para el asistente de captura (control + pasos)."""
+    key = _profile_match_key(profile)
+    if not key:
+        return None
+    mappings = (profile or {}).get("mappings") or {}
+    brakes = (profile or {}).get("brakes") or {}
+    control = str(
+        brakes.get("train_control")
+        or mappings.get("train_brake")
+        or mappings.get("brake")
+        or ("TrainBrakeControl" if "350" in key else "VirtualBrake")
+    )
+    if key in ("class350_expert", "class350_expert_wcml"):
+        title = "Class 350 Expert"
+        steps = "OFF/release → INIT → 10%…100% → EMG"
+    elif key == "acelaexpress_expert":
+        title = "Acela Express Expert"
+        steps = "OFF/release → 20% → 40% → 60% → 80% → 99% → EMG (VirtualBrake)"
+    else:
+        title = "Freno gradual %"
+        steps = "OFF/release → 10%…100% → EMG"
+    return {
+        "title": title,
+        "control": control,
+        "steps": steps,
+        "sequence": " → ".join(capture_sequence_for_profile(profile)),
+    }
 
 
 def capture_sequence_for_profile(profile: Optional[Profile] = None) -> tuple[str, ...]:
@@ -91,6 +163,7 @@ def preset_labels_for_profile(profile: Optional[Profile] = None) -> tuple[str, .
 
 
 def is_expert_percent_brake_profile(profile: Optional[Profile] = None) -> bool:
+    """Perfiles con captura OFF/INIT o % y sin deduplicar por valor RailDriver."""
     return _profile_match_key(profile) is not None
 
 
@@ -98,7 +171,7 @@ def normalize_notch_label(label: str, profile: Optional[Profile] = None) -> str:
     """
     Canonicaliza etiquetas de muesca.
 
-    Class 350 Expert: 10 / 10% → «10%»; OFF, INIT, EMG en mayúsculas.
+    Perfiles graduados %: 10 / 10% → «10%»; OFF, INIT, EMG en mayúsculas.
     Resto: mayúsculas estándar (B1, OFF, EMG…).
     """
     raw = str(label).strip()

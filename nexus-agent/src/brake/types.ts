@@ -47,10 +47,20 @@ export interface BrakePlanProfile {
   agent_config?: AgentConfig;
 }
 
+export interface BrakeStatsBandEntry {
+  avg_decel: number;
+  samples: number;
+  max_decel?: number;
+}
+
+export type SpeedBand = 'high' | 'med' | 'low';
+
 export interface BrakeStatsEntry {
   avg_decel: number;
   samples: number;
   max_decel?: number;
+  /** Decel aprendida por banda de velocidad (Plan A — P3.7). */
+  by_speed?: Partial<Record<SpeedBand, BrakeStatsBandEntry>>;
 }
 
 export type BrakeStatsByNotch = Record<string, BrakeStatsEntry>;

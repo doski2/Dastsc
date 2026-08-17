@@ -76,9 +76,11 @@ describe('brakingDistanceM', () => {
 });
 
 describe('decelForNotch', () => {
+  const defaultSpeedMs = 20;
+
   it('adds uphill gradient to service decel', () => {
-    const flat = decelForNotch(0.5, 'B2', 1.0, 180, 1, 0, {});
-    const uphill = decelForNotch(0.5, 'B2', 1.0, 180, 1, 10, {});
+    const flat = decelForNotch(0.5, 'B2', 1.0, 180, 1, 0, {}, defaultSpeedMs);
+    const uphill = decelForNotch(0.5, 'B2', 1.0, 180, 1, 10, {}, defaultSpeedMs);
     expect(uphill).toBeGreaterThan(flat);
     expect(uphill - flat).toBeCloseTo(gravityAcceleration(10), 5);
   });
@@ -86,15 +88,44 @@ describe('decelForNotch', () => {
   it('prefers learned decel when enough samples exist', () => {
     const learned = decelForNotch(0.5, 'B2', 1.0, 180, 1, 0, {
       B2: { avg_decel: 0.72, samples: 5 },
-    });
+    }, defaultSpeedMs);
     expect(learned).toBe(0.72);
   });
 
   it('blends avg and max decel for planning when max is available', () => {
     const learned = decelForNotch(0.5, 'B2', 1.0, 180, 1, 0, {
       B2: { avg_decel: 0.70, max_decel: 0.862, samples: 8 },
-    });
+    }, defaultSpeedMs);
     expect(learned).toBeCloseTo(0.70 * 0.65 + 0.862 * 0.35, 4);
+  });
+
+  it('prefers band-specific decel when enough samples in that band', () => {
+    const stats = {
+      B2: {
+        avg_decel: 0.5,
+        samples: 10,
+        by_speed: {
+          high: { avg_decel: 0.85, samples: 4 },
+          med: { avg_decel: 0.55, samples: 3 },
+        },
+      },
+    };
+    expect(decelForNotch(0.5, 'B2', 1.0, 180, 1, 0, stats, 40)).toBe(0.85);
+    expect(decelForNotch(0.5, 'B2', 1.0, 180, 1, 0, stats, 15)).toBe(0.55);
+    expect(decelForNotch(0.5, 'B2', 1.0, 180, 1, 0, stats, 5)).toBe(0.5);
+  });
+
+  it('falls back to global avg when band has insufficient samples', () => {
+    const stats = {
+      B2: {
+        avg_decel: 0.62,
+        samples: 5,
+        by_speed: {
+          high: { avg_decel: 0.9, samples: 2 },
+        },
+      },
+    };
+    expect(decelForNotch(0.5, 'B2', 1.0, 180, 1, 0, stats, 40)).toBe(0.62);
   });
 });
 
@@ -155,7 +186,7 @@ describe('planBrake', () => {
     const speed = 25;
     const fill = 5;
     const reaction = reactionMarginM(speed, fill);
-    const decel = decelForNotch(0.5, 'B2', 1.1, 180, 1, 0, {});
+    const decel = decelForNotch(0.5, 'B2', 1.1, 180, 1, 0, {}, 25);
     const distNeeded = brakingDistanceM(speed, 0, decel);
     const remaining = distNeeded + reaction;
 
@@ -234,6 +265,40 @@ describe('snapshot helpers', () => {
     const plan = planBrakeForLimit(snapshot, { profile: CLASS323_PROFILE });
     expect(plan?.targetKind).toBe('SPEED_LIMIT');
     expect(plan!.targetSpeedMs).toBeGreaterThan(0);
+  });
+
+  it('plans compliance brake when above effective zone with higher next limit', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 46.75,
+      speedDisplay: 104.6,
+      speedUnit: 'MPH',
+      limits: {
+        effective: 100,
+        frontal: 100,
+        next: { speed: 125, distanceM: 603 },
+        upcoming: [{ speed: 125, distanceM: 603 }],
+      },
+    });
+    const plan = planBrakeForLimit(snapshot, { profile: CLASS323_PROFILE });
+    expect(plan?.targetKind).toBe('SPEED_LIMIT');
+    expect(plan?.distanceToTargetM).toBe(0);
+    expect(plan?.targetSpeedMs).toBeCloseTo(44.704, 2);
+    expect(plan?.activeStep?.applyNow).toBe(true);
+  });
+
+  it('does not compliance-brake when at or below effective limit', () => {
+    const snapshot = createMockSnapshot({
+      speedMs: 44.7,
+      speedDisplay: 100,
+      speedUnit: 'MPH',
+      limits: {
+        effective: 100,
+        frontal: 100,
+        next: { speed: 125, distanceM: 603 },
+        upcoming: [{ speed: 125, distanceM: 603 }],
+      },
+    });
+    expect(planBrakeForLimit(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
   });
 
   it('plans chained UK limits toward the lower second target', () => {

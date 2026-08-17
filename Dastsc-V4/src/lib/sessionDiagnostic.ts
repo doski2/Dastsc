@@ -1,7 +1,6 @@
 import type { AgentTick, PolicyMode, TelemetrySnapshot } from '@nexus/kernel';
 import type { BrakeStatsByNotch } from '@nexus/agent';
 import type { CommandAck } from './commandTypes';
-import type { CabOverride } from './agentSettings';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -12,7 +11,7 @@ export type DiagnosticEventType =
   | 'tick_change'
   | 'policy'
   | 'profile'
-  | 'cab'
+  | 'gradient_sign'
   | 'command'
   | 'ack'
   | 'auto_fallback'
@@ -37,7 +36,6 @@ export type DiagnosticTickInput = {
   isGameLinked: boolean;
   telemetryActive: boolean;
   stillBraking: boolean;
-  cabOverride: CabOverride;
   lastAck: CommandAck | null;
   brakeStats?: BrakeStatsByNotch;
 };
@@ -45,20 +43,14 @@ export type DiagnosticTickInput = {
 /** Resumen compacto de telemetría + agente para diagnóstico. */
 export function buildDiagnosticTick(input: DiagnosticTickInput): Record<string, unknown> {
   const { snapshot: s, agent: a } = input;
+  const activeStep = a.brakePlan?.find(step => step.applyNow)
+    ?? a.brakePlan?.[a.brakePlan.length - 1];
   return {
     type: 'tick',
     t: s.t,
     wall: new Date().toISOString(),
-    link: {
-      backend: input.isBackendConnected,
-      game: input.isGameLinked,
-      telemetryActive: input.telemetryActive,
-    },
     policy: input.policyMode,
-    profileSelection: input.profileSelection,
     profileId: input.activeProfileId ?? s.train.profileId,
-    cabOverride: input.cabOverride,
-    activeCab: s.activeCab,
     speed: {
       ms: s.speedMs,
       display: s.speedDisplay,
@@ -67,34 +59,35 @@ export function buildDiagnosticTick(input: DiagnosticTickInput): Record<string, 
     brake: {
       combined: s.brake.combined,
       position: s.brake.position,
-      cylinder: s.brake.cylinder,
-      effortKn: s.brake.effortKn,
-      projectedStopM: s.brake.projectedStopM,
       stillBraking: input.stillBraking,
+      effortKn: Math.round(s.brake.effortKn * 10) / 10,
+      tractiveKn: Math.round(s.brake.tractiveKn * 10) / 10,
+      cylinder: Math.round(s.brake.cylinder * 10) / 10,
     },
     station: {
       distanceM: s.station.distanceM,
       nameOcr: s.station.nameOcr,
-      eta: s.station.eta,
-      scheduled: s.station.scheduled,
       source: s.station.source,
-      luaDistanceM: s.station.luaDistanceM,
-      anchorM: s.station.anchorM,
-      traveledM: s.station.traveledM,
       driftM: s.station.driftM,
-      nearCorrected: s.station.nearCorrected,
     },
     limits: {
       effective: s.limits.effective,
+      frontal: s.limits.frontal,
       next: s.limits.next,
+      upcoming: s.limits.upcoming,
     },
     signaling: {
       aspect: s.signaling.aspect,
       distanceM: s.signaling.distanceM,
     },
-    gradient: {
-      permille: s.gradient,
-      raw: s.rawGradient,
+    gradient: Math.round(s.gradient * 10) / 10,
+    /** Desnivel legible: ‰ / 10 (p. ej. +8.5‰ → +0.85%). */
+    gradientPct: Math.round((s.gradient / 10) * 100) / 100,
+    train: {
+      profileId: s.train.profileId,
+      massT: s.train.massT,
+      lengthM: s.train.lengthM,
+      consistType: s.train.consistType,
     },
     agent: {
       headline: a.headline,
@@ -103,8 +96,16 @@ export function buildDiagnosticTick(input: DiagnosticTickInput): Record<string, 
       blockedReason: a.blockedReason,
       suggestedAction: a.suggestedAction,
       marginM: a.marginM,
-      brakePlan: a.brakePlan,
       brakeContext: a.brakeContext,
+      brakePlanSteps: a.brakePlan?.length ?? 0,
+      activeStep: activeStep
+        ? {
+            notch: activeStep.notch,
+            phase: activeStep.phase,
+            distStart: activeStep.distStart,
+            applyNow: activeStep.applyNow,
+          }
+        : null,
       horizon: a.horizon.map(e => ({
         kind: e.kind,
         label: e.label,
@@ -112,8 +113,6 @@ export function buildDiagnosticTick(input: DiagnosticTickInput): Record<string, 
         targetSpeedDisplay: e.targetSpeedDisplay,
       })),
     },
-    lastAck: input.lastAck,
-    brakeStats: input.brakeStats ?? {},
   };
 }
 
@@ -126,15 +125,16 @@ export function diagnosticSignature(tick: Record<string, unknown>): string {
     source?: string;
     driftM?: number;
   } | undefined;
+  const dist = station?.distanceM;
+  const distBucket = dist != null && dist >= 0 ? Math.round(dist / 10) * 10 : dist;
   return [
     action?.command ?? '',
     action?.value?.toFixed(4) ?? '',
     agent?.headline ?? '',
     String(brake?.position ?? ''),
     String(brake?.combined ?? ''),
-    String(station?.distanceM ?? ''),
+    String(distBucket ?? ''),
     station?.source ?? '',
-    String(station?.driftM ?? ''),
     tick.policy ?? '',
   ].join('|');
 }
@@ -142,36 +142,83 @@ export function diagnosticSignature(tick: Record<string, unknown>): string {
 class SessionDiagnosticClient {
   private sessionId: string | null = null;
   private buffer: DiagnosticEvent[] = [];
+  private pendingBeforeSession: DiagnosticEvent[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private startPromise: Promise<string | null> | null = null;
+  private startMeta: Record<string, unknown> = {};
+  private boundWs: WebSocket | null = null;
+  private boundWsMeta: Record<string, unknown> = {};
+
+  ensureStarted(meta: Record<string, unknown> = {}): Promise<string | null> {
+    if (this.sessionId) {
+      void this.updateMeta(meta);
+      this.tryRegisterBackend();
+      return Promise.resolve(this.sessionId);
+    }
+    this.startMeta = { ...this.startMeta, ...meta };
+    if (!this.startPromise) {
+      this.startPromise = this.start(this.startMeta).finally(() => {
+        this.startPromise = null;
+      });
+    }
+    return this.startPromise;
+  }
+
+  bindWebSocket(ws: WebSocket, meta: Record<string, unknown> = {}): void {
+    this.boundWs = ws;
+    this.boundWsMeta = { ...meta, source: meta.source ?? 'v4_session' };
+    void this.ensureStarted(this.boundWsMeta).then(() => {
+      this.tryRegisterBackend();
+    });
+  }
+
+  private tryRegisterBackend(): void {
+    const ws = this.boundWs;
+    if (!ws || ws.readyState !== WebSocket.OPEN || !this.sessionId) return;
+    ws.send(JSON.stringify({
+      type: 'SESSION_REGISTER',
+      session_id: this.sessionId,
+      meta: this.boundWsMeta,
+    }));
+  }
+
+  private drainPendingBeforeSession(): void {
+    if (!this.sessionId || this.pendingBeforeSession.length === 0) return;
+    this.buffer.push(...this.pendingBeforeSession);
+    this.pendingBeforeSession = [];
+    if (this.buffer.length >= 20) void this.flush();
+  }
 
   async start(meta: Record<string, unknown>): Promise<string | null> {
     try {
       const res = await fetch(`${API_BASE}/api/debug/session/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meta }),
+        body: JSON.stringify({ meta: { ...meta, source: meta.source ?? 'v4_session' } }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        console.warn('[sessionDiagnostic] start failed:', res.status, res.statusText);
+        return null;
+      }
       const data = await res.json() as { session_id?: string };
       this.sessionId = data.session_id ?? null;
       if (this.sessionId) {
         this.log({ type: 'session_start', t: Date.now(), wall: new Date().toISOString(), meta });
         void this.updateMeta(meta);
+        this.drainPendingBeforeSession();
         this.startFlush();
+        this.tryRegisterBackend();
+        void this.flush();
       }
       return this.sessionId;
-    } catch {
+    } catch (err) {
+      console.warn('[sessionDiagnostic] start error:', err);
       return null;
     }
   }
 
   registerWithBackend(ws: WebSocket, meta: Record<string, unknown>): void {
-    if (!this.sessionId || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({
-      type: 'SESSION_REGISTER',
-      session_id: this.sessionId,
-      meta,
-    }));
+    this.bindWebSocket(ws, meta);
   }
 
   async updateMeta(patch: Record<string, unknown>): Promise<void> {
@@ -180,10 +227,10 @@ class SessionDiagnosticClient {
       await fetch(`${API_BASE}/api/debug/session/${this.sessionId}/meta`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(patch),
+        body: JSON.stringify({ ...patch, source: 'v4_session' }),
       });
-    } catch {
-      // ignore
+    } catch (err) {
+      console.warn('[sessionDiagnostic] updateMeta failed:', err);
     }
   }
 
@@ -193,23 +240,60 @@ class SessionDiagnosticClient {
   }
 
   log(event: DiagnosticEvent): void {
+    if (!this.sessionId) {
+      this.pendingBeforeSession.push(event);
+      if (this.pendingBeforeSession.length > 200) {
+        this.pendingBeforeSession.shift();
+      }
+      if (Object.keys(this.startMeta).length > 0) {
+        void this.ensureStarted(this.startMeta);
+      }
+      return;
+    }
     this.buffer.push(event);
-    if (this.buffer.length >= 20) void this.flush();
+    const urgent = event.type === 'session_start'
+      || event.type === 'session_end'
+      || event.type === 'tick_change'
+      || event.type === 'connection';
+    if (urgent || this.buffer.length >= 20) void this.flush();
+  }
+
+  private flushViaWebSocket(batch: DiagnosticEvent[]): boolean {
+    const ws = this.boundWs;
+    if (!ws || ws.readyState !== WebSocket.OPEN || !this.sessionId || batch.length === 0) {
+      return false;
+    }
+    try {
+      ws.send(JSON.stringify({
+        type: 'SESSION_EVENTS',
+        session_id: this.sessionId,
+        events: batch,
+      }));
+      return true;
+    } catch (err) {
+      console.warn('[sessionDiagnostic] WS flush error:', err);
+      return false;
+    }
   }
 
   async flush(): Promise<void> {
     if (!this.sessionId || this.buffer.length === 0) return;
     const batch = this.buffer.splice(0, this.buffer.length);
+    if (this.flushViaWebSocket(batch)) return;
     try {
       const res = await fetch(`${API_BASE}/api/debug/session/${this.sessionId}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ events: batch }),
       });
-      if (!res.ok) {
-        this.buffer.unshift(...batch);
+      const data = await res.json().catch(() => ({})) as { ok?: boolean };
+      if (!res.ok || data.ok === false) {
+        console.warn('[sessionDiagnostic] flush failed:', res.status, batch.length, 'events', data);
+        if (!this.flushViaWebSocket(batch)) this.buffer.unshift(...batch);
       }
-    } catch {
+    } catch (err) {
+      console.warn('[sessionDiagnostic] flush error:', err);
+      if (this.flushViaWebSocket(batch)) return;
       if (typeof navigator !== 'undefined' && typeof Blob !== 'undefined') {
         const blob = new Blob(
           [JSON.stringify({ events: batch })],
@@ -229,6 +313,7 @@ class SessionDiagnosticClient {
   flushSyncOnUnload(): void {
     if (!this.sessionId || this.buffer.length === 0) return;
     const batch = this.buffer.splice(0, this.buffer.length);
+    if (this.flushViaWebSocket(batch)) return;
     if (typeof navigator === 'undefined' || typeof Blob === 'undefined') return;
     const blob = new Blob(
       [JSON.stringify({ events: batch })],

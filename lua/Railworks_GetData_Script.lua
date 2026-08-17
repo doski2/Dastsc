@@ -27,7 +27,7 @@
 --and test your script regularly. 
 
 -------------------  GetData function --------------------
-local NEXUS_LUA_VERSION = 11
+local NEXUS_LUA_VERSION = 12
 local gData = ""
 local delay = 5 
 local counter = 0
@@ -219,8 +219,16 @@ function GetControlData()
 	-- Sensores de Tracción y Potencia
 	local ammeter = 0
 	local t_effort = 0
+	local effort_source = "none"
 	if Call("ControlExists", "Ammeter", 0) == 1 then ammeter = Call("GetControlValue", "Ammeter", 0) end
-	if Call("ControlExists", "TractiveEffort", 0) == 1 then t_effort = Call("GetControlValue", "TractiveEffort", 0) end
+	if Call("ControlExists", "TractiveEffort", 0) == 1 then
+		t_effort = Call("GetControlValue", "TractiveEffort", 0)
+		effort_source = "TractiveEffort"
+	elseif Call("ControlExists", "Effort", 0) == 1 then
+		-- Acela WB / algunos Expert: mismo concepto kN, distinto nombre de control
+		t_effort = Call("GetControlValue", "Effort", 0)
+		effort_source = "Effort"
+	end
 
 	-- Controles de Conducción Primarios
 	local throttle = 0
@@ -274,19 +282,23 @@ function GetControlData()
 
 	-- BC (Brake Cylinder)
 	if Call("ControlExists", "TrainBrakeCylinderPressureBAR", 0) == 1 then b_cylinder = Call("GetControlValue", "TrainBrakeCylinderPressureBAR", 0)
+	elseif Call("ControlExists", "TrainBrakeCylinderPressurePSI", 0) == 1 then b_cylinder = Call("GetControlValue", "TrainBrakeCylinderPressurePSI", 0)
 	elseif Call("ControlExists", "BrakeCylinderPressurePSI", 0) == 1 then b_cylinder = Call("GetControlValue", "BrakeCylinderPressurePSI", 0)
 	elseif Call("ControlExists", "BrakeCylinderPressureBAR", 0) == 1 then b_cylinder = Call("GetControlValue", "BrakeCylinderPressureBAR", 0) end
 
 	-- BP (Brake Pipe)
 	if Call("ControlExists", "BrakePipePressureBAR", 0) == 1 then b_pipe = Call("GetControlValue", "BrakePipePressureBAR", 0)
+	elseif Call("ControlExists", "AirBrakePipePressurePSI", 0) == 1 then b_pipe = Call("GetControlValue", "AirBrakePipePressurePSI", 0)
 	elseif Call("ControlExists", "BrakePipePressurePSI", 0) == 1 then b_pipe = Call("GetControlValue", "BrakePipePressurePSI", 0) end
 
 	-- MR (Main Reservoir)
 	if Call("ControlExists", "MainReservoirPressureBAR", 0) == 1 then main_res = Call("GetControlValue", "MainReservoirPressureBAR", 0)
+	elseif Call("ControlExists", "MainReservoirPressurePSI", 0) == 1 then main_res = Call("GetControlValue", "MainReservoirPressurePSI", 0)
 	elseif Call("ControlExists", "MainResPressurePSI", 0) == 1 then main_res = Call("GetControlValue", "MainResPressurePSI", 0) end
 
 	-- ER (Equalising Reservoir)
 	if Call("ControlExists", "EqualisingReservoirPressureBAR", 0) == 1 then eq_res = Call("GetControlValue", "EqualisingReservoirPressureBAR", 0)
+	elseif Call("ControlExists", "EqReservoirPressurePSI", 0) == 1 then eq_res = Call("GetControlValue", "EqReservoirPressurePSI", 0)
 	elseif Call("ControlExists", "EqualisingReservoirPressurePSI", 0) == 1 then eq_res = Call("GetControlValue", "EqualisingReservoirPressurePSI", 0) end
 	
 	-- Posición mundial (Far Coordinate: tile * 1024 + offset)
@@ -342,7 +354,8 @@ function GetControlData()
 	        "|DoorL:" .. doorL .. 
 	        "|DoorR:" .. doorR .. 
 	        "|Ammeter:" .. string.format("%.2f", ammeter) .. 
-	        "|TractiveEffort:" .. string.format("%.2f", t_effort) .. 
+	        "|TractiveEffort:" .. string.format("%.2f", t_effort) ..
+	        "|EffortSource:" .. effort_source .. 
 	        "|Throttle:" .. string.format("%.4f", throttleOut) .. 
 	        "|Regulator:" .. string.format("%.4f", regulator) .. 
 	        "|SimpleThrottle:" .. string.format("%.4f", simple_throttle) .. 

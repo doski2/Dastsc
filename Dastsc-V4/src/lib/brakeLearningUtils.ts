@@ -2,6 +2,7 @@ import type { TelemetrySnapshot } from '@nexus/kernel';
 import {
   estimateBrakeNotchForLearning,
   isBrakeEngagedForLearning,
+  speedBandFromMs,
 } from '@nexus/agent';
 import { brakeApiUrl, profileId, toCommandProfile, type TrainProfileFields } from './profileBrake';
 
@@ -40,6 +41,7 @@ export interface BrakeEventPayload {
   avg_decel_ms2: number;
   max_decel_ms2: number;
   notch: string;
+  speed_band: 'high' | 'med' | 'low';
   duration_s: number;
   distance_m: number;
   gradient: number;
@@ -147,6 +149,7 @@ export function buildBrakeEventPayload(
     avg_decel_ms2: parseFloat(avgDecel.toFixed(3)),
     max_decel_ms2: parseFloat(Math.max(...decels).toFixed(3)),
     notch,
+    speed_band: speedBandFromMs(event.startSpeed),
     duration_s: parseFloat(duration.toFixed(1)),
     distance_m: parseFloat(distanceCovered.toFixed(0)),
     gradient: parseFloat((context.gradient ?? 0).toFixed(2)),

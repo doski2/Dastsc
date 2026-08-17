@@ -108,5 +108,5 @@
             }
         ]
     },
-    "extends": "icet"
+    "extends": "high_speed_express"
 }

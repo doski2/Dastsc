@@ -17,11 +17,11 @@ import {
 import {
   loadPolicyMode,
   loadProfileSelection,
-  loadCabOverride,
+  loadGradientSign,
   savePolicyMode,
   saveProfileSelection,
-  saveCabOverride,
-  type CabOverride,
+  saveGradientSign,
+  type GradientSignMode,
 } from '../lib/agentSettings';
 import { isFullTrainProfile, toBrakePlanProfile, toCommandProfile, type TrainProfileFields } from '../lib/profileBrake';
 import {
@@ -34,7 +34,8 @@ import { useBrakeStats } from './useBrakeStats';
 import { useTrainProfile } from './useTrainProfile';
 import type { CommandAck } from '../lib/commandTypes';
 import { useAutoCommand } from './useAutoCommand';
-import { useSessionDiagnostic, logDiagnosticAutoFallback, registerSessionWithBackend } from './useSessionDiagnostic';
+import { useSessionDiagnostic, logDiagnosticAutoFallback } from './useSessionDiagnostic';
+import { sessionDiagnostic } from '../lib/sessionDiagnostic';
 
 export interface UseAgentResult {
   snapshot: TelemetrySnapshot;
@@ -53,8 +54,8 @@ export interface UseAgentResult {
   profileSelection: string;
   setPolicyMode: (mode: PolicyMode) => void;
   selectProfile: (profileId: string) => void;
-  cabOverride: CabOverride;
-  setCabOverride: (override: CabOverride) => void;
+  gradientSign: GradientSignMode;
+  setGradientSign: (mode: GradientSignMode) => void;
   sendCommand: (action: AgentAction) => void;
   lastCommandAck: CommandAck | null;
   profileCompleteness: ProfileCompleteness | null;
@@ -91,7 +92,7 @@ export function useAgent(): UseAgentResult {
   const [availableProfiles, setAvailableProfiles] = useState<ProfileSummary[]>([]);
   const [policyMode, setPolicyModeState] = useState<PolicyMode>(loadPolicyMode);
   const [profileSelection, setProfileSelection] = useState(loadProfileSelection);
-  const [cabOverride, setCabOverrideState] = useState<CabOverride>(loadCabOverride);
+  const [gradientSign, setGradientSignState] = useState<GradientSignMode>(loadGradientSign);
   const [lastCommandAck, setLastCommandAck] = useState<CommandAck | null>(null);
   const [profileAlertVisible, setProfileAlertVisible] = useState(false);
 
@@ -117,19 +118,30 @@ export function useAgent(): UseAgentResult {
   const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMounted = useRef(true);
   const profileSelectionRef = useRef(profileSelection);
-  const cabOverrideRef = useRef(cabOverride);
+  const gradientSignRef = useRef(gradientSign);
+  const policyModeRef = useRef(policyMode);
 
   useEffect(() => {
     profileSelectionRef.current = profileSelection;
   }, [profileSelection]);
 
   useEffect(() => {
-    cabOverrideRef.current = cabOverride;
-  }, [cabOverride]);
+    gradientSignRef.current = gradientSign;
+    hubRef.current.setGradientSign(gradientSign);
+  }, [gradientSign]);
 
-  const setCabOverride = useCallback((override: CabOverride) => {
-    setCabOverrideState(override);
-    saveCabOverride(override);
+  useEffect(() => {
+    policyModeRef.current = policyMode;
+  }, [policyMode]);
+
+  const setGradientSign = useCallback((mode: GradientSignMode) => {
+    setGradientSignState(mode);
+    saveGradientSign(mode);
+    hubRef.current.setGradientSign(mode);
+  }, []);
+
+  useEffect(() => {
+    hubRef.current.setGradientSign(gradientSignRef.current);
   }, []);
 
   const applyActiveProfile = useCallback((profile: ProfileSummary | TrainProfileFields | null) => {
@@ -220,13 +232,8 @@ export function useAgent(): UseAgentResult {
 
         const gameLinked = message.gameLinked !== false;
 
-        const override = cabOverrideRef.current;
-        const payload = override === 'auto'
-          ? message
-          : { ...message, ActiveCab: override };
-
         const next = hubRef.current.ingestMessage(
-          payload,
+          message,
           gameLinked,
           activeProfileRef.current?.id ?? null,
         );
@@ -260,9 +267,11 @@ export function useAgent(): UseAgentResult {
         }
         setIsConnected(true);
         const selection = profileSelectionRef.current;
-        registerSessionWithBackend(ws, {
+        sessionDiagnostic.bindWebSocket(ws, {
           profileSelection: selection,
-          source: 'v4_websocket',
+          activeProfileId: activeProfileRef.current?.id ?? null,
+          policyMode: policyModeRef.current,
+          source: 'v4_session',
         });
         if (selection && selection.toUpperCase() !== 'AUTO') {
           sendProfileCommand(ws, selection);
@@ -342,7 +351,7 @@ export function useAgent(): UseAgentResult {
     isGameLinked,
     telemetryActive: useLive,
     stillBraking,
-    cabOverride,
+    gradientSign,
     lastAck: lastCommandAck,
     brakeStats,
     wsRef: socketRef,
@@ -362,8 +371,8 @@ export function useAgent(): UseAgentResult {
     profileSelection,
     setPolicyMode,
     selectProfile,
-    cabOverride,
-    setCabOverride,
+    gradientSign,
+    setGradientSign,
     sendCommand,
     lastCommandAck,
     profileCompleteness,

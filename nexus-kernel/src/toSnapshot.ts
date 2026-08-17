@@ -50,6 +50,7 @@ export function toTelemetrySnapshot(
       position: data.TrainBrake,
       cylinder: data.BrakeCylinderPressure,
       effortKn: data.BrakingEffort,
+      tractiveKn: data.TractiveEffort,
       projectedStopM: data.ProjectedBrakingDistance,
     },
     tail: {

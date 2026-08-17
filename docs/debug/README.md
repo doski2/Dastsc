@@ -26,7 +26,7 @@ misma sesión.
 
 | Semana   | Carpeta                                                         | Objetivo                                 |
 | -------- | --------------------------------------------------------------- | ---------------------------------------- |
-| 1        | [semana-01-lua-ipc](./semana-01-lua-ipc/)                       | Enlace TSC estable, Lua v11 congelado    |
+| 1        | [semana-01-lua-ipc](./semana-01-lua-ipc/)                       | Enlace TSC estable, Lua v12 (Effort/BC Acela) |
 | 2        | [semana-02-telemetria-kernel](./semana-02-telemetria-kernel/)   | Snapshot correcto (cab, freno, estación) |
 | 3        | [semana-03-backend-comandos](./semana-03-backend-comandos/)     | SendCommand, perfiles, WebSocket         |
 | 4        | [semana-04-agente-frenado](./semana-04-agente-frenado/)         | Plan límite, muescas, calibración        |
@@ -52,22 +52,40 @@ Cada vez que abres Nexus V4 con el backend activo se guarda un log en `logs/nexu
 
 - Descarga desde **Config → Logs de sesión** en la UI, o copia `logs/nexus-v4/session_*.json`.
 - Pásale el JSON al asistente para análisis comparativo entre sesiones.
-- Eventos **`ocr_capture`**: lectura OCR bajo demanda (no hay intervalo fijo). Se registran en
+- Eventos **`ocr_capture`**: lectura OCR bajo demanda (no hay intervalo fijo). Tipos:
 
-`door_anchor` (cierre de puertas), `initial_anchor` (inicio de tramo en señal/siding, OCR ≥ 400 m),
-  `mid_leg_correction` (tramos > 5 km, hasta 3 checkpoints) y
-  `near_correction` (≤ 400 m). Incluyen texto parseado, distancia en metros y estado del tracker.
+  - `door_anchor` — cierre de puertas
+  - `initial_anchor` — inicio de tramo (OCR ≥ 400 m)
+  - `mid_leg_correction` — tramos > 5 km (hasta 3 checkpoints)
+  - `near_correction` — ≤ 400 m (una vez por tramo)
+  - **`manual_anchor`** — botón «Anclar OCR» en V4: waypoints, pasos por (~1 mi / ~5 mi en Acela WB),
+    cambio de destino HUD; flujo previsto en mercancías (más común que en pasajeros)
+
   Tras cada intento (éxito o rechazo) hay **cooldown 60 s**. En tramos largos se acepta OCR **por
   encima** del odómetro hasta ~250 m / 8 % restante (`rejected_jump` = fuera de margen).
 
-- **UI Agent (V4):** barra fija `DriveHudBar` bajo el header (velocidad, límite, próximo límite,
+- **Backlog y prioridades:** [PENDIENTES_V4.md](../PENDIENTES_V4.md)
 
-cola). El plan de frenada desplegado hace scroll interno — no empuja la telemetría fuera de
-pantalla.
+- **UI Agent (V4):** barra fija `DriveHudBar` bajo el header (velocidad, límite, cadena de
+  cartéles, cola, **Anclar OCR**). Layout `xl`: agente + horizonte a la izquierda;
+  `BrakePlanPanel` a la derecha (gradiente +/−, raw vs plan, telemetría freno, muescas H/M/B).
 
 - Eventos **`backend_tick`**: respaldo cada ~2.5 s desde GetData si V4 no vuelca ticks (freno,
 
   velocidad, señal).
+
+### Campos clave en `tick_change` (log sano)
+
+| Campo | Uso |
+| ----- | --- |
+| `gradient` | ‰ que usa el agente (`TelemetrySnapshot.gradient`) |
+| `gradientPct` | % legible (‰ / 10) — suficiente para analizar pendiente en sesión |
+| `limits.upcoming` | Cadena UK 90→75→25 post-mortem |
+| `brake.tractiveKn`, `brake.effortKn`, `brake.cylinder` | Respuesta freno (Acela / UK) |
+| `agent.headline`, `agent.horizon`, `agent.activeStep` | Plan urgente (sin duplicar `brakePlan` completo) |
+
+Evento **`gradient_sign`**: solo al pulsar **+ directo** / **− invertir** en `BrakePlanPanel`
+(campo `from` / `to`). No se registra `rawGradient` ni ratio UK por tick.
 
 - En cada tick V4, bloque **`station`**: `source` (`lua` vs `ocr_tracker`), `nameOcr`, `anchorM`,
 
@@ -76,7 +94,11 @@ pantalla.
 ## Reglas de oro
 
 - **Lua**: no refactor; solo fix mínimo con `NexusLuaVersion` incrementado.
-- **Perfil ICE T**: `profiles/nexus/trains/icet.json` (+ `agent_config` / `physics_config`).
-- **Perfil 323**: `profiles/nexus/trains/class323.json`.
-- **Comportamiento común pasajeros**: `profiles/nexus/genres/passenger.json`.
-- Si el bug es solo de un tren, no tocar `commandBus.ts` — ajustar `agent_config` primero.
+- **Géneros operativos:** `profiles/nexus/genres/regional_commuter.json`, `high_speed_express.json`
+
+  (ver [NEXUS_V4_ARQUITECTURA.md §8.5](../NEXUS_V4_ARQUITECTURA.md)).
+
+- **Base pasajeros:** `profiles/nexus/genres/passenger.json` (oculto en selector).
+- **Perfil ICE T:** `profiles/nexus/trains/icet.json` → extiende `high_speed_express`.
+- **Perfil 323:** `profiles/nexus/trains/class323.json` → extiende `regional_commuter`.
+- Si el bug es solo de un tren, no tocar `commandBus.ts` — ajustar `agent_config` o perfil primero.

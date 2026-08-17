@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useManualOcrCapture } from './hooks/useManualOcrCapture';
 import { useAgent } from './hooks/useAgent';
 import { useStationDistanceDebug } from './hooks/useStationDistanceDebug';
 import { AgentHeadline } from './components/AgentHeadline';
@@ -25,8 +26,8 @@ export default function App() {
     profileSelection,
     setPolicyMode,
     selectProfile,
-    cabOverride,
-    setCabOverride,
+    gradientSign,
+    setGradientSign,
     sendCommand,
     lastCommandAck,
     profileCompleteness,
@@ -37,6 +38,11 @@ export default function App() {
   const stationApproach =
     snapshot.station.distanceM >= 0 && snapshot.station.distanceM < 2000;
   const stationDebug = useStationDistanceDebug(isGameLinked && stationApproach);
+  const {
+    capture: captureOcr,
+    busy: ocrCaptureBusy,
+    feedback: ocrCaptureFeedback,
+  } = useManualOcrCapture(isGameLinked);
 
   return (
     <AppShell
@@ -47,49 +53,64 @@ export default function App() {
       gameLinked={isGameLinked}
       activeView={activeView}
       onViewChange={setActiveView}
-      driveHud={activeView === 'agent' ? <DriveHudBar snapshot={snapshot} /> : undefined}
+      driveHud={activeView === 'agent' ? (
+        <DriveHudBar
+          snapshot={snapshot}
+          gameLinked={isGameLinked}
+          onOcrCapture={() => { void captureOcr(); }}
+          ocrCaptureBusy={ocrCaptureBusy}
+          ocrCaptureFeedback={ocrCaptureFeedback}
+        />
+      ) : undefined}
     >
       {activeView === 'agent' ? (
-        <>
-          {profileAlertVisible && profileCompleteness && activeProfile?.id && (
-            <ProfileCompletenessPanel
-              profileId={activeProfile.id}
-              completeness={profileCompleteness}
-              onDismiss={dismissProfileAlert}
+        <div className="flex flex-1 min-h-0 gap-4 flex-col xl:flex-row xl:overflow-hidden overflow-y-auto">
+          <div className="flex flex-col gap-4 min-w-0 xl:flex-1 xl:min-h-0 xl:overflow-y-auto">
+            {profileAlertVisible && profileCompleteness && activeProfile?.id && (
+              <ProfileCompletenessPanel
+                profileId={activeProfile.id}
+                completeness={profileCompleteness}
+                onDismiss={dismissProfileAlert}
+              />
+            )}
+            <AgentHeadline tick={agent} speedUnit={snapshot.speedUnit} />
+            <ArmActionBar
+              action={agent.suggestedAction}
+              mode={policyMode}
+              backendConnected={isBackendConnected}
+              lastAck={lastCommandAck}
+              onConfirm={sendCommand}
             />
-          )}
-          <AgentHeadline tick={agent} speedUnit={snapshot.speedUnit} />
-          <ArmActionBar
-            action={agent.suggestedAction}
-            mode={policyMode}
-            backendConnected={isBackendConnected}
-            lastAck={lastCommandAck}
-            onConfirm={sendCommand}
-          />
-          <BrakePlanPanel
-            tick={agent}
-            snapshot={snapshot}
-            speedUnit={snapshot.speedUnit}
-            brakeStats={brakeStats}
-            stationDebug={stationDebug}
-            cabOverride={cabOverride}
-            onCabOverrideChange={setCabOverride}
-          />
-          <HorizonStrip events={agent.horizon} speedUnit={snapshot.speedUnit} />
-        </>
+            <HorizonStrip events={agent.horizon} speedUnit={snapshot.speedUnit} />
+          </div>
+          <aside className="w-full xl:w-[min(540px,48%)] xl:shrink-0 xl:min-h-0 xl:overflow-y-auto">
+            <BrakePlanPanel
+              tick={agent}
+              snapshot={snapshot}
+              speedUnit={snapshot.speedUnit}
+              brakeStats={brakeStats}
+              stationDebug={stationDebug}
+              gradientSign={gradientSign}
+              onGradientSignChange={setGradientSign}
+              layout="sidebar"
+            />
+          </aside>
+        </div>
       ) : (
-        <ConfigView
-          snapshot={snapshot}
-          isBackendConnected={isBackendConnected}
-          isGameLinked={isGameLinked}
-          availableProfiles={availableProfiles}
-          activeProfile={activeProfile}
-          profileSelection={profileSelection}
-          policyMode={policyMode}
-          brakeStats={brakeStats}
-          onSelectProfile={selectProfile}
-          onPolicyModeChange={setPolicyMode}
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <ConfigView
+            snapshot={snapshot}
+            isBackendConnected={isBackendConnected}
+            isGameLinked={isGameLinked}
+            availableProfiles={availableProfiles}
+            activeProfile={activeProfile}
+            profileSelection={profileSelection}
+            policyMode={policyMode}
+            brakeStats={brakeStats}
+            onSelectProfile={selectProfile}
+            onPolicyModeChange={setPolicyMode}
+          />
+        </div>
       )}
     </AppShell>
   );

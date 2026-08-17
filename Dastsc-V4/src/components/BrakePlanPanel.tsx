@@ -1,9 +1,10 @@
 import type { AgentBrakeContext, AgentTick, BrakePlanStep, DisplaySpeedUnit, TelemetrySnapshot } from '@nexus/kernel';
 import { formatDistance } from '@nexus/kernel';
-import type { BrakeStatsByNotch } from '@nexus/agent';
+import type { BrakeStatsByNotch, BrakeStatsEntry, SpeedBand } from '@nexus/agent';
+import { speedBandFromMs } from '@nexus/agent';
 import type { StationDistanceDebug } from '../hooks/useStationDistanceDebug';
 
-import type { CabOverride } from '../lib/agentSettings';
+import type { GradientSignMode } from '../lib/agentSettings';
 
 interface BrakePlanPanelProps {
   tick: AgentTick;
@@ -11,8 +12,10 @@ interface BrakePlanPanelProps {
   speedUnit: DisplaySpeedUnit;
   brakeStats: BrakeStatsByNotch;
   stationDebug?: StationDistanceDebug | null;
-  cabOverride: CabOverride;
-  onCabOverrideChange: (override: CabOverride) => void;
+  gradientSign: GradientSignMode;
+  onGradientSignChange: (mode: GradientSignMode) => void;
+  /** Columna lateral en pantallas anchas — rejillas más verticales. */
+  layout?: 'default' | 'sidebar';
 }
 
 const TARGET_LABEL: Record<AgentBrakeContext['targetKind'], string> = {
@@ -21,19 +24,79 @@ const TARGET_LABEL: Record<AgentBrakeContext['targetKind'], string> = {
   SIGNAL: 'Señal',
 };
 
-function gradientLabel(permille: number): string {
-  if (Math.abs(permille) < 0.5) return 'Plano';
-  const arrow = permille > 0 ? '↑' : '↓';
-  const sign = permille > 0 ? '+' : '';
+const BAND_LABEL: Record<SpeedBand, string> = {
+  high: 'Alta',
+  med: 'Media',
+  low: 'Baja',
+};
+
+function formatGradientPermille(permille: number): string {
+  const sign = permille > 0 ? '+' : permille < 0 ? '' : '';
   const pct = permille / 10;
-  return `${arrow} ${sign}${permille.toFixed(1)}‰ (${sign}${pct.toFixed(2)}%)`;
+  return `${sign}${permille.toFixed(1)}‰ (${sign}${pct.toFixed(2)}%)`;
 }
 
-function gradeRatioLabel(permille: number): string {
-  const pct = Math.abs(permille) / 10;
-  if (pct < 0.05) return 'plano';
-  const ratio = Math.round(100 / pct);
-  return `1:${ratio}`;
+function gradientTone(permille: number): 'up' | 'down' | 'flat' {
+  if (permille > 0.5) return 'up';
+  if (permille < -0.5) return 'down';
+  return 'flat';
+}
+
+function GradientSignPanel({
+  snapshot,
+  gradientSign,
+  onGradientSignChange,
+}: {
+  snapshot: TelemetrySnapshot;
+  gradientSign: GradientSignMode;
+  onGradientSignChange: (mode: GradientSignMode) => void;
+}) {
+  const planTone = gradientTone(snapshot.gradient);
+  const planClass = planTone === 'up'
+    ? 'text-amber-300/90'
+    : planTone === 'down'
+      ? 'text-emerald-300/90'
+      : 'text-white/60';
+
+  return (
+    <div className="rounded border border-white/5 bg-black/20 p-2 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[9px] uppercase text-white/30 font-mono">Gradiente</div>
+        <div className="flex gap-1">
+          {(['+', '-'] as const).map(mode => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => onGradientSignChange(mode)}
+              className={`rounded px-2 py-0.5 text-[10px] font-mono border transition-colors ${
+                gradientSign === mode
+                  ? 'border-cyan-500/50 bg-cyan-500/15 text-cyan-200'
+                  : 'border-white/10 text-white/40 hover:text-white/70'
+              }`}
+              title={mode === '+'
+                ? 'Usar signo tal cual GetData (RawGradient)'
+                : 'Invertir signo del RawGradient'}
+            >
+              {mode === '+' ? '+ directo' : '− invertir'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+        <div className="rounded border border-white/5 bg-nexus-raised px-2 py-1.5">
+          <div className="text-[8px] uppercase text-white/30 mb-0.5">Raw juego</div>
+          <div className="text-white/70 tabular-nums">{formatGradientPermille(snapshot.rawGradient)}</div>
+        </div>
+        <div className="rounded border border-white/5 bg-nexus-raised px-2 py-1.5">
+          <div className="text-[8px] uppercase text-white/30 mb-0.5">Plan freno</div>
+          <div className={`tabular-nums ${planClass}`}>{formatGradientPermille(snapshot.gradient)}</div>
+        </div>
+      </div>
+      <p className="text-[8px] text-white/25 leading-snug">
+        + sube con Raw positivo · − invierte. Cabina TSC: {snapshot.activeCab} · Rev {reverserLabel(snapshot.reverser)}
+      </p>
+    </div>
+  );
 }
 
 function reverserLabel(reverser: number): string {
@@ -42,64 +105,207 @@ function reverserLabel(reverser: number): string {
   return 'NEU';
 }
 
-function GradientDebugPanel({
-  snapshot,
-  cabOverride,
-  onCabOverrideChange,
-}: {
-  snapshot: TelemetrySnapshot;
-  cabOverride: CabOverride;
-  onCabOverrideChange: (override: CabOverride) => void;
-}) {
-  const cabInverted = snapshot.gradient !== 0
-    && snapshot.rawGradient !== 0
-    && Math.sign(snapshot.gradient) !== Math.sign(snapshot.rawGradient);
-  const overrideActive = cabOverride !== 'auto';
-  return (
-    <div className="rounded border border-white/5 bg-black/20 p-2 space-y-2">
-      <div className="text-[9px] uppercase text-white/30 font-mono">Gradiente / cabina</div>
-      <div className="flex flex-wrap gap-1">
-        {(['auto', 1, 2] as const).map(option => (
-          <button
-            key={String(option)}
-            type="button"
-            onClick={() => onCabOverrideChange(option)}
-            className={`rounded px-2 py-0.5 text-[10px] font-mono border transition-colors ${
-              cabOverride === option
-                ? 'border-cyan-500/50 bg-cyan-500/15 text-cyan-200'
-                : 'border-white/10 text-white/40 hover:text-white/70'
-            }`}
-          >
-            {option === 'auto' ? 'Auto' : `Cab ${option}`}
-          </button>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono text-white/50">
-        <span>Plan: {gradientLabel(snapshot.gradient)}</span>
-        <span>Raw juego: {gradientLabel(snapshot.rawGradient)}</span>
-        <span>Cabina: {snapshot.activeCab}{overrideActive ? ' (manual)' : ''}</span>
-        <span>Reverser: {reverserLabel(snapshot.reverser)}</span>
-        <span className="col-span-2 text-white/40">Rampa UK: {gradeRatioLabel(snapshot.rawGradient)}</span>
-        <span className="col-span-2 text-white/30">
-          {overrideActive
-            ? 'Cabina forzada manualmente — útil si TSC no detecta el cambio (plugin global)'
-            : cabInverted
-              ? 'Auto: cabina detectada — signo de gradiente corregido'
-              : 'Auto: conduce unos segundos en cab 2 (FOR) para detectar; luego se recuerda al parar'}
-        </span>
-      </div>
-    </div>
-  );
+function formatKn(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return rounded > 0 ? `+${rounded}` : String(rounded);
+}
+
+function formatBandCell(
+  stats: BrakeStatsEntry | undefined,
+  band: SpeedBand,
+  currentBand: SpeedBand,
+): string {
+  const entry = stats?.by_speed?.[band];
+  if (!entry?.samples) return '—';
+  const active = band === currentBand ? '*' : '';
+  return `${entry.avg_decel.toFixed(2)} n=${entry.samples}${active}`;
 }
 
 function stepRowClass(step: BrakePlanStep, activeNotch: string | null): string {
   if (step.applyNow || step.notch === activeNotch) {
-    return 'bg-cyan-500/10 border-cyan-500/40';
+    return 'bg-cyan-500/10 border-cyan-500/30';
   }
   if (step.distStart != null && step.distStart < -150) {
-    return 'bg-red-500/10 border-red-500/30';
+    return 'bg-red-500/10 border-red-500/25';
   }
   return 'border-white/5';
+}
+
+function LiveBrakeStrip({
+  snapshot,
+  sidebar,
+}: {
+  snapshot: TelemetrySnapshot;
+  sidebar?: boolean;
+}) {
+  const band = speedBandFromMs(snapshot.speedMs);
+  const { combined, position, tractiveKn, effortKn, cylinder } = snapshot.brake;
+  const gridClass = sidebar
+    ? 'grid-cols-2'
+    : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6';
+
+  return (
+    <div className={`grid ${gridClass} gap-px rounded border border-white/5 bg-white/5 overflow-hidden text-[10px] font-mono`}>
+      <MetricCell label="Palanca" value={`${(position * 100).toFixed(0)}%`} />
+      <MetricCell label="Combined" value={combined.toFixed(2)} />
+      <MetricCell
+        label="Tracción kN"
+        value={formatKn(tractiveKn)}
+        tone={tractiveKn < -5 ? 'cyan' : tractiveKn > 5 ? 'amber' : undefined}
+      />
+      <MetricCell label="Effort est." value={`${effortKn.toFixed(0)} kN`} />
+      <MetricCell label="Cilindro" value={`${cylinder.toFixed(0)}`} />
+      <MetricCell label="Banda v" value={BAND_LABEL[band]} tone="cyan" />
+    </div>
+  );
+}
+
+function MetricCell({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: 'cyan' | 'amber';
+}) {
+  const valueClass = tone === 'cyan'
+    ? 'text-cyan-300'
+    : tone === 'amber'
+      ? 'text-amber-300/90'
+      : 'text-white/80';
+  return (
+    <div className="bg-nexus-raised px-2 py-1.5 min-w-0">
+      <div className="text-[8px] uppercase text-white/30 truncate">{label}</div>
+      <div className={`tabular-nums truncate ${valueClass}`}>{value}</div>
+    </div>
+  );
+}
+
+function PlanContextStrip({
+  ctx,
+  speedUnit,
+  sidebar,
+}: {
+  ctx: AgentBrakeContext;
+  speedUnit: DisplaySpeedUnit;
+  sidebar?: boolean;
+}) {
+  return (
+    <div className={`grid ${sidebar ? 'grid-cols-1' : 'grid-cols-3'} gap-px rounded border border-white/5 bg-white/5 overflow-hidden text-[10px] font-mono`}>
+      <MetricCell label="Objetivo" value={`${TARGET_LABEL[ctx.targetKind]} · ${formatDistance(ctx.distanceToTargetM, speedUnit)}`} />
+      <MetricCell label="Margen" value={`${ctx.reactionMarginM.toFixed(0)} m`} />
+      <MetricCell label="Muesca activa" value={ctx.activeNotch ?? '—'} tone="cyan" />
+    </div>
+  );
+}
+
+function StationLegStrip({
+  snapshot,
+  stationDebug,
+  speedUnit,
+}: {
+  snapshot: TelemetrySnapshot;
+  stationDebug?: StationDistanceDebug | null;
+  speedUnit: DisplaySpeedUnit;
+}) {
+  if (snapshot.station.anchorM == null && !stationDebug?.has_anchor) return null;
+
+  const parts: string[] = [];
+  if (snapshot.station.anchorM != null) {
+    parts.push(`Ancla ${formatDistance(snapshot.station.anchorM, speedUnit)}`);
+  }
+  if (snapshot.station.traveledM != null) {
+    parts.push(`Recorrido ${snapshot.station.traveledM.toFixed(0)} m`);
+  }
+  if (snapshot.station.driftM != null) {
+    parts.push(`Deriva ${snapshot.station.driftM > 0 ? '+' : ''}${snapshot.station.driftM.toFixed(0)} m`);
+  }
+  if (snapshot.station.nearCorrected) parts.push('Corrección cerca');
+  if (stationDebug?.sample_count != null) {
+    parts.push(`Muestras ${stationDebug.sample_count}`);
+  }
+
+  return (
+    <div className="rounded border border-white/5 bg-black/20 px-2 py-1.5 text-[10px] font-mono text-white/45">
+      <span className="text-[8px] uppercase text-white/30 mr-2">Estación OCR</span>
+      {parts.join(' · ')}
+    </div>
+  );
+}
+
+function BrakePlanTable({
+  steps,
+  ctx,
+  speedUnit,
+  brakeStats,
+  currentBand,
+}: {
+  steps: BrakePlanStep[];
+  ctx: AgentBrakeContext;
+  speedUnit: DisplaySpeedUnit;
+  brakeStats: BrakeStatsByNotch;
+  currentBand: SpeedBand;
+}) {
+  return (
+    <div className="rounded border border-white/5 overflow-x-auto">
+      <table className="w-full text-[10px] font-mono border-collapse">
+        <thead>
+          <tr className="text-[8px] uppercase text-white/30 bg-black/30">
+            <th className="text-left px-2 py-1 font-normal w-12">Muesca</th>
+            <th className="text-left px-2 py-1 font-normal">Acción</th>
+            <th className="text-right px-2 py-1 font-normal w-14">Dist</th>
+            <th className="text-right px-2 py-1 font-normal w-16">Decel</th>
+            <th className="text-right px-2 py-1 font-normal w-14" title="Alta velocidad ≥78 mph">H</th>
+            <th className="text-right px-2 py-1 font-normal w-14" title="Media 18–78 mph">M</th>
+            <th className="text-right px-2 py-1 font-normal w-14" title="Baja &lt;18 mph">B</th>
+          </tr>
+        </thead>
+        <tbody>
+          {steps.map(step => {
+            const stats = brakeStats[step.notch];
+            const learned = step.usingLearned && stats;
+            const action = step.applyNow
+              ? 'Ahora'
+              : step.metersUntilActionM != null
+                ? `~${formatDistance(step.metersUntilActionM, speedUnit)}`
+                : '—';
+            const delta = step.distStart != null ? ` Δ${step.distStart.toFixed(0)}m` : '';
+
+            return (
+              <tr
+                key={step.notch}
+                className={`border-t ${stepRowClass(step, ctx.activeNotch)}`}
+              >
+                <td className="px-2 py-1 font-semibold text-white">{step.notch}</td>
+                <td className="px-2 py-1 text-white/50 truncate max-w-[140px]">
+                  {action}
+                  {delta && <span className="text-white/25">{delta}</span>}
+                </td>
+                <td className="px-2 py-1 text-right text-white/50 tabular-nums">
+                  {step.distanceM.toFixed(0)} m
+                </td>
+                <td className={`px-2 py-1 text-right tabular-nums ${learned ? 'text-emerald-400/90' : 'text-white/25'}`}>
+                  {learned
+                    ? `${stats.avg_decel.toFixed(2)} n=${stats.samples}`
+                    : 'teórico'}
+                </td>
+                <td className="px-2 py-1 text-right text-white/40 tabular-nums">
+                  {formatBandCell(stats, 'high', currentBand)}
+                </td>
+                <td className="px-2 py-1 text-right text-white/40 tabular-nums">
+                  {formatBandCell(stats, 'med', currentBand)}
+                </td>
+                <td className="px-2 py-1 text-right text-white/40 tabular-nums">
+                  {formatBandCell(stats, 'low', currentBand)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export function BrakePlanPanel({
@@ -108,115 +314,63 @@ export function BrakePlanPanel({
   speedUnit,
   brakeStats,
   stationDebug,
-  cabOverride,
-  onCabOverrideChange,
+  gradientSign,
+  onGradientSignChange,
+  layout = 'default',
 }: BrakePlanPanelProps) {
   const ctx = tick.brakeContext;
   const steps = tick.brakePlan;
-
-  if (!ctx || !steps?.length) {
-    return (
-      <section className="rounded-lg border border-white/5 bg-nexus-raised p-4 space-y-3">
-        <div className="text-[10px] uppercase text-white/30 font-mono mb-1">Validación frenado</div>
-        <p className="text-xs text-white/40">
-          Acércate a un límite o estación para ver el plan de muescas.
-        </p>
-        <GradientDebugPanel
-          snapshot={snapshot}
-          cabOverride={cabOverride}
-          onCabOverrideChange={onCabOverrideChange}
-        />
-      </section>
-    );
-  }
+  const currentBand = speedBandFromMs(snapshot.speedMs);
+  const sidebar = layout === 'sidebar';
 
   return (
-    <section className="rounded-lg border border-white/5 bg-nexus-raised p-4 space-y-3">
-      <div className="flex items-center justify-between gap-4">
+    <section className="rounded-lg border border-white/5 bg-nexus-raised p-3 space-y-2 h-full xl:min-h-[min(100%,32rem)]">
+      <div className="flex items-center justify-between gap-2">
         <div className="text-[10px] uppercase text-white/30 font-mono">Validación frenado</div>
-        <div className="text-[10px] font-mono text-white/40 uppercase">
-          {TARGET_LABEL[ctx.targetKind]} · {formatDistance(ctx.distanceToTargetM, speedUnit)}
-        </div>
+        {ctx && (
+          <div className="text-[9px] font-mono text-white/35 uppercase truncate">
+            {TARGET_LABEL[ctx.targetKind]} · {formatDistance(ctx.distanceToTargetM, speedUnit)}
+          </div>
+        )}
       </div>
 
-      <GradientDebugPanel
+      <GradientSignPanel
         snapshot={snapshot}
-        cabOverride={cabOverride}
-        onCabOverrideChange={onCabOverrideChange}
+        gradientSign={gradientSign}
+        onGradientSignChange={onGradientSignChange}
       />
 
-      <div className="grid grid-cols-2 gap-2 text-center">
-        <div className="rounded border border-white/5 p-2">
-          <div className="text-[9px] uppercase text-white/30 font-mono">Margen reacción</div>
-          <div className="text-sm font-mono text-white tabular-nums">{ctx.reactionMarginM.toFixed(0)} m</div>
-        </div>
-        <div className="rounded border border-white/5 p-2">
-          <div className="text-[9px] uppercase text-white/30 font-mono">Muesca activa</div>
-          <div className="text-sm font-mono text-cyan-300 tabular-nums">{ctx.activeNotch ?? '—'}</div>
-        </div>
-      </div>
+      <LiveBrakeStrip snapshot={snapshot} sidebar={sidebar} />
 
-      {ctx.targetKind === 'STATION' && (snapshot.station.anchorM != null || stationDebug?.has_anchor) && (
-        <div className="rounded border border-white/5 bg-black/20 p-2 space-y-1">
-          <div className="text-[9px] uppercase text-white/30 font-mono">Leg estación (OCR + odómetro)</div>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono text-white/50">
-            {snapshot.station.anchorM != null && (
-              <span>Ancla OCR: {formatDistance(snapshot.station.anchorM, speedUnit)}</span>
-            )}
-            {snapshot.station.traveledM != null && (
-              <span>Recorrido: {snapshot.station.traveledM.toFixed(0)} m</span>
-            )}
-            {snapshot.station.nearCorrected && (
-              <span className="text-cyan-300/80 col-span-2">Corrección cerca estación aplicada</span>
-            )}
-            {snapshot.station.driftM != null && (
-              <span className="col-span-2">
-                Deriva OCR: {snapshot.station.driftM > 0 ? '+' : ''}{snapshot.station.driftM.toFixed(0)} m
-              </span>
-            )}
-            {stationDebug?.sample_count != null && (
-              <span className="col-span-2 text-white/30">
-                Muestras: {stationDebug.sample_count}
-                {stationDebug.samples.length > 0 && (
-                  <> · última {stationDebug.samples[stationDebug.samples.length - 1]?.event}</>
-                )}
-              </span>
-            )}
-          </div>
-        </div>
+      {ctx && steps?.length ? (
+        <>
+          <PlanContextStrip
+            ctx={ctx}
+            speedUnit={speedUnit}
+            sidebar={sidebar}
+          />
+
+          {ctx.targetKind === 'STATION' && (
+            <StationLegStrip snapshot={snapshot} stationDebug={stationDebug} speedUnit={speedUnit} />
+          )}
+
+          <BrakePlanTable
+            steps={steps}
+            ctx={ctx}
+            speedUnit={speedUnit}
+            brakeStats={brakeStats}
+            currentBand={currentBand}
+          />
+        </>
+      ) : (
+        <p className="text-[10px] font-mono text-white/40 px-1">
+          Acércate a un límite o estación para ver el plan de muescas.
+        </p>
       )}
 
-      <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
-        {steps.map(step => {
-          const stats = brakeStats[step.notch];
-          const learned = step.usingLearned && stats;
-          return (
-            <div
-              key={step.notch}
-              className={`grid grid-cols-[3rem_1fr_5rem_5rem] gap-2 items-center rounded border px-2 py-1.5 text-xs font-mono ${stepRowClass(step, ctx.activeNotch)}`}
-            >
-              <span className="font-semibold text-white">{step.notch}</span>
-              <span className="text-white/50 truncate">
-                {step.applyNow
-                  ? 'Aplicar ahora'
-                  : step.metersUntilActionM != null
-                    ? `en ~${formatDistance(step.metersUntilActionM, speedUnit)}`
-                    : '—'}
-                {step.distStart != null && (
-                  <span className="text-white/25 ml-2">Δ{step.distStart.toFixed(0)} m</span>
-                )}
-              </span>
-              <span className="text-right text-white/40 tabular-nums">{step.distanceM.toFixed(0)} m</span>
-              <span className={`text-right tabular-nums ${learned ? 'text-emerald-400/90' : 'text-white/25'}`}>
-                {learned ? `${stats.avg_decel.toFixed(2)} n=${stats.samples}` : 'teórico'}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="text-[10px] text-white/30 leading-relaxed">
-        Distancia a estación: OCR al cerrar puertas, luego odómetro. Δ≈0 → momento de frenar.
+      <p className="text-[9px] text-white/25 leading-snug">
+        Bandas en mph · * = banda actual · Decel global si la banda tiene &lt;3 muestras.
+        Δ≈0 → aplicar muesca.
       </p>
     </section>
   );

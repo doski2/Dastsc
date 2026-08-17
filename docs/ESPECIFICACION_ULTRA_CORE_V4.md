@@ -1,10 +1,17 @@
 # Documentación Técnica: Dastsc Ultra Core V4 (Lua Engine)
 
+> **Alcance:** solo el plugin Lua y el formato `GetData.txt`. Arquitectura de producto, agente AUTO
+> y perfiles → [NEXUS_V4_ARQUITECTURA.md](./NEXUS_V4_ARQUITECTURA.md) y
+> [PENDIENTES_V4.md](./PENDIENTES_V4.md).
+
 ## Resumen
 
 El motor de telemetría **Ultra Core V4** ha sido rediseñado para maximizar los FPS en Train
 Simulator Classic, eliminando el cuello de botella que suponía el formato vertical de la V2 y las
 búsquedas con comodines (`*:`).
+
+**Versión repo actual:** `NexusLuaVersion:12` — alias `Effort`, presiones Acela (PSI), campo debug
+`EffortSource` en GetData.
 
 ## Estructura de Datos (Protocolo Horizontal)
 
@@ -41,7 +48,8 @@ utilizando el delimitador de tubería (`|`).
 
 5. `Gradient`: Pendiente de la vía. **Convención TS Classic: positivo = subida, negativo = bajada.**
 
-   El backend no modifica este valor; la normalización por cabina la hace `DataNormalizer.ts`.
+   El backend no modifica este valor; la normalización la hace `DataNormalizer.ts` (V4: signo manual
+   **+ / −** desde UI; ver [NEXUS_V4_ARQUITECTURA.md §4.5](./NEXUS_V4_ARQUITECTURA.md)).
 
 6. `CurrentSpeedLimit`: Límite actual (ajustado a la unidad del tren).
 7. `NextLimitType/Speed/Dist`: Información del próximo cambio de velocidad.
@@ -57,9 +65,8 @@ utilizando el delimitador de tubería (`|`).
 
     de Python los sobreescribe con OCR+odómetro antes de enviarlo al frontend).
 
-17. `ActiveCab`: Cabina activa (1 = delantera, 2 = trasera). Usado por `DataNormalizer` para
-
-    invertir el signo de `Gradient` en Cab 2.
+17. `ActiveCab`: Cabina activa (1 = delantera, 2 = trasera). Referencia en UI V4; el signo de
+    gradiente para el plan se calibra con **+ directo / − invertir** (no selector cabina).
 
 18. `TripDistance`: Distancia total recorrida en el viaje (metros). Usado por el panel de Brake
 
@@ -69,9 +76,10 @@ utilizando el delimitador de tubería (`|`).
 
 | Campo          | Convención en Lua/GetData           | Después de DataNormalizer                                                    |
 | -------------- | ----------------------------------- | ---------------------------------------------------------------------------- |
-| `Gradient`     | Positivo = subida (estándar TS)     | `Gradient`: positivo=subida (cabina corregida); `RawGradient`: crudo del Lua |
+| `Gradient`     | Positivo = subida (estándar TS)     | `gradient` (‰ plan) + `rawGradient` (crudo); V4: override manual +/− |
 | `Acceleration` | **Positivo = frenando** (invertido) | No se usa. Se calcula `emaAccelMS2` desde delta de velocidad                 |
-| `ActiveCab`    | 1 o 2                               | Mismo valor; determina si invertir `Gradient`                                |
+| `ActiveCab`    | 1 o 2                               | Referencia UI; signo gradiente V4 = botón manual, no selector cabina       |
+| `TractiveEffort` | kN neto (− = frenar)              | Alias Lua **`Effort`** si no existe `TractiveEffort` (Acela, v12)            |
 
 ## Integración de Perfiles Dinámicos (Master Template V4/V3)
 

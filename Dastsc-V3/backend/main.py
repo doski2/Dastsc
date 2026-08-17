@@ -172,6 +172,8 @@ _last_backend_tick_at = 0.0
 def _log_backend_telemetry_tick(data: Dict[str, Any], profile_id: Optional[str]) -> None:
     """Tick de respaldo desde GetData cuando V4 no vuelca eventos."""
     global _last_backend_tick_at
+    if session_log._store.v4_recently_active(within_s=25.0):
+        return
     now = time.time()
     if now - _last_backend_tick_at < _BACKEND_TICK_INTERVAL_S:
         return
@@ -202,7 +204,13 @@ def _log_backend_telemetry_tick(data: Dict[str, Any], profile_id: Optional[str])
             "aspect": data.get("NextSignalAspect"),
             "distanceM": data.get("DistToNextSignal"),
         },
-        "train": {"name": data.get("LocoName"), "profileId": profile_id},
+        "train": {
+            "name": data.get("LocoName"),
+            "profileId": profile_id,
+            "massT": data.get("TrainMass") or data.get("Mass"),
+            "lengthM": data.get("TrainLength"),
+            "consistType": data.get("ConsistType") or data.get("TrainType"),
+        },
     }
     session_log._store.append_active([payload])
 
@@ -210,10 +218,101 @@ def _log_backend_telemetry_tick(data: Dict[str, Any], profile_id: Optional[str])
 # Referencia al tracker activo (telemetry_reader) para API de depuración.
 _active_station_tracker: Optional[station_distance.StationDistanceTracker] = None
 _cab_inference_state = CabInferenceState()
+_ocr_is_capturing = False
+_ocr_last_result: Dict[str, Any] = {}
+_last_telemetry_data: Dict[str, Any] = {}
 
 
 def get_station_tracker() -> Optional[station_distance.StationDistanceTracker]:
     return _active_station_tracker
+
+
+async def execute_ocr_capture(
+    event: station_distance.SampleEvent = "door_anchor",
+    *,
+    speed_ms: float = 0.0,
+    capture_time: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Captura OCR del HUD y ancla distancia (automático o manual)."""
+    global _ocr_is_capturing, _ocr_last_result
+
+    tracker = get_station_tracker()
+    if tracker is None:
+        return {"ok": False, "error": "tracker_not_ready"}
+    if not ocr_hud.is_available():
+        return {"ok": False, "error": "ocr_unavailable"}
+    if _ocr_is_capturing:
+        return {"ok": False, "error": "capture_in_progress"}
+
+    _ocr_is_capturing = True
+    anchored = False
+    result: Optional[Dict[str, Any]] = None
+    attempt_time = capture_time or time.time()
+    try:
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
+        if result and result.get("distance_m") is not None:
+            _ocr_last_result = result
+            anchored = tracker.anchor_from_ocr(
+                float(result["distance_m"]),
+                event=event,
+                now=attempt_time,
+                speed_ms=speed_ms,
+                ocr_raw_m=float(result["distance_m"]),
+            )
+            if anchored:
+                _log_ocr_session_event(event, tracker, result=result)
+            else:
+                reject_error = "rejected_jump"
+                if (
+                    event == "initial_anchor"
+                    and result.get("distance_m") is not None
+                    and float(result["distance_m"]) < station_distance.MIN_NEW_LEG_ANCHOR_M
+                ):
+                    reject_error = "rejected_platform_residual"
+                _log_ocr_session_event(
+                    event,
+                    tracker,
+                    result=result,
+                    error=reject_error,
+                )
+        else:
+            _log_ocr_session_event(
+                event,
+                tracker,
+                result=result,
+                error="no_distance_parsed",
+            )
+    except Exception as exc:
+        print(f"[OCR] Error ({event}): {exc}")
+        _log_ocr_session_event(event, tracker, error=str(exc))
+        return {"ok": False, "error": str(exc), "event": event}
+    finally:
+        tracker.mark_ocr_capture_attempted(attempt_time)
+        if event == "near_correction" and not anchored:
+            ocr_m = result.get("distance_m") if result else None
+            if ocr_m is None or not tracker.should_retry_near_correction(
+                float(ocr_m), speed_ms,
+            ):
+                tracker.mark_near_correction_attempted(attempt_time)
+        _ocr_is_capturing = False
+
+    parsed = None
+    if result:
+        parsed = {
+            "station_name": result.get("station_name"),
+            "distance_m": result.get("distance_m"),
+            "eta": result.get("eta"),
+            "scheduled_time": result.get("scheduled_time"),
+        }
+    return {
+        "ok": True,
+        "anchored": anchored,
+        "event": event,
+        "parsed": parsed,
+        "tracker": tracker.debug_payload(),
+        "error": None if anchored else "rejected_or_unparsed",
+    }
 
 
 def _apply_station_distance(
@@ -325,21 +424,50 @@ class TelemetryManager:
                 logging.warning("COMMAND rejected %s: %s", control, result.get("error"))
             return {"type": "COMMAND_ACK", **result}
 
+        if cmd_type == "OCR_CAPTURE":
+            speed_ms = station_distance.speed_ms_from_telemetry(_last_telemetry_data)
+            outcome = await execute_ocr_capture(
+                "manual_anchor",
+                speed_ms=speed_ms,
+                capture_time=time.time(),
+            )
+            return {"type": "OCR_CAPTURE_ACK", **outcome}
+
         if cmd_type == "PURGE_SEND_COMMAND":
             purged = _purge_send_command_file()
             return {"type": "COMMAND_ACK", "ok": True, "action": "purged" if purged else "no_file"}
 
         if cmd_type == "SESSION_REGISTER":
-            meta = cmd.get("meta") if isinstance(cmd.get("meta"), dict) else {}
+            meta_raw = cmd.get("meta")
+            register_meta: Dict[str, Any] = (
+                dict(meta_raw) if isinstance(meta_raw, dict) else {}
+            )
+            register_meta["source"] = register_meta.get("source") or "v4_session"
             session_id = cmd.get("session_id")
             if session_id and isinstance(session_id, str):
-                session_log._store.adopt_session(session_id, meta)
+                session_log._store.adopt_session(session_id, register_meta)
             else:
-                session_id = session_log._store.ensure_active_session(meta)
+                session_id = session_log._store.ensure_active_session(register_meta)
             return {
                 "type": "SESSION_ACK",
                 "ok": True,
                 "session_id": session_id,
+            }
+
+        if cmd_type == "SESSION_EVENTS":
+            session_id = cmd.get("session_id")
+            events = cmd.get("events")
+            if not isinstance(session_id, str) or not isinstance(events, list):
+                return {
+                    "type": "SESSION_EVENTS_ACK",
+                    "ok": False,
+                    "error": "invalid_payload",
+                }
+            saved = session_log._store.append(session_id, events)
+            return {
+                "type": "SESSION_EVENTS_ACK",
+                "ok": saved,
+                "count": len(events),
             }
 
         return {"type": "COMMAND_ACK", "ok": False, "error": "unknown_command_type"}
@@ -424,75 +552,16 @@ app.add_middleware(
 
 async def telemetry_reader() -> None:
     """Bucle de sondeo de GetData.txt; OCR al cerrar puertas y corrección única cerca de estación."""
-    global _active_station_tracker
+    global _active_station_tracker, _last_telemetry_data
     sync_counter = 0
     last_mtime = 0.0
     last_game_telemetry_at = 0.0
-    ocr_last_result: Dict[str, Any] = {}
     ocr_door_was_open = False
-    ocr_is_capturing = False
     station_tracker = station_distance.StationDistanceTracker()
     _active_station_tracker = station_tracker
     last_active_cab: Optional[int] = None
     last_reversal: Optional[float] = None
     stationary_since: Optional[float] = None
-
-    async def run_ocr_capture(
-        event: station_distance.SampleEvent = "door_anchor",
-        capture_speed_ms: float = 0.0,
-        capture_time: float = 0.0,
-    ) -> None:
-        nonlocal ocr_last_result, ocr_is_capturing
-        anchored = False
-        result = None
-        try:
-            loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(None, ocr_hud.capture_next_stop)
-            if result and result.get("distance_m") is not None:
-                ocr_last_result = result
-                anchored = station_tracker.anchor_from_ocr(
-                    float(result["distance_m"]),
-                    event=event,
-                    now=capture_time or time.time(),
-                    speed_ms=capture_speed_ms,
-                    ocr_raw_m=float(result["distance_m"]),
-                )
-                if anchored:
-                    _log_ocr_session_event(event, station_tracker, result=result)
-                else:
-                    reject_error = "rejected_jump"
-                    if (
-                        event == "initial_anchor"
-                        and result.get("distance_m") is not None
-                        and float(result["distance_m"]) < station_distance.MIN_NEW_LEG_ANCHOR_M
-                    ):
-                        reject_error = "rejected_platform_residual"
-                    _log_ocr_session_event(
-                        event,
-                        station_tracker,
-                        result=result,
-                        error=reject_error,
-                    )
-            else:
-                _log_ocr_session_event(
-                    event,
-                    station_tracker,
-                    result=result,
-                    error="no_distance_parsed",
-                )
-        except Exception as exc:
-            print(f"[OCR] Error ({event}): {exc}")
-            _log_ocr_session_event(event, station_tracker, error=str(exc))
-        finally:
-            attempt_time = capture_time or time.time()
-            station_tracker.mark_ocr_capture_attempted(attempt_time)
-            if event == "near_correction" and not anchored:
-                ocr_m = result.get("distance_m") if result else None
-                if ocr_m is None or not station_tracker.should_retry_near_correction(
-                    float(ocr_m), capture_speed_ms,
-                ):
-                    station_tracker.mark_near_correction_attempted(attempt_time)
-            ocr_is_capturing = False
 
     while True:
         try:
@@ -560,11 +629,12 @@ async def telemetry_reader() -> None:
                         ):
                             station_tracker.clear()
 
-                        if ocr_hud.is_available() and not ocr_is_capturing:
+                        _last_telemetry_data = data
+
+                        if ocr_hud.is_available() and not _ocr_is_capturing:
                             if door_just_closed:
-                                ocr_is_capturing = True
                                 asyncio.create_task(
-                                    run_ocr_capture("door_anchor", speed_ms, now),
+                                    execute_ocr_capture("door_anchor", speed_ms=speed_ms, capture_time=now),
                                 )
                             elif station_tracker.should_request_initial_anchor(
                                 speed_ms,
@@ -572,25 +642,22 @@ async def telemetry_reader() -> None:
                                 doors_open=doors_open_now,
                                 stationary_since=stationary_since,
                             ):
-                                ocr_is_capturing = True
                                 asyncio.create_task(
-                                    run_ocr_capture("initial_anchor", speed_ms, now),
+                                    execute_ocr_capture("initial_anchor", speed_ms=speed_ms, capture_time=now),
                                 )
                             elif station_tracker.should_request_near_correction(speed_ms, now):
-                                ocr_is_capturing = True
                                 asyncio.create_task(
-                                    run_ocr_capture("near_correction", speed_ms, now),
+                                    execute_ocr_capture("near_correction", speed_ms=speed_ms, capture_time=now),
                                 )
                             elif (
                                 not doors_open_now
                                 and station_tracker.should_request_mid_leg_correction(speed_ms, now)
                             ):
-                                ocr_is_capturing = True
                                 asyncio.create_task(
-                                    run_ocr_capture("mid_leg_correction", speed_ms, now),
+                                    execute_ocr_capture("mid_leg_correction", speed_ms=speed_ms, capture_time=now),
                                 )
 
-                        _apply_ocr_metadata(data, ocr_last_result)
+                        _apply_ocr_metadata(data, _ocr_last_result)
                         _apply_station_distance(data, station_tracker)
 
                         profile_id = (
@@ -641,6 +708,17 @@ async def station_distance_debug():
     if tracker is None:
         return {"has_anchor": False, "samples": []}
     return tracker.debug_payload()
+
+
+@app.post("/api/ocr/capture")
+async def manual_ocr_capture():
+    """Ancla manualmente la distancia OCR (p. ej. paso por waypoint sin parada)."""
+    speed_ms = station_distance.speed_ms_from_telemetry(_last_telemetry_data)
+    return await execute_ocr_capture(
+        "manual_anchor",
+        speed_ms=speed_ms,
+        capture_time=time.time(),
+    )
 
 
 @app.get("/api/ocr/debug")
@@ -726,7 +804,16 @@ async def debug_session_start(request: Request):
     meta = body.get("meta") if isinstance(body.get("meta"), dict) else {}
     if not meta:
         meta = {k: v for k, v in body.items() if k not in ("meta", "session_id")}
-    session_id = session_log._store.start(meta if isinstance(meta, dict) else {})
+    merged_meta = dict(meta if isinstance(meta, dict) else {})
+    merged_meta["source"] = merged_meta.get("source") or "v4_session"
+    session_id = session_log._store.open_or_attach(merged_meta)
+    session_log._store.append(session_id, [{
+        "type": "session_start",
+        "t": time.time(),
+        "wall": datetime.now(timezone.utc).isoformat(),
+        "meta": merged_meta,
+        "origin": "rest_start",
+    }])
     return {"ok": True, "session_id": session_id}
 
 

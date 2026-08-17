@@ -1,5 +1,10 @@
 # Métricas de telemetría — Nexus V3
 
+> **Nota:** V4 y el agente consumen **`nexus-kernel`** (`DataNormalizer.ts` en el paquete kernel).
+> Este documento describe el pipeline **V3 PILOT** (`Dastsc-V3/src/v3/core/DataNormalizer.ts`) y
+> sigue siendo referencia válida para campos GetData y OCR. Contratos V4 →
+> [NEXUS_V4_ARQUITECTURA.md](./NEXUS_V4_ARQUITECTURA.md).
+
 Inventario de datos que leemos del juego (Train Simulator Classic), cómo llegan al HUD y qué
 transformaciones aplicamos.
 
@@ -201,6 +206,7 @@ parada viene **solo del OCR del HUD** (+ odómetro integrado).
 | `initial_anchor`     | Sin ancla previa, puertas cerradas, parado ≥ **5 s** (< 1 m/s), OCR ≥ **400 m** (rechaza ~0.08 mi en andén sin abrir puertas)                                                 | **1× al inicio de tramo**        |
 | `mid_leg_correction` | Tramo inicial **> 5 km**: checkpoints al recorrer fracciones del tramo (máx. **3**; p. ej. 20 km → ~5 km, 10 km, 15 km). Velocidad ≥ 10 km/h, puertas cerradas, cooldown 60 s | **0–3× por tramo**               |
 | `near_correction`    | Distancia estimada ≤ **400 m**, recorrido ≥ **200 m** desde el ancla, y aún no corregido en ese tramo                                                                         | **0–1× por tramo** entre paradas |
+| `manual_anchor`      | Botón **«Anclar OCR»** en V4 — waypoints, pasos por, cambio de destino en HUD                                                                                                 | Bajo demanda (conductor)         |
 | Debug manual         | `GET /api/ocr/debug`                                                                                                                                                          | Bajo demanda                     |
 
 ### Cuándo usar cada ancla
@@ -210,6 +216,8 @@ parada viene **solo del OCR del HUD** (+ odómetro integrado).
 | Parado en **señal roja** al inicio (sin andén)       | Tras 5 s parado → `initial_anchor` si el HUD muestra millas reales (≥ 400 m)               |
 | **Andén**, puertas cerradas al cargar (HUD ~0.08 mi) | `initial_anchor` **rechaza** la lectura corta → abrir puertas → cerrar → **`door_anchor`** |
 | Parada normal en servicio                            | **`door_anchor`** al cerrar puertas tras embarque                                          |
+| Pasos por / cabecera (p. ej. Acela WB: ~1 mi + ~5 mi)| **`manual_anchor`** cuando el HUD muestra la parada destino real — no auto-clasificar OCR  |
+| Mercancías / waypoints                               | **`manual_anchor`** (más habitual que en pasajeros)                                        |
 
 Entre capturas, `StationDistance` se integra con odómetro (velocidad × Δt) en
 `core/station_distance.py`. El tracker guarda muestras internas cada **5 s** (`SAMPLE_INTERVAL_S`;
@@ -232,6 +240,12 @@ OCR por encima del odómetro hasta un techo dinámico:
 
 Rechazos con `rejected_jump` en log indican OCR fuera de ese margen (p. ej. spike > 250 m en tramo
 largo). Ver `tests/test_station_distance.py` (`test_mid_leg_accepts_upward_odometer_drift`).
+
+**`near_correction` y dist=0 (2026-08-17):** el backend acepta OCR **menor o igual** que el odómetro
+(incluido 0 m si el parseo falla en andén). Eso **no** dispara frenada: el agente (`planBrake.ts`)
+no planifica estación con `distanceM <= 0`. El frenado en servicio usa la distancia integrada desde
+el ancla; la corrección tardía con OCR basura es ruido de telemetría, no detector de parada.
+Spikes al alza en andén (p. ej. 97 m con ~400 m restantes) sí se rechazan.
 
 Solo una captura OCR a la vez (`ocr_is_capturing`). Requiere `mss` + `pytesseract` en el backend.
 
@@ -318,7 +332,7 @@ Salida de `DataNormalizer.ts` — lo que consumen los componentes React.
 
 | Tema                | Detalle                                                                                      |
 | ------------------- | -------------------------------------------------------------------------------------------- |
-| **Gradiente**       | Lua: + = subida. HUD: `Gradient` corregido por cabina; `RawGradient` = valor del juego       |
+| **Gradiente**       | Lua: + = subida. Kernel: `gradient` (‰) para plan; `rawGradient` = crudo GetData. **V4:** botón **+ directo / − invertir** sustituye tabla cabina UK; log solo `gradient` + `gradientPct` (% = ‰/10). Subida (+) → decel mayor → frenar más tarde; bajada (−) → al revés. Ver [NEXUS_V4_ARQUITECTURA §4.5](./NEXUS_V4_ARQUITECTURA.md). |
 | **Velocidad**       | Internamente todo en m/s; display según perfil o `SpeedoType`                                |
 | **Límite efectivo** | Al subir límite tras una señal, se mantiene el viejo hasta que la cola recorre `TrainLength` |
 | **TripDistance**    | El odómetro del HUD **no** lee el campo Lua homónimo; se acumula en `PhysicsNormalizer`      |

@@ -235,6 +235,17 @@ export function normalizeWheelSpeedMS(
   return wheelSpeedMS;
 }
 
+/** Signo manual del gradiente (V4): + = tal cual Lua, − = invertir. */
+export type GradientSignMode = '+' | '-';
+
+export interface NormalizeOptions {
+  gradientSign?: GradientSignMode;
+}
+
+export function applyManualGradientSign(rawPermille: number, mode: GradientSignMode): number {
+  return mode === '+' ? rawPermille : -rawPermille;
+}
+
 /** Pendiente de ruta en ‰ (GradientPct % × 10, o campo Gradient del Lua). */
 export function routeGradientPermille(raw: SimulatorRawInput): number {
   if (raw.GradientPct !== undefined && raw.GradientPct !== null) {
@@ -442,6 +453,37 @@ export function stickyStationDistance(raw: SimulatorRawInput, prev: TelemetryDat
 
   if (incoming >= 0) return incoming;
   return prevDist >= 0 ? prevDist : -1;
+}
+
+const BACKEND_STATION_SOURCES = new Set(['ocr_tracker', 'lua']);
+
+function roundStationDistanceM(value: number): number {
+  return parseFloat(value.toFixed(1));
+}
+
+/**
+ * Distancia a estación para el HUD/agente.
+ * Si el backend ya calculó la distancia (OCR + odómetro o Lua), no re-aplicar sticky
+ * (evita doble suavizado con station_distance.py).
+ */
+export function resolveStationDistance(raw: SimulatorRawInput, prev: TelemetryData): number {
+  const source = raw.StationDistanceSource;
+  if (source && BACKEND_STATION_SOURCES.has(source)) {
+    const backendDist = raw.StationDistance !== undefined ? asNumber(raw.StationDistance) : -1;
+    if (backendDist >= 0) {
+      return roundStationDistanceM(backendDist);
+    }
+    const prevDist = prev.StationDistance ?? -1;
+    if (
+      prev.StationDistanceSource
+      && BACKEND_STATION_SOURCES.has(prev.StationDistanceSource)
+      && prevDist >= 0
+    ) {
+      return prevDist;
+    }
+    return -1;
+  }
+  return stickyStationDistance(raw, prev);
 }
 
 export function stickyOcrField(

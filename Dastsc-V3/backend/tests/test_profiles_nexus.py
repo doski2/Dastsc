@@ -23,6 +23,8 @@ class TestNexusProfiles(unittest.TestCase):
         self.assertIn("class323", ids)
         self.assertIn("icet", ids)
         self.assertIn("passenger", ids)
+        self.assertIn("regional_commuter", ids)
+        self.assertIn("high_speed_express", ids)
         self.assertIn("generic", ids)
 
     def test_ui_lists_detectable_profiles_from_full_folder(self):
@@ -33,6 +35,8 @@ class TestNexusProfiles(unittest.TestCase):
         self.assertIn("generic", visible_ids)
         self.assertIn("class390_expert", visible_ids)
         self.assertNotIn("passenger", visible_ids)
+        self.assertNotIn("regional_commuter", visible_ids)
+        self.assertNotIn("high_speed_express", visible_ids)
 
     def test_auto_selects_class390_expert_from_legacy(self):
         resolved = resolve_auto_profile(
@@ -53,29 +57,33 @@ class TestNexusProfiles(unittest.TestCase):
         assert resolved is not None
         self.assertEqual(resolved["id"], "class390_expert")
 
-    def test_class323_extends_passenger(self):
+    def test_class323_extends_regional_commuter(self):
         base = self.manager.get_by_id("class323")
         self.assertIsNotNone(base)
         assert base is not None
-        self.assertEqual(base.get("extends"), "passenger")
+        self.assertEqual(base.get("extends"), "regional_commuter")
         resolved = resolve_profile_chain(base, self.manager.get_by_id)
         self.assertTrue(resolved["specs"]["notches_throttle_brake"])
         self.assertEqual(resolved["physics_config"]["station_reaction_time_s"], 0.9)
         self.assertEqual(resolved["physics_config"]["max_braking_decel"], 1.1)
+        self.assertEqual(resolved["agent_config"]["station"]["final_stop_max_distance_m"], 35)
 
-    def test_icet_extends_passenger_with_german_notches(self):
+    def test_icet_extends_high_speed_with_german_notches(self):
         base = self.manager.get_by_id("icet")
         self.assertIsNotNone(base)
         assert base is not None
+        self.assertEqual(base.get("extends"), "high_speed_express")
         resolved = resolve_profile_chain(base, self.manager.get_by_id)
         labels = [n["label"] for n in resolved["specs"]["notches_throttle_brake"]]
         self.assertIn("NEU", labels)
         self.assertIn("S7", labels)
         self.assertEqual(resolved["mappings"]["brake"], "VirtualBrake")
+        self.assertEqual(resolved["agent_config"]["station"]["plan_horizon_m"], 2500)
         self.assertEqual(
             resolved["agent_config"]["station"]["release_block_speed_ms"],
             2.5,
         )
+        self.assertEqual(resolved["physics_config"]["gradient_mode"], "driver")
 
     def test_passenger_agent_config_inherited_by_class323(self):
         base = self.manager.get_by_id("class323")
@@ -84,6 +92,32 @@ class TestNexusProfiles(unittest.TestCase):
         resolved = resolve_profile_chain(base, self.manager.get_by_id)
         self.assertEqual(resolved["agent_config"]["station"]["plan_horizon_m"], 1500)
         self.assertEqual(resolved["agent_config"]["brake"]["release_margin_kmh"], 3)
+        self.assertEqual(resolved["agent_config"]["brake"]["coast_rebrake_margin_kmh"], 6)
+
+    def test_acela_inherits_high_speed_express_agent_config(self):
+        base = self.manager.get_by_id("acelaexpressexpert")
+        self.assertIsNotNone(base)
+        assert base is not None
+        self.assertEqual(base.get("extends"), "high_speed_express")
+        resolved = resolve_profile_chain(base, self.manager.get_by_id)
+        self.assertEqual(resolved["agent_config"]["station"]["plan_horizon_m"], 2500)
+        brake_labels = [
+            n["label"] for n in resolved["specs"]["notches_throttle_brake"] if n["value"] < 0
+        ]
+        self.assertIn("20%", brake_labels)
+        self.assertIn("OFF", [n["label"] for n in resolved["specs"]["notches_throttle_brake"]])
+        self.assertNotIn("S7", brake_labels)
+
+    def test_class350_inherits_high_speed_not_icet_notches(self):
+        base = self.manager.get_by_id("class350_expert_wcml")
+        self.assertIsNotNone(base)
+        assert base is not None
+        self.assertEqual(base.get("extends"), "high_speed_express")
+        resolved = resolve_profile_chain(base, self.manager.get_by_id)
+        labels = [n["label"] for n in resolved["specs"]["notches_throttle_brake"]]
+        self.assertIn("INIT", labels)
+        self.assertNotIn("NEU", labels)
+        self.assertEqual(resolved["agent_config"]["station"]["plan_horizon_m"], 2500)
 
     def test_auto_prefers_icet_over_generic(self):
         resolved = resolve_auto_profile(

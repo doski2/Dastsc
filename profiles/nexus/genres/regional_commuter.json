@@ -1,0 +1,25 @@
+{
+    "name": "Pasajeros regional / cercanías",
+    "extends": "passenger",
+    "nexus": {
+        "tier": "genre",
+        "genre": "regional_commuter",
+        "hidden": true
+    },
+    "physics_config": {
+        "station_reaction_time_s": 0.9
+    },
+    "agent_config": {
+        "station": {
+            "plan_horizon_m": 1500,
+            "final_stop_max_distance_m": 45,
+            "terminal_approach_distance_m": 90
+        },
+        "brake": {
+            "coast_rebrake_margin_mph": 4,
+            "coast_rebrake_margin_kmh": 6,
+            "coast_clear_overshoot_mph": 6,
+            "coast_clear_overshoot_kmh": 10
+        }
+    }
+}

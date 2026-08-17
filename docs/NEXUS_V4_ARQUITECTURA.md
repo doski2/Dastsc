@@ -1,12 +1,13 @@
 # Nexus V4 — Arquitectura y diseño
 
-**Estado:** Fase 323 cerrada · Class 390 en prueba · UI DriveHudBar · agosto 2026
+**Estado:** AUTO frenado en validación (323, 350, Acela) · géneros operativos · UI dos columnas ·
+log sesión V4 · gradiente manual · brakeStats por banda · Lua v12 · agosto 2026
 **Relación con V3:** V3 = motor de telemetría + PILOT legacy (BrakingCurve, gauges). V4 = producto
 AI-first con agente protagonista.
 
-**Foco actual:** validar **modo AUTO** de frenado (323) en ruta real.
-**Siguiente gran fase (documentada, no implementada):** **tracción / aceleración** cuando el frenado
-esté completo en AUTO.
+**Foco actual:** cerrar **P0.1** (log V4 completo) y **P1** (paradas AUTO, límites UK, consist
+doble).
+Ver [PENDIENTES_V4.md](./PENDIENTES_V4.md).
 
 ---
 
@@ -56,8 +57,21 @@ Tipos en `nexus-kernel/src/types.ts`.
 
 Salida estable del kernel (`TelemetryHub` + `toTelemetrySnapshot`).
 
-Campos clave: velocidad, límites, señalización, estación (OCR), freno, cola, seguridad, tren
-(masa, longitud, `consistType`), gradiente (‰).
+Campos clave:
+
+| Bloque | Campos | Notas |
+| ------ | ------ | ----- |
+| Velocidad | `speedMs`, `speedDisplay`, `speedUnit` | Interno m/s; display según perfil / `SpeedoType` |
+| Límites | `effective`, `frontal`, `next`, `upcoming[]` | Cadena UK en `upcoming`; frontal = cola del tren |
+| Señal | `aspect`, `distanceM` | |
+| Estación | `distanceM`, `nameOcr`, `source`, `driftM`, … | `source`: `lua` \| `ocr_tracker` \| `none` |
+| Freno | `position`, `combined`, `cylinder`, `effortKn`, `tractiveKn` | `tractiveKn` = esfuerzo neto sim (kN); Acela vía alias `Effort` |
+| Cola / seguridad | `tail.*`, `safety.*` | |
+| Tren | `massT`, `lengthM`, `consistType`, `profileId`, `name` | |
+| Gradiente | `gradient`, `rawGradient` | **‰** (+ = subida en convención plan); ver §4.5 |
+| Cabina | `activeCab`, `reverser` | Solo referencia; signo gradiente V4 = botón manual §4.5 |
+
+Unidades: **gradiente en ‰** en kernel/agente; **% = ‰ / 10** en UI y log (`gradientPct`).
 
 ### 4.2 `HorizonEvent`
 
@@ -86,6 +100,52 @@ Cuando compiten varios planes (señal, límite, estación), `selectUrgentBrakePl
 
 El headline y el horizonte reflejan el mismo orden (señal antes que límite antes que estación).
 
+### 4.5 Gradiente — signo y física de frenado
+
+**Flujo de signo (V4):**
+
+1. Lua emite `Gradient` (‰ crudo) → `TelemetrySnapshot.rawGradient`.
+2. En V4 el conductor elige **+ directo** o **− invertir** (`BrakePlanPanel` → `TelemetryHub.setGradientSign`).
+3. Kernel aplica `applyManualGradientSign(raw, mode)` — **sustituye** la tabla cabina UK / `gradient_mode` del perfil mientras el modo manual esté activo.
+4. `TelemetrySnapshot.gradient` alimenta `planBrake()` y el log de sesión.
+
+Persistencia: `localStorage` clave `nexus-v4-gradient-sign`. Cambio de modo → evento log `gradient_sign` (no por tick).
+
+**Efecto en `decelForNotch` (sin stats aprendidas):**
+
+```text
+decel = (baseDecel × fracción_muesca) / (massFactor × lagFactor) + g × gradiente_‰
+```
+
+| Pendiente | Decel efectiva | Distancia de parada | Conducción |
+| --------- | -------------- | ------------------- | ---------- |
+| Subida (+‰) | Mayor | Menor | Frenar **menos** / **más tarde** (gravedad ayuda) |
+| Bajada (−‰) | Menor | Mayor | Frenar **más** / **antes** (gravedad empuja) |
+
+Con **`brakeStats` aprendidos** (≥ 3 muestras en la banda de velocidad actual), la decel viene del
+learning y **no** se re-suma `g × gradiente` — el evento ya incluyó la pendiente real.
+
+Perfiles pueden definir `physics_config.gradient_mode` (`uk_consist` \| `driver`) y
+`gradient_sign_flip` para V3/PILOT; en V4 la calibración habitual es el botón **+ / −** comparando
+**Raw juego** vs **Plan freno** en pantalla.
+
+### 4.6 Log de sesión V4 (`logs/nexus-v4/`)
+
+Objetivo: `meta.source: v4_session` con eventos `tick` / `tick_change` (ver [debug/README.md](./debug/README.md)).
+
+**Por tick (`tick_change`):** campos mínimos para post-mortem:
+
+| Campo | Contenido |
+| ----- | --------- |
+| `gradient` | ‰ usado por el agente |
+| `gradientPct` | % legible (‰ / 10) — **suficiente** para analizar pendiente; no se guarda `rawGradient` |
+| `limits.upcoming` | Cadena de cartéles (P0.2) |
+| `brake.effortKn`, `brake.tractiveKn`, `brake.cylinder` | Respuesta freno (P3.5 Acela) |
+| `agent.headline`, `agent.horizon`, `agent.activeStep` | Plan urgente resumido (sin `brakePlan` completo) |
+
+**Eventos puntuales:** `gradient_sign`, `policy`, `profile`, `command`, `ack`, `ocr_capture`,
+`manual_anchor`, `auto_fallback`.
+
 ---
 
 ## 5. Diseño de pantallas
@@ -99,12 +159,12 @@ El headline y el horizonte reflejan el mismo orden (señal antes que límite ant
 
 | Bloque       | Componente        | Notas                                                                                        |
 | ------------ | ----------------- | -------------------------------------------------------------------------------------------- |
-| Barra fija   | `DriveHudBar.tsx` | Velocidad actual, límite efectivo, próximo límite (+ distancia), cola (+ s). No hace scroll. |
+| Barra fija   | `DriveHudBar.tsx` | Velocidad, límite, próximo límite (+ cadena ámbar), cola, botón **Anclar OCR**               |
 | Protagonista | `AgentHeadline`   | Headline + urgencia desde `tickAgent` / `planBrake`                                          |
 | Mandos       | `ArmActionBar`    | ARM confirma; AUTO vía `useAutoCommand`                                                      |
-| Plan         | `BrakePlanPanel`  | Pasos de muesca; lista desplegable con scroll interno (`max-h-52`)                           |
-| Horizonte    | `HorizonStrip`    | Próximos eventos (señal, límite, estación, cola, seguridad)                                  |
-| Layout       | `AppShell.tsx`    | Header + `driveHud` + `main` con scroll independiente + footer                               |
+| Plan         | `BrakePlanPanel`  | Columna derecha (`xl`): gradiente +/−, raw vs plan, telemetría freno, tabla muescas H/M/B    |
+| Horizonte    | `HorizonStrip`    | Columna izquierda: señal, límite, estación, cola, seguridad                                  |
+| Layout       | `App.tsx`         | `max-w-6xl`; `xl:flex-row` — agente + horizonte izq., frenado der.; scroll por columna       |
 
 **No en esta fase:** ETCS skin, grid 3 columnas, tracción automática. `MiniHud.tsx` sustituido por
 `DriveHudBar` (barra superior fija).
@@ -132,6 +192,7 @@ Pestaña **Config** en V4 (`localhost:5175`):
 | --------------------- | ------ | ---------------------------------------------------------------------------------------- |
 | `buildHorizon()`      | ✅     | Señal, límite, estación, cola, AWS/DSD                                                   |
 | `planBrake()`         | ✅     | Port física V3; gradiente ‰; prioridad **Señal → Límite → Estación**; golden tests vs V3 |
+| `brakeStats` (bandas) | ✅     | `high` / `med` / `low` por `start_speed_ms`; `decelForNotch(..., speedMs)` (P3.7)        |
 | `tickAgent()`         | ✅     | Headline + `suggestedAction` en ARM/AUTO                                                 |
 | `commandBus`          | ✅     | Muesca + OFF; EMG bloqueado; AUTO suspende en SAFETY                                     |
 | `useAutoCommand`      | ✅     | V4: rate limit 2 s, fallback a SUGGEST si ack falla                                      |
@@ -163,9 +224,9 @@ Validado en juego con Class 323 (Birmingham Cross City):
 | Perfil completo         | `profiles/class323.json`                                                                |
 | Variantes expert/simple | `extends: "class323"` en `xc_class323_expert`, `cc_class323_simple`                     |
 | Detección AUTO          | Backend: `GetLocoName()` + fingerprint DLL; pool **legacy + Nexus** (`profile_auto.py`) |
-| Decel por muesca        | `brake_events.json` → `/api/brake/stats`                                                |
+| Decel por muesca        | `brake_events.json` → `/api/brake/stats` (+ bandas H/M/B por velocidad)                 |
 | Física agente           | `planBrake` + `reaction_time_s: 3` + blend avg/max aprendido                            |
-| Aprendizaje en juego    | `useBrakeLearning` en V4                                                                |
+| Aprendizaje en juego    | `useBrakeLearning` en V4; tabla muescas Alta / Media / Baja en `BrakePlanPanel`         |
 | Comandos ARM / AUTO     | `command_bus.py` → `SendCommand.txt` (Lua)                                              |
 
 **Calibración 323 (`physics_config`):**
@@ -226,17 +287,33 @@ Objetivo: cuando el tren va por debajo del límite y freno en OFF, sugerir o apl
 **Dependencias:** `specs.notches_throttle_brake` del perfil, `physics_config` de esfuerzo/masa,
 mismo `CommandBus` (Lua primero).
 
-### 8.5 Más adelante — multi-tren
+### 8.5 Géneros operativos (agent_config / física)
 
-| Tarea                        | Herramienta                                        | Prioridad |
-| ---------------------------- | -------------------------------------------------- | --------- |
-| Class 375, 390, …            | `nexus-profile-wizard.py` + captura muescas manual | P2        |
-| Class 390 expert             | `profiles/class390_expert.json` (6 muescas B1–B6)  | En prueba |
-| Herencia sin duplicar        | `"extends": "class323"` o perfil base por familia  | P2        |
-| Aliases RV automáticos       | Ampliar al detectar nombre nuevo                   | P3        |
-| Perfil en disco desde sesión | Export explícito (no auto-write en juego)          | P3        |
-| UI selector AUTO / manual    | CONFIG V4                                          | ✅        |
-| Tablas decel ERA / XML TSC   | Calibración `max_braking_decel`                    | P4        |
+Jerarquía de herencia para **comportamiento AUTO**, sin mezclar muescas entre trenes:
+
+```text
+```
+
+| Genre                | Archivo                                | Uso                             |
+| -------------------- | -------------------------------------- | ------------------------------- |
+| `passenger`          | `nexus/genres/passenger.json`          | Defaults genéricos              |
+| `regional_commuter`  | `nexus/genres/regional_commuter.json`  | Cercanías / paradas cortas      |
+| `high_speed_express` | `nexus/genres/high_speed_express.json` | Alta velocidad, legs OCR largos |
+
+**Regla:** `specs.notches_throttle_brake` siempre en el perfil del **tren**; el genre solo define
+`agent_config`, `physics_config` base y layout `brakes`.
+
+### 8.6 Más adelante — multi-tren
+
+| Tarea                        | Herramienta                                               | Prioridad |
+| ---------------------------- | --------------------------------------------------------- | --------- |
+| Class 375, 390, …            | `nexus-profile-wizard.py` + captura muescas manual        | P2        |
+| Class 390 expert             | `profiles/class390_expert.json` (6 muescas B1–B6)         | En prueba |
+| Herencia sin duplicar        | `"extends": "regional_commuter"` / `"high_speed_express"` | P2        |
+| Aliases RV automáticos       | Ampliar al detectar nombre nuevo                          | P3        |
+| Perfil en disco desde sesión | Export explícito (no auto-write en juego)                 | P3        |
+| UI selector AUTO / manual    | CONFIG V4                                                 | ✅        |
+| Tablas decel ERA / XML TSC   | Calibración `max_braking_decel`                           | P4        |
 
 ---
 
@@ -312,6 +389,13 @@ Ver también `docs/COMPARATIVA_LUA_RAILDRIVER.md`, `docs/GUIA_TECNICA_IPC.md`.
 
 ### Hecho — fase 323
 
+- [x] Gradiente V4 — botón **+ directo / − invertir**; `rawGradient` + `gradient` en snapshot;
+  evento log `gradient_sign`; física subida/bajada documentada §4.5
+- [x] Log sesión — `gradient`, `gradientPct`, `limits.upcoming`, `brake.tractiveKn` / `effortKn` /
+  `cylinder` en `tick_change`
+- [x] UI validación frenado — layout dos columnas `xl`, `BrakePlanPanel` sidebar, bandas H/M/B
+- [x] Lua **v12** — alias `Effort`, presiones Acela, `EffortSource` en GetData (P3.5)
+- [x] `brakeStats` por banda de velocidad — backend + agente (P3.7)
 - [x] `nexus-kernel` — normalizers, `TelemetryHub`, `toSnapshot`, safety AWS, tests
 - [x] `nexus-agent` — `planBrake`, `tickAgent`, `commandBus`, tests (+ golden V3); prioridad frenado
 
@@ -338,6 +422,7 @@ Ver también `docs/COMPARATIVA_LUA_RAILDRIVER.md`, `docs/GUIA_TECNICA_IPC.md`.
 
 ### Roadmap
 
+- [ ] Backlog priorizado: [`docs/PENDIENTES_V4.md`](PENDIENTES_V4.md)
 - [ ] **Tracción / aceleración** — `planThrottle`, `evaluateCruise` (§8.4)
 - [ ] Segundo tren gold (Class 375)
 - [ ] Tag `v3-stable`, mover backend a `Dastsc/backend/`
@@ -345,4 +430,4 @@ Ver también `docs/COMPARATIVA_LUA_RAILDRIVER.md`, `docs/GUIA_TECNICA_IPC.md`.
 
 ---
 
-*Documento vivo — última revisión: agosto 2026.*
+*Documento vivo — última revisión: 2026-08-17.*

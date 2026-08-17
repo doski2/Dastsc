@@ -100,7 +100,7 @@ describe('station braking', () => {
       speedMs: 2.5,
       speedDisplay: 6,
       station: { distanceM: 48, nameOcr: 'University', eta: '' },
-      brake: { combined: 0.5, position: 0, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+      brake: { combined: 0.5, position: 0, cylinder: 0, effortKn: 0, tractiveKn: 0, projectedStopM: 0 },
     });
     expect(planStationFinalStop(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
     expect(planBrakeForStation(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
@@ -111,7 +111,7 @@ describe('station braking', () => {
       speedMs: 3.35,
       speedDisplay: 7,
       station: { distanceM: 0, nameOcr: 'Terminus', eta: '', traveledM: 0 },
-      brake: { combined: 0.25, position: 0.25, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+      brake: { combined: 0.25, position: 0.25, cylinder: 0, effortKn: 0, tractiveKn: 0, projectedStopM: 0 },
     });
     expect(planStationFinalStop(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
     expect(planBrakeForStation(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
@@ -127,7 +127,7 @@ describe('station braking', () => {
         nameOcr: 'OldStop',
         eta: '',
       },
-      brake: { combined: 0.25, position: 0.25, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+      brake: { combined: 0.25, position: 0.25, cylinder: 0, effortKn: 0, tractiveKn: 0, projectedStopM: 0 },
     });
     expect(planBrakeForStation(snapshot, { profile: CLASS323_PROFILE })).toBeNull();
   });
@@ -136,14 +136,14 @@ describe('station braking', () => {
     const stopped = createMockSnapshot({
       speedMs: 0,
       station: { distanceM: 97, nameOcr: 'Terminus', eta: '', traveledM: 0 },
-      brake: { combined: -0.75, position: -0.75, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+      brake: { combined: -0.75, position: -0.75, cylinder: 0, effortKn: 0, tractiveKn: 0, projectedStopM: 0 },
     });
     expect(planBrakeForStation(stopped, { profile: CLASS323_PROFILE })).toBeNull();
 
     const departing = createMockSnapshot({
       speedMs: 4,
       station: { distanceM: 85, nameOcr: 'Terminus', eta: '', traveledM: 25 },
-      brake: { combined: 0.25, position: 0.25, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+      brake: { combined: 0.25, position: 0.25, cylinder: 0, effortKn: 0, tractiveKn: 0, projectedStopM: 0 },
     });
     expect(planBrakeForStation(departing, { profile: CLASS323_PROFILE })).toBeNull();
   });
@@ -152,7 +152,7 @@ describe('station braking', () => {
     const snapshot = createMockSnapshot({
       speedMs: 15,
       station: { distanceM: 97, nameOcr: 'Next', eta: '14:38', traveledM: 2800 },
-      brake: { combined: -0.25, position: -0.25, cylinder: 0, effortKn: 0, projectedStopM: 0 },
+      brake: { combined: -0.25, position: -0.25, cylinder: 0, effortKn: 0, tractiveKn: 0, projectedStopM: 0 },
     });
     expect(planBrakeForStation(snapshot, { profile: CLASS323_PROFILE })).not.toBeNull();
   });

@@ -3,7 +3,6 @@ import { resolveChainedLimitTarget } from '@nexus/kernel';
 import {
   DEFAULT_MAX_BRAKE_DECEL,
   DOWNHILL_LIMIT_GRADIENT_PERMILLE,
-  MIN_LEARNED_SAMPLES,
   PLANNING_DECEL_AVG_WEIGHT,
   PLANNING_DECEL_STATION_AVG_WEIGHT,
   TARGET_CLUSTER_GAP_M,
@@ -15,6 +14,7 @@ import {
   massFactor,
 } from './physics';
 import { resolveAgentConfig } from './agentConfig';
+import { resolveLearnedEntry } from './brakeStats';
 import { signalRequiresFullStop } from './signalUtils';
 import { scheduleReactionScale, scheduleSlackSec, scheduleCoastAllowanceM } from './schedule';
 import type {
@@ -274,10 +274,11 @@ export function decelForNotch(
   consistType: number,
   gradientPermille: number,
   brakeStats: BrakeStatsByNotch,
+  speedMs: number,
   targetKind: BrakeTargetKind = 'SPEED_LIMIT',
 ): number {
-  const learned = brakeStats[notchLabel];
-  if (learned && learned.samples >= MIN_LEARNED_SAMPLES) {
+  const learned = resolveLearnedEntry(brakeStats[notchLabel], speedMs);
+  if (learned) {
     return planningDecelFromStats(learned, targetKind);
   }
   const grav = gravityAcceleration(gradientPermille);
@@ -631,13 +632,13 @@ export function planBrake(
       consistType,
       gradientPermille,
       brakeStats,
+      speedMs,
       targetKind,
     );
     const distNeeded = brakingDistanceM(speedMs, targetSpeedMs, decel);
     const applyAtRemainingM = distNeeded + reaction;
     const distStart = distanceToTargetM - applyAtRemainingM + coastAllowanceM;
-    const learned = brakeStats[phase.notchLabel];
-    const usingLearned = !!(learned && learned.samples >= MIN_LEARNED_SAMPLES);
+    const usingLearned = resolveLearnedEntry(brakeStats[phase.notchLabel], speedMs) != null;
     const applyZoneM = applyZoneMarginM(speedMs, applyAtRemainingM);
 
     return {
@@ -697,6 +698,14 @@ export function toAgentBrakeContext(plan: BrakePlan, gradientPermille: number): 
   };
 }
 
+/** Velocidad display por encima del límite de zona (`limits.effective`). */
+export function isAboveEffectiveSpeedLimit(
+  speedDisplay: number,
+  effectiveLimit: number,
+): boolean {
+  return effectiveLimit > 0 && speedDisplay > effectiveLimit;
+}
+
 export function planBrakeForLimit(
   snapshot: {
     speedMs: number;
@@ -705,24 +714,45 @@ export function planBrakeForLimit(
     gradient: number;
     train: { massT: number; lengthM: number; consistType?: number };
     limits: {
+      effective: number;
       next: { speed: number; distanceM: number } | null;
       upcoming: { speed: number; distanceM: number }[];
     };
   },
   ctx: SnapshotBrakeContext = {},
 ): BrakePlan | null {
-  const target = resolveChainedLimitTarget(snapshot.limits);
+  const { limits, speedDisplay, speedUnit, speedMs, gradient, train } = snapshot;
+
+  if (isAboveEffectiveSpeedLimit(speedDisplay, limits.effective)) {
+    return planBrake(
+      {
+        speedMs,
+        distanceToTargetM: 0,
+        targetSpeedMs: displaySpeedToMs(limits.effective, speedUnit),
+        massT: train.massT,
+        lengthM: train.lengthM,
+        gradientPermille: gradient,
+        consistType: ctx.consistType ?? train.consistType,
+        profile: ctx.profile,
+        brakeStats: ctx.brakeStats,
+        isRealTarget: true,
+      },
+      'SPEED_LIMIT',
+    );
+  }
+
+  const target = resolveChainedLimitTarget(limits);
   if (!target || target.distanceM <= 0) return null;
 
   return planBrake(
     {
-      speedMs: snapshot.speedMs,
+      speedMs,
       distanceToTargetM: target.distanceM,
-      targetSpeedMs: displaySpeedToMs(target.speed, snapshot.speedUnit),
-      massT: snapshot.train.massT,
-      lengthM: snapshot.train.lengthM,
-      gradientPermille: snapshot.gradient,
-      consistType: ctx.consistType ?? snapshot.train.consistType,
+      targetSpeedMs: displaySpeedToMs(target.speed, speedUnit),
+      massT: train.massT,
+      lengthM: train.lengthM,
+      gradientPermille: gradient,
+      consistType: ctx.consistType ?? train.consistType,
       profile: ctx.profile,
       brakeStats: ctx.brakeStats,
       isRealTarget: true,

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { formatDistance, formatSpeed } from '../format';
-import { resolveCombinedControl, stickyStationDistance } from '../dataNormalizerUtils';
+import {
+  resolveCombinedControl,
+  resolveStationDistance,
+  stickyStationDistance,
+} from '../dataNormalizerUtils';
 import { TelemetryHub } from '../TelemetryHub';
 import type { TelemetryData } from '../telemetryTypes';
 
@@ -73,6 +77,59 @@ describe('stickyStationDistance', () => {
       prev,
     );
     expect(next).toBe(48000);
+  });
+});
+
+describe('resolveStationDistance', () => {
+  it('passes through ocr_tracker distance without sticky jump rejection', () => {
+    const prev = {
+      StationDistance: 800,
+      TripDistance: 10000,
+      StationDistanceSource: 'ocr_tracker',
+    } as TelemetryData;
+    const next = resolveStationDistance(
+      {
+        StationDistance: 950,
+        TripDistance: 10100,
+        StationDistanceSource: 'ocr_tracker',
+      },
+      prev,
+    );
+    expect(next).toBe(950);
+    expect(stickyStationDistance(
+      { StationDistance: 950, TripDistance: 10100 },
+      prev,
+    )).toBe(700);
+  });
+
+  it('passes through lua distance from backend', () => {
+    const prev = { StationDistance: 1200, StationDistanceSource: 'lua' } as TelemetryData;
+    const next = resolveStationDistance(
+      { StationDistance: 1180.4, StationDistanceSource: 'lua' },
+      prev,
+    );
+    expect(next).toBe(1180.4);
+  });
+
+  it('holds previous backend distance when source is authoritative but reading missing', () => {
+    const prev = {
+      StationDistance: 640,
+      StationDistanceSource: 'ocr_tracker',
+    } as TelemetryData;
+    const next = resolveStationDistance(
+      { StationDistanceSource: 'ocr_tracker' },
+      prev,
+    );
+    expect(next).toBe(640);
+  });
+
+  it('falls back to sticky when source is none', () => {
+    const prev = { StationDistance: 1000, TripDistance: 5000 } as TelemetryData;
+    const next = resolveStationDistance(
+      { StationDistance: -1, TripDistance: 5100, StationDistanceSource: 'none' },
+      prev,
+    );
+    expect(next).toBe(900);
   });
 });
 
@@ -162,6 +219,30 @@ describe('TelemetryHub', () => {
     expect(snapshot.train.profileId).toBe('class323_expert');
     expect(snapshot.rawGradient).toBe(2);
     expect(snapshot.activeCab).toBe(1);
+  });
+
+  it('uses manual gradient sign + when set on hub', () => {
+    const hub = new TelemetryHub();
+    hub.setGradientSign('+');
+    const snapshot = hub.ingestRaw(
+      { ...SAMPLE_RAW, ActiveCab: 2, Reversal: 1, Gradient: 3 },
+      true,
+      'class323_expert',
+    );
+    expect(snapshot.rawGradient).toBe(3);
+    expect(snapshot.gradient).toBe(3);
+  });
+
+  it('uses manual gradient sign - to invert raw', () => {
+    const hub = new TelemetryHub();
+    hub.setGradientSign('-');
+    const snapshot = hub.ingestRaw(
+      { ...SAMPLE_RAW, ActiveCab: 1, Reversal: 1, Gradient: 4 },
+      true,
+      'class323_expert',
+    );
+    expect(snapshot.rawGradient).toBe(4);
+    expect(snapshot.gradient).toBe(-4);
   });
 
   it('inverts gradient sign for cab 2 forward', () => {

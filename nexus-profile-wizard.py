@@ -39,8 +39,8 @@ from core.notch_capture import (  # noqa: E402
     capture_notch,
     capture_sequence_for_profile,
     default_brake_control,
+    describe_graduated_capture,
     existing_labels,
-    is_expert_percent_brake_profile,
     normalize_notch_label,
     preset_labels_for_profile,
     read_brake_control_value,
@@ -168,14 +168,14 @@ class NotchCaptureDialog(tk.Toplevel):
         self.label_combo.configure(values=list(preset_labels_for_profile(self.app.profile)))
 
     def _refresh_intro_text(self) -> None:
-        if is_expert_percent_brake_profile(self.app.profile):
-            seq = " → ".join(capture_sequence_for_profile(self.app.profile))
+        guide = describe_graduated_capture(self.app.profile)
+        if guide:
             self.intro_var.set(
-                "Class 350 Expert — freno en TrainBrakeControl (no ThrottleAndBrake).\n"
-                "1) OFF/release → INIT → 10%…100% → EMG.\n"
+                f"{guide['title']} — freno en {guide['control']} (no ThrottleAndBrake).\n"
+                f"1) {guide['steps']}.\n"
                 "2) Pulsa «Secuencia sugerida» o elige la etiqueta en orden.\n"
                 "3) «Capturar esta muesca» en cada posición · «Aplicar al perfil» al terminar.\n"
-                f"Orden: {seq}"
+                f"Orden: {guide['sequence']}"
             )
         else:
             self.intro_var.set(
@@ -262,7 +262,8 @@ class NotchCaptureDialog(tk.Toplevel):
                     (
                         f"La lectura {value:+.4f} coincide con: {', '.join(result.evicted_labels)}.\n"
                         "Se han sustituido (deduplicación estándar).\n"
-                        "En Class 350 Expert usa el perfil correcto para conservar todas las etiquetas."
+                        "En perfiles graduados % (350, Acela…) usa el perfil correcto "
+                        "para conservar todas las etiquetas."
                     ),
                     parent=self,
                 )

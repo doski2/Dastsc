@@ -7,7 +7,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from core.notch_capture import (  # noqa: E402
     apply_notches_to_profile,
     capture_notch,
+    capture_sequence_for_profile,
     default_brake_control,
+    is_expert_percent_brake_profile,
     normalize_captured_notch_value,
     normalize_notch_label,
     sort_notches,
@@ -74,6 +76,40 @@ class TestNotchCapture(unittest.TestCase):
         self.assertEqual(suggest_next_label([], profile), "OFF")
         captured = [{"value": 0.0, "label": "OFF"}, {"value": -0.05, "label": "INIT"}]
         self.assertEqual(suggest_next_label(captured, profile), "10%")
+
+    def test_suggest_next_label_acela_expert(self):
+        profile = {"name": "AcelaExpressExpert"}
+        self.assertEqual(suggest_next_label([], profile), "OFF")
+        captured = [{"value": 0.0, "label": "OFF"}, {"value": -0.2, "label": "20%"}]
+        self.assertEqual(suggest_next_label(captured, profile), "40%")
+        self.assertEqual(len(capture_sequence_for_profile(profile)), 7)
+        self.assertTrue(is_expert_percent_brake_profile(profile))
+
+    def test_acela_normalize_percent_label(self):
+        profile = {"name": "AcelaExpressExpert"}
+        self.assertEqual(normalize_notch_label("99", profile), "99%")
+        self.assertEqual(normalize_notch_label("off", profile), "OFF")
+
+    def test_default_brake_control_prefers_virtual_for_acela(self):
+        from core.raildriver import ControllerInfo, RailDriverSnapshot
+
+        snap = RailDriverSnapshot(
+            loco_names=["Acela"],
+            controllers=[
+                ControllerInfo(0, "ThrottleAndBrake", 0.0, -1.0, 1.0),
+                ControllerInfo(1, "VirtualBrake", 0.0, 0.0, 1.0),
+            ],
+        )
+        profile = {"name": "AcelaExpressExpert"}
+        self.assertEqual(default_brake_control(snap, profile), "VirtualBrake")
+
+    def test_graduated_percent_via_brakes_block(self):
+        profile = {
+            "name": "Custom EMU",
+            "brakes": {"response_speed": "GRADUATED_PERCENT", "train_control": "VirtualBrake"},
+        }
+        self.assertEqual(suggest_next_label([], profile), "OFF")
+        self.assertEqual(len(capture_sequence_for_profile(profile)), 12)
 
     def test_default_brake_control_prefers_train_brake_for_350_expert(self):
         from core.raildriver import ControllerInfo, RailDriverSnapshot

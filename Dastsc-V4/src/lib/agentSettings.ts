@@ -1,10 +1,12 @@
 import type { PolicyMode } from '@nexus/kernel';
+import type { GradientSignMode } from '@nexus/kernel';
 
 const POLICY_KEY = 'nexus-v4-policy-mode';
 const PROFILE_KEY = 'nexus-v4-profile-selection';
-const CAB_OVERRIDE_KEY = 'nexus-v4-cab-override';
+const GRADIENT_SIGN_KEY = 'nexus-v4-gradient-sign';
+const LEGACY_CAB_KEY = 'nexus-v4-cab-override';
 
-export type CabOverride = 'auto' | 1 | 2;
+export type { GradientSignMode };
 
 export function loadPolicyMode(): PolicyMode {
   const stored = localStorage.getItem(POLICY_KEY);
@@ -25,12 +27,15 @@ export function saveProfileSelection(selection: string): void {
   localStorage.setItem(PROFILE_KEY, selection);
 }
 
-export function loadCabOverride(): CabOverride {
-  const stored = localStorage.getItem(CAB_OVERRIDE_KEY);
-  if (stored === '1' || stored === '2') return Number(stored) as 1 | 2;
-  return 'auto';
+export function loadGradientSign(): GradientSignMode {
+  const stored = localStorage.getItem(GRADIENT_SIGN_KEY);
+  if (stored === '+' || stored === '-') return stored;
+  // Migración mínima: cab 2 solía invertir → probar −
+  const legacyCab = localStorage.getItem(LEGACY_CAB_KEY);
+  if (legacyCab === '2') return '-';
+  return '+';
 }
 
-export function saveCabOverride(override: CabOverride): void {
-  localStorage.setItem(CAB_OVERRIDE_KEY, String(override));
+export function saveGradientSign(mode: GradientSignMode): void {
+  localStorage.setItem(GRADIENT_SIGN_KEY, mode);
 }

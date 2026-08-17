@@ -1,0 +1,33 @@
+{
+    "name": "Pasajeros alta velocidad / largo recorrido",
+    "extends": "passenger",
+    "nexus": {
+        "tier": "genre",
+        "genre": "high_speed_express",
+        "hidden": true
+    },
+    "physics_config": {
+        "max_braking_decel": 1.2,
+        "brake_fill_time_s": 4,
+        "dynamic_brake_ratio": 0.9,
+        "station_reaction_time_s": 1.0,
+        "gradient_mode": "driver",
+        "gradient_sign_flip": true
+    },
+    "agent_config": {
+        "station": {
+            "plan_horizon_m": 2500,
+            "release_block_speed_ms": 2.5,
+            "departure_speed_ms": 5
+        },
+        "brake": {
+            "coast_rebrake_margin_mph": 6,
+            "coast_rebrake_margin_kmh": 10,
+            "coast_clear_overshoot_mph": 10,
+            "coast_clear_overshoot_kmh": 16
+        }
+    },
+    "brakes": {
+        "type": "SPLIT"
+    }
+}

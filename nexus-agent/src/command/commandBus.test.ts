@@ -31,6 +31,7 @@ function testBrake(
     position: number;
     cylinder: number;
     effortKn: number;
+    tractiveKn: number;
     projectedStopM: number;
   }> = {},
 ) {
@@ -39,6 +40,7 @@ function testBrake(
     position: extra.position ?? (combined < 0 ? Math.abs(combined) : 0),
     cylinder: extra.cylinder ?? 0,
     effortKn: extra.effortKn ?? 0,
+    tractiveKn: extra.tractiveKn ?? 0,
     projectedStopM: extra.projectedStopM ?? 50,
     ...extra,
   };
@@ -319,6 +321,28 @@ describe('commandBus', () => {
     const action = resolveReleaseAction(snapshot, null, CLASS323);
     expect(action?.value).toBe(0);
     expect(action?.reason).toContain('Soltar');
+  });
+
+  it('does not release OFF when above effective limit even if next limit is higher', () => {
+    resetSpeedLimitCoastLatch();
+    const snapshot = createMockSnapshot({
+      brake: testBrake(-0.5, { cylinder: 2, effortKn: 40, projectedStopM: 200 }),
+      speedMs: 46.75,
+      speedDisplay: 104.6,
+      limits: {
+        effective: 100,
+        frontal: 100,
+        next: { speed: 125, distanceM: 603 },
+        upcoming: [{ speed: 125, distanceM: 603 }],
+      },
+    });
+    const plan = {
+      targetKind: 'SPEED_LIMIT' as const,
+      targetSpeedMs: 44.704,
+      activeStep: { notch: 'B2', applyNow: true, distStart: 0 },
+    } as BrakePlan;
+    expect(resolveReleaseAction(snapshot, plan, CLASS323)).toBeUndefined();
+    expect(resolveSuggestedAction('AUTO', plan, CLASS323, snapshot)?.value).toBe(-0.5);
   });
 
   it('prefers brake apply over OFF when still in apply zone', () => {

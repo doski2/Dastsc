@@ -84,6 +84,66 @@ class TestBrakeLog(unittest.TestCase):
         self.assertEqual(stats["by_notch"]["B1"]["avg_decel"], 0.3)
         self.assertEqual(stats["by_notch"]["B1"]["samples"], 2)
 
+    def test_get_stats_by_speed_band(self):
+        events = [
+            _valid_event(
+                notch="40%",
+                avg_decel_ms2=0.8,
+                start_speed_ms=45,
+                profile="acela",
+            ),
+            _valid_event(
+                notch="40%",
+                avg_decel_ms2=0.9,
+                start_speed_ms=40,
+                profile="acela",
+            ),
+            _valid_event(
+                notch="40%",
+                avg_decel_ms2=0.9,
+                start_speed_ms=42,
+                profile="acela",
+            ),
+            _valid_event(
+                notch="40%",
+                avg_decel_ms2=0.4,
+                start_speed_ms=15,
+                profile="acela",
+            ),
+            _valid_event(
+                notch="40%",
+                avg_decel_ms2=0.45,
+                start_speed_ms=18,
+                profile="acela",
+            ),
+            _valid_event(
+                notch="40%",
+                avg_decel_ms2=0.5,
+                start_speed_ms=20,
+                profile="acela",
+            ),
+        ]
+        for e in events:
+            brake_log.append_event(e)
+
+        stats = brake_log.get_stats(profile="acela")
+        entry = stats["by_notch"]["40%"]
+        self.assertEqual(entry["samples"], 6)
+        self.assertIn("by_speed", entry)
+        self.assertEqual(entry["by_speed"]["high"]["samples"], 3)
+        self.assertAlmostEqual(entry["by_speed"]["high"]["avg_decel"], 0.867, places=2)
+        self.assertEqual(entry["by_speed"]["med"]["samples"], 3)
+        self.assertAlmostEqual(entry["by_speed"]["med"]["avg_decel"], 0.45, places=2)
+
+    def test_append_sets_speed_band(self):
+        self.assertTrue(brake_log.append_event(_valid_event(
+            notch="B1",
+            start_speed_ms=44,
+            profile="p1",
+        )))
+        events = brake_log.get_events()
+        self.assertEqual(events[0]["speed_band"], "high")
+
     def test_purge_invalid(self):
         brake_log._save([
             _valid_event(notch="B2"),

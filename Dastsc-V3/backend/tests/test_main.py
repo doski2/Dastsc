@@ -189,5 +189,32 @@ class TestBrakeApi(unittest.TestCase):
         self.assertTrue(body["rejected"])
 
 
+class TestOcrCaptureApi(unittest.TestCase):
+    @patch("main.asyncio.create_task", side_effect=_suppress_create_task)
+    @patch("main.ocr_hud.is_available", return_value=True)
+    @patch("main.ocr_hud.capture_next_stop")
+    def test_manual_ocr_capture_endpoint(self, mock_capture, _available, _mock_task):
+        tracker = StationDistanceTracker()
+        main._active_station_tracker = tracker
+        main._last_telemetry_data = {"Speed": 40.0, "SpeedoType": 1}
+        mock_capture.return_value = {
+            "station_name": "Freight Yard",
+            "distance_m": 12500.0,
+            "eta": "14:30",
+        }
+        try:
+            with TestClient(main.app) as client:
+                res = client.post("/api/ocr/capture")
+            self.assertEqual(res.status_code, 200)
+            body = res.json()
+            self.assertTrue(body["ok"])
+            self.assertTrue(body["anchored"])
+            self.assertEqual(body["event"], "manual_anchor")
+            self.assertAlmostEqual(tracker.distance_m() or 0, 12500.0, delta=0.1)
+        finally:
+            main._active_station_tracker = None
+            main._last_telemetry_data = {}
+
+
 if __name__ == "__main__":
     unittest.main()

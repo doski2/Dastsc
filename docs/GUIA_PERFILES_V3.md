@@ -1,5 +1,10 @@
 # Guía de Creación de Perfiles Nexus V3 (Gold Standard)
 
+> **V4 / AUTO:** muescas y mandos siguen en el JSON del tren; comportamiento de parada y horizonte
+> de plan → géneros `regional_commuter` / `high_speed_express` ([NEXUS
+> §8.5](./NEXUS_V4_ARQUITECTURA.md)).
+> Captura de muescas: `nexus-profile-wizard.py`. Backlog: [PENDIENTES_V4.md](./PENDIENTES_V4.md).
+
 Esta guía documenta la estructura necesaria para crear nuevos perfiles de trenes compatibles con el
 motor de física de alta fidelidad y el HUD dinámico de la V3.
 

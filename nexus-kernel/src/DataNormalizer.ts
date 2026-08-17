@@ -5,7 +5,9 @@ import { SignalingNormalizer } from './normalizers/SignalingNormalizer';
 import { BrakeNormalizer } from './normalizers/BrakeNormalizer';
 import {
   NormalizerProfile,
+  NormalizeOptions,
   SimulatorRawInput,
+  applyManualGradientSign,
   brakeCylinderPercent,
   buildUpcomingLimits,
   computeProjectedBrakingDistance,
@@ -13,7 +15,6 @@ import {
   computeTotalBrakingEffort,
   formatTimeOfDay,
   inferActiveCab,
-  resolveGradientSign,
   resolveGradientSignForProfile,
   routeGradientPermille,
   updateLatchedCab,
@@ -29,8 +30,8 @@ import {
   resolveUnitContext,
   saneSpeedLimit,
   speedUnitLabel,
+  resolveStationDistance,
   stickyOcrField,
-  stickyStationDistance,
   toDisplaySpeed,
   worldFarCoordinate,
 } from './dataNormalizerUtils';
@@ -61,6 +62,7 @@ export class DataNormalizer {
     raw: SimulatorRawInput,
     prevData: TelemetryData,
     profile?: NormalizerProfile | null,
+    options?: NormalizeOptions,
   ): Partial<TelemetryData> {
     const now = Date.now() / 1000;
     const rawSimTime = asNumber(raw.SimulationTime);
@@ -110,14 +112,15 @@ export class DataNormalizer {
       this.state.latchedCab,
     );
     const rawPermille = routeGradientPermille(raw);
-    const cabSign = resolveGradientSignForProfile(
-      inferredCab,
-      reversal,
-      raw.WheelSpeedMS,
-      phys.speedMS,
-      profile,
-    );
-    const currentGrad = cabSign * rawPermille;
+    const currentGrad = options?.gradientSign
+      ? applyManualGradientSign(rawPermille, options.gradientSign)
+      : resolveGradientSignForProfile(
+        inferredCab,
+        reversal,
+        raw.WheelSpeedMS,
+        phys.speedMS,
+        profile,
+      ) * rawPermille;
 
     const bcPercent = brakeCylinderPercent(brk.bc, pressureUnit);
     const totalBrakingEffort = computeTotalBrakingEffort(bcPercent, brk, profile);
@@ -162,7 +165,7 @@ export class DataNormalizer {
       Gradient: currentGrad,
       RawGradient: rawPermille,
       LateralG: phys.lateralG,
-      StationDistance: stickyStationDistance(raw, prevData),
+      StationDistance: resolveStationDistance(raw, prevData),
       StationDistanceSource: raw.StationDistanceSource as TelemetryData['StationDistanceSource'],
       StationDistanceLuaM: raw.StationDistanceLuaM !== undefined
         ? asNumber(raw.StationDistanceLuaM)

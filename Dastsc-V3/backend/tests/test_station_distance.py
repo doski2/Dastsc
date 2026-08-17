@@ -357,6 +357,17 @@ class TestStationDistanceTracker(unittest.TestCase):
         assert dist is not None
         self.assertAlmostEqual(dist, computed - 20.0, delta=0.1)
 
+    def test_manual_anchor_accepts_waypoint_distance(self):
+        tracker = StationDistanceTracker()
+        tracker.integrate(0.0, 0.0)
+        tracker.anchor_from_ocr(500.0, event="door_anchor", now=0.0)
+        self._advance(tracker, 20.0, 120.0)
+        self.assertTrue(tracker.should_accept_ocr_distance(8200.0, "manual_anchor"))
+        accepted = tracker.anchor_from_ocr(8200.0, event="manual_anchor", now=120.0)
+        self.assertTrue(accepted)
+        self.assertAlmostEqual(tracker.distance_m() or 0, 8200.0, delta=0.1)
+        self.assertEqual(tracker._samples[-1].event, "manual_anchor")
+
     def test_arrival_resets_near_correction_when_stopped_short(self):
         tracker = StationDistanceTracker()
         tracker.integrate(0.0, 0.0)

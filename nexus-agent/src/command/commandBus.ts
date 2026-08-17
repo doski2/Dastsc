@@ -10,7 +10,7 @@ import { resolveAgentConfig } from '../brake/agentConfig';
 import { signalRequiresFullStop } from '../brake/signalUtils';
 import type { BrakePlan, CommandProfile } from '../brake/types';
 import { scheduleSlackSec } from '../brake/schedule';
-import { weakestServiceNotchLabel } from '../brake/planBrake';
+import { isAboveEffectiveSpeedLimit, weakestServiceNotchLabel } from '../brake/planBrake';
 
 const DEFAULT_COMBINED_CONTROL = 'ThrottleAndBrake';
 const BLOCKED_NOTCH_LABELS = new Set(['EMG', 'EMERGENCY', 'EMERGENCY_BRAKE']);
@@ -178,6 +178,9 @@ function shouldInhibitLimitRebrake(
 ): boolean {
   if (!speedLimitCoast || plan?.targetKind !== 'SPEED_LIMIT') return false;
   if (isDownhillLimitApproach(snapshot)) return false;
+  if (isAboveEffectiveSpeedLimit(snapshot.speedDisplay, snapshot.limits.effective)) {
+    return false;
+  }
   const next = snapshot.limits.next;
   if (!next || next.speed !== speedLimitCoast.limitSpeed) return false;
   if (isBrakeApplied(snapshot, profile)) return false;
@@ -342,6 +345,10 @@ export function resolveReleaseAction(
   if (shouldBlockAutoReleaseForStation(snapshot, plan, profile)) return undefined;
 
   if (plan?.targetKind === 'SPEED_LIMIT' && isDownhillLimitApproach(snapshot)) {
+    return undefined;
+  }
+
+  if (isAboveEffectiveSpeedLimit(snapshot.speedDisplay, snapshot.limits.effective)) {
     return undefined;
   }
 

@@ -1,9 +1,9 @@
 {
     "name": "ICE T (Expert/LZB)",
-    "extends": "passenger",
+    "extends": "high_speed_express",
     "nexus": {
         "tier": "train",
-        "genre": "passenger"
+        "genre": "high_speed_express"
     },
     "aliases": [
         "411",
@@ -78,16 +78,7 @@
     "physics_config": {
         "max_braking_decel": 1.2,
         "brake_fill_time_s": 4,
-        "dynamic_brake_ratio": 0.9,
-        "station_reaction_time_s": 1.0,
-        "gradient_mode": "driver",
-        "gradient_sign_flip": true
-    },
-    "agent_config": {
-        "station": {
-            "release_block_speed_ms": 2.5,
-            "departure_speed_ms": 5
-        }
+        "dynamic_brake_ratio": 0.9
     },
     "visuals": {
         "unit": "KPH",

@@ -1,7 +1,7 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import type { AgentTick, PolicyMode, TelemetrySnapshot } from '@nexus/kernel';
 import type { BrakeStatsByNotch } from '@nexus/agent';
-import type { CabOverride } from '../lib/agentSettings';
+import type { GradientSignMode } from '../lib/agentSettings';
 import type { CommandAck } from '../lib/commandTypes';
 import {
   buildDiagnosticTick,
@@ -10,13 +10,19 @@ import {
   type DiagnosticTickInput,
 } from '../lib/sessionDiagnostic';
 
-const TICK_INTERVAL_MS = 1000;
 const IDLE_SPEED_MS = 0.5;
+/** Mínimo entre dos `tick_change` consecutivos (ms). */
+const TICK_CHANGE_MIN_MS = 1000;
+/** Heartbeat `tick` periódico aunque no haya cambio de firma (ms). */
+const TICK_HEARTBEAT_MS = 30_000;
 
 function shouldLogTicks(input: DiagnosticTickInput): boolean {
+  if (!input.isBackendConnected) return false;
+  if (sessionDiagnostic.getSessionId()) return true;
   return input.isGameLinked
     || input.telemetryActive
-    || input.snapshot.speedMs > IDLE_SPEED_MS;
+    || input.snapshot.speedMs > IDLE_SPEED_MS
+    || input.stillBraking;
 }
 
 export function useSessionDiagnostic({
@@ -29,7 +35,7 @@ export function useSessionDiagnostic({
   isGameLinked,
   telemetryActive,
   stillBraking,
-  cabOverride,
+  gradientSign,
   lastAck,
   brakeStats,
   wsRef,
@@ -43,7 +49,7 @@ export function useSessionDiagnostic({
   isGameLinked: boolean;
   telemetryActive: boolean;
   stillBraking: boolean;
-  cabOverride: CabOverride;
+  gradientSign: GradientSignMode;
   lastAck: CommandAck | null;
   brakeStats?: BrakeStatsByNotch;
   wsRef?: RefObject<WebSocket | null>;
@@ -52,9 +58,10 @@ export function useSessionDiagnostic({
   const lastSigRef = useRef('');
   const lastPolicyRef = useRef(policyMode);
   const lastProfileRef = useRef(profileSelection);
-  const lastCabRef = useRef(cabOverride);
+  const lastGradientSignRef = useRef(gradientSign);
   const lastAckRef = useRef<CommandAck | null>(null);
   const lastLinkRef = useRef(isGameLinked);
+  const lastTickChangeAtRef = useRef(0);
   const inputRef = useRef<DiagnosticTickInput | null>(null);
 
   inputRef.current = {
@@ -67,29 +74,25 @@ export function useSessionDiagnostic({
     isGameLinked,
     telemetryActive,
     stillBraking,
-    cabOverride,
     lastAck,
     brakeStats,
   };
 
+  // Una sola sesión por conexión WS — no reiniciar al cambiar perfil/modo.
   useEffect(() => {
-    if (!isBackendConnected || startedRef.current) return;
+    if (!isBackendConnected) {
+      startedRef.current = false;
+      return;
+    }
+    if (startedRef.current) return;
     startedRef.current = true;
-    void sessionDiagnostic.start({
+
+    void sessionDiagnostic.ensureStarted({
       userAgent: navigator.userAgent,
       profileSelection,
       activeProfileId,
       policyMode,
-    }).then(() => {
-      const ws = wsRef?.current;
-      if (ws?.readyState === WebSocket.OPEN) {
-        sessionDiagnostic.registerWithBackend(ws, {
-          profileSelection,
-          activeProfileId,
-          policyMode,
-          source: 'v4_session',
-        });
-      }
+      source: 'v4_session',
     });
 
     const onUnload = () => {
@@ -110,9 +113,28 @@ export function useSessionDiagnostic({
     return () => {
       window.removeEventListener('beforeunload', onUnload);
       document.removeEventListener('visibilitychange', onHide);
-      void sessionDiagnostic.end({ reason: 'unmount' });
-      startedRef.current = false;
+      // No end() aquí: React Strict Mode remonta y cerraba la sesión antes del flush.
     };
+  }, [isBackendConnected]);
+
+  // Re-registrar WS tras reconexión o cuando el socket abre después del hook.
+  useEffect(() => {
+    if (!isBackendConnected) return;
+
+    const tryBind = () => {
+      const ws = wsRef?.current;
+      if (ws?.readyState !== WebSocket.OPEN) return;
+      sessionDiagnostic.bindWebSocket(ws, {
+        profileSelection,
+        activeProfileId,
+        policyMode,
+        source: 'v4_session',
+      });
+    };
+
+    tryBind();
+    const retryId = window.setInterval(tryBind, 1000);
+    return () => window.clearInterval(retryId);
   }, [isBackendConnected, profileSelection, activeProfileId, policyMode, wsRef]);
 
   useEffect(() => {
@@ -121,6 +143,7 @@ export function useSessionDiagnostic({
       profileSelection,
       activeProfileId,
       policyMode,
+      source: 'v4_session',
     });
   }, [profileSelection, activeProfileId, policyMode, isBackendConnected]);
 
@@ -168,17 +191,17 @@ export function useSessionDiagnostic({
 
   useEffect(() => {
     if (!isBackendConnected) return;
-    if (cabOverride !== lastCabRef.current) {
+    if (gradientSign !== lastGradientSignRef.current) {
       sessionDiagnostic.log({
-        type: 'cab',
+        type: 'gradient_sign',
         t: Date.now(),
         wall: new Date().toISOString(),
-        from: lastCabRef.current,
-        to: cabOverride,
+        from: lastGradientSignRef.current,
+        to: gradientSign,
       });
-      lastCabRef.current = cabOverride;
+      lastGradientSignRef.current = gradientSign;
     }
-  }, [cabOverride, isBackendConnected]);
+  }, [gradientSign, isBackendConnected]);
 
   useEffect(() => {
     if (!isBackendConnected || !lastAck) return;
@@ -200,10 +223,13 @@ export function useSessionDiagnostic({
     const tick = buildDiagnosticTick(input);
     const sig = diagnosticSignature(tick);
     if (sig !== lastSigRef.current) {
+      const now = Date.now();
+      if (now - lastTickChangeAtRef.current < TICK_CHANGE_MIN_MS) return;
+      lastTickChangeAtRef.current = now;
       lastSigRef.current = sig;
       sessionDiagnostic.log({ ...tick, type: 'tick_change' } as never);
     }
-  }, [snapshot, agent, policyMode, profileSelection, activeProfileId, isBackendConnected, isGameLinked, telemetryActive, stillBraking, cabOverride, lastAck]);
+  }, [snapshot, agent, policyMode, profileSelection, activeProfileId, isBackendConnected, isGameLinked, telemetryActive, stillBraking, lastAck]);
 
   useEffect(() => {
     if (!isBackendConnected) return;
@@ -213,7 +239,7 @@ export function useSessionDiagnostic({
       if (!input || !shouldLogTicks(input)) return;
       const periodic = buildDiagnosticTick(input);
       sessionDiagnostic.log({ ...periodic, type: 'tick' } as never);
-    }, TICK_INTERVAL_MS);
+    }, TICK_HEARTBEAT_MS);
 
     return () => clearInterval(id);
   }, [isBackendConnected]);
@@ -244,5 +270,5 @@ export function registerSessionWithBackend(
   ws: WebSocket,
   meta: Record<string, unknown>,
 ): void {
-  sessionDiagnostic.registerWithBackend(ws, meta);
+  sessionDiagnostic.bindWebSocket(ws, { ...meta, source: meta.source ?? 'v4_session' });
 }

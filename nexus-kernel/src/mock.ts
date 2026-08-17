@@ -30,6 +30,7 @@ export function createMockSnapshot(overrides: Partial<TelemetrySnapshot> = {}): 
       position: 0.35,
       cylinder: 2.1,
       effortKn: 45,
+      tractiveKn: -45,
       projectedStopM: 890,
     },
     tail: {

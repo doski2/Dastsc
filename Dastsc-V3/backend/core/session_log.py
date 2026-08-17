@@ -7,9 +7,25 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Dict, List, Optional
+
+_V4_SOURCES = frozenset({"v4_session", "v4_websocket"})
+_V4_TICK_TYPES = frozenset({"tick", "tick_change", "session_start", "connection"})
+
+
+def _merge_session_meta(existing: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
+    """No degradar source V4; permitir promoción backend → v4_session."""
+    merged = dict(existing)
+    patch = dict(patch)
+    if merged.get("source") in _V4_SOURCES and patch.get("source") == "backend_telemetry":
+        patch.pop("source", None)
+    if patch.get("source") in _V4_SOURCES:
+        merged["source"] = patch.pop("source")
+    merged.update(patch)
+    return merged
 
 _MAX_SESSION_FILES = 5
 _SESSION_ID_RE = re.compile(r"^[\w\-]+$")
@@ -23,6 +39,10 @@ def _session_dir() -> str:
     return env or _DEFAULT_LOG_DIR
 
 
+def _log_json_pretty() -> bool:
+    return os.environ.get("NEXUS_V4_LOG_PRETTY", "").strip().lower() in ("1", "true", "yes")
+
+
 def _session_path(session_id: str) -> str:
     safe = session_id.replace(":", "-")
     return os.path.join(_session_dir(), f"session_{safe}.json")
@@ -34,6 +54,7 @@ class SessionLogStore:
         self._lock = Lock()
         self._open: Dict[str, Dict[str, Any]] = {}
         self._latest_session_id: Optional[str] = None
+        self._v4_tick_at: float = 0.0
 
     def _ensure_dir(self) -> str:
         directory = _session_dir()
@@ -75,10 +96,28 @@ class SessionLogStore:
         self._ensure_dir()
         path = _session_path(session_id)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            if _log_json_pretty():
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            else:
+                json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
 
     def start(self, meta: Optional[Dict[str, Any]] = None) -> str:
         session_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        with self._lock:
+            existing = self._open.get(session_id)
+            if existing is None and os.path.exists(_session_path(session_id)):
+                existing = self._load(session_id)
+            if existing and not existing.get("ended_at"):
+                if meta:
+                    existing["meta"] = _merge_session_meta(
+                        existing.get("meta") or {},
+                        meta,
+                    )
+                self._open[session_id] = existing
+                self._latest_session_id = session_id
+                self._save(session_id, existing)
+                self._prune_old_sessions()
+                return session_id
         payload = {
             "id": session_id,
             "started_at": datetime.now(timezone.utc).isoformat(),
@@ -93,6 +132,36 @@ class SessionLogStore:
             self._prune_old_sessions()
         return session_id
 
+    def open_or_attach(self, meta: Optional[Dict[str, Any]] = None) -> str:
+        """Reutiliza sesión activa (p. ej. backend ya escribió backend_tick) o abre una nueva."""
+        with self._lock:
+            session_id = self._latest_session_id
+            if session_id:
+                if session_id not in self._open:
+                    loaded = self._load(session_id)
+                    if loaded.get("ended_at"):
+                        session_id = None
+                    else:
+                        self._open[session_id] = loaded
+            if session_id and session_id in self._open:
+                if meta:
+                    cur = self._open[session_id].setdefault("meta", {})
+                    self._open[session_id]["meta"] = _merge_session_meta(cur, meta)
+                    self._save(session_id, self._open[session_id])
+                return session_id
+        return self.start(meta or {"source": "v4_session"})
+
+    def _note_v4_activity(self, events: List[Dict[str, Any]]) -> None:
+        for event in events:
+            if event.get("type") in _V4_TICK_TYPES:
+                self._v4_tick_at = time.time()
+                return
+
+    def v4_recently_active(self, within_s: float = 20.0) -> bool:
+        if self._v4_tick_at <= 0:
+            return False
+        return (time.time() - self._v4_tick_at) < within_s
+
     def append(self, session_id: str, events: List[Dict[str, Any]]) -> bool:
         if not session_id or not _SESSION_ID_RE.match(session_id):
             return False
@@ -103,6 +172,7 @@ class SessionLogStore:
             data.setdefault("events", []).extend(events)
             self._open[session_id] = data
             self._save(session_id, data)
+            self._note_v4_activity(events)
         return True
 
     def adopt_session(self, session_id: str, meta: Optional[Dict[str, Any]] = None) -> bool:
@@ -111,7 +181,7 @@ class SessionLogStore:
         with self._lock:
             data = self._load(session_id)
             if meta:
-                data.setdefault("meta", {}).update(meta)
+                data["meta"] = _merge_session_meta(data.get("meta") or {}, meta)
             self._open[session_id] = data
             self._latest_session_id = session_id
             self._save(session_id, data)
@@ -125,7 +195,8 @@ class SessionLogStore:
                 if session_id not in self._open:
                     self._open[session_id] = self._load(session_id)
                 if meta:
-                    self._open[session_id].setdefault("meta", {}).update(meta)
+                    cur = self._open[session_id].setdefault("meta", {})
+                    self._open[session_id]["meta"] = _merge_session_meta(cur, meta)
                     self._save(session_id, self._open[session_id])
                 return session_id
         return self.start(meta or {"source": "backend_auto"})
@@ -135,7 +206,7 @@ class SessionLogStore:
             return False
         with self._lock:
             data = self._open.get(session_id) or self._load(session_id)
-            data.setdefault("meta", {}).update(patch)
+            data["meta"] = _merge_session_meta(data.get("meta") or {}, patch)
             self._open[session_id] = data
             self._save(session_id, data)
         return True

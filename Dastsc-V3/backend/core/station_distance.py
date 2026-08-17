@@ -79,6 +79,7 @@ SampleEvent = Literal[
     "initial_anchor",
     "mid_leg_correction",
     "near_correction",
+    "manual_anchor",
     "lua_sync",
     "tick",
     "arrival",
@@ -294,6 +295,8 @@ class StationDistanceTracker:
     ) -> bool:
         """Rechaza lecturas que suben la distancia de forma implausible."""
         ocr_value = max(0.0, float(ocr_distance_m))
+        if event == "manual_anchor":
+            return ocr_value > 0
         if event == "initial_anchor":
             # Andén con puertas cerradas sin abrir: HUD ~0.08 mi (residual) — no anclar aquí.
             return ocr_value >= MIN_NEW_LEG_ANCHOR_M
@@ -341,7 +344,7 @@ class StationDistanceTracker:
         self._anchor_distance_m = ocr_value
         self._anchor_odometer_m = self._odometer_m
 
-        if event in ("door_anchor", "initial_anchor"):
+        if event in ("door_anchor", "initial_anchor", "manual_anchor"):
             self._near_correction_done = False
             self._last_drift_m = None
             self._leg_initial_anchor_m = ocr_value

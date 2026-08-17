@@ -15,6 +15,12 @@ export {
   isBrakeEngagedForLearning,
 } from './brake/brakeLearning';
 export {
+  resolveLearnedEntry,
+  speedBandFromMs,
+  SPEED_BAND_HIGH_MS,
+  SPEED_BAND_MED_MS,
+} from './brake/brakeStats';
+export {
   planBrake,
   planBrakeForLimit,
   planBrakeForSignal,
@@ -39,9 +45,12 @@ export type {
   BrakePlan,
   BrakePlanProfile,
   BrakePlanStepDetail,
+  BrakeStatsBandEntry,
   BrakeStatsByNotch,
+  BrakeStatsEntry,
   CommandProfile,
   PlanBrakeInput,
   SnapshotBrakeContext,
+  SpeedBand,
 } from './brake/types';
 export { resolveAgentConfig } from './brake/agentConfig';

@@ -1,9 +1,9 @@
 {
     "name": "Class 323 DMS(B) CrossCity",
-    "extends": "passenger",
+    "extends": "regional_commuter",
     "nexus": {
         "tier": "train",
-        "genre": "passenger"
+        "genre": "regional_commuter"
     },
     "aliases": [
         "Class 323",

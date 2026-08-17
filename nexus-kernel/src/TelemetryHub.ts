@@ -1,5 +1,9 @@
 import { DataNormalizer } from './DataNormalizer';
-import type { NormalizerProfile, SimulatorRawInput } from './dataNormalizerUtils';
+import type {
+  GradientSignMode,
+  NormalizerProfile,
+  SimulatorRawInput,
+} from './dataNormalizerUtils';
 import { DEFAULT_TELEMETRY_DATA, type TelemetryData } from './telemetryTypes';
 import {
   extractRawTelemetry,
@@ -14,9 +18,15 @@ export class TelemetryHub {
   private normalizer = new DataNormalizer();
   private prev: TelemetryData = { ...DEFAULT_TELEMETRY_DATA };
   private profile: NormalizerProfile | null = null;
+  private gradientSign?: GradientSignMode;
 
   setProfile(profile: NormalizerProfile | null): void {
     this.profile = profile;
+  }
+
+  /** V4: signo manual (+ directo Lua, − invertir). Sin valor → lógica cabina legacy. */
+  setGradientSign(mode: GradientSignMode | undefined): void {
+    this.gradientSign = mode;
   }
 
   ingestRaw(
@@ -24,7 +34,9 @@ export class TelemetryHub {
     connected: boolean,
     profileId: string | null,
   ): TelemetrySnapshot {
-    const normalized = this.normalizer.normalize(raw, this.prev, this.profile);
+    const normalized = this.normalizer.normalize(raw, this.prev, this.profile, {
+      gradientSign: this.gradientSign,
+    });
     const merged = mergeTelemetryUpdate(
       raw as WsMessage,
       normalized,

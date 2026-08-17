@@ -67,6 +67,55 @@ class TestSessionLog(unittest.TestCase):
             data = json.load(f)
         self.assertEqual(data["meta"].get("policy"), "AUTO")
 
+    def test_meta_merge_preserves_v4_source(self):
+        sid = self.store.start({"source": "v4_session", "policyMode": "AUTO"})
+        self.store.ensure_active_session({"source": "backend_telemetry"})
+        with open(session_log._session_path(sid), encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(data["meta"].get("source"), "v4_session")
+
+    def test_meta_merge_promotes_backend_to_v4(self):
+        sid = self.store.start({"source": "backend_telemetry"})
+        self.store.open_or_attach({
+            "source": "v4_session",
+            "profileSelection": "AUTO",
+            "policyMode": "AUTO",
+        })
+        with open(session_log._session_path(sid), encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(data["meta"].get("source"), "v4_session")
+        self.assertEqual(data["meta"].get("profileSelection"), "AUTO")
+
+    def test_open_or_attach_keeps_backend_events(self):
+        sid = self.store.ensure_active_session({"source": "backend_telemetry"})
+        self.store.append_active([{"type": "backend_tick", "speed": 40}])
+        attached = self.store.open_or_attach({"source": "v4_session", "policyMode": "AUTO"})
+        self.assertEqual(attached, sid)
+        self.store.append(attached, [{"type": "tick", "headline": "test"}])
+        with open(session_log._session_path(sid), encoding="utf-8") as f:
+            data = json.load(f)
+        types = [e["type"] for e in data["events"]]
+        self.assertIn("backend_tick", types)
+        self.assertIn("tick", types)
+        self.assertEqual(data["meta"].get("source"), "v4_session")
+
+    def test_start_same_second_does_not_wipe_events(self):
+        sid = self.store.start({"source": "backend_telemetry"})
+        self.store.append(sid, [{"type": "backend_tick", "n": 1}])
+        sid2 = self.store.start({"source": "v4_session", "policyMode": "ARM"})
+        self.assertEqual(sid2, sid)
+        with open(session_log._session_path(sid), encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertEqual(len(data["events"]), 1)
+        self.assertEqual(data["meta"].get("source"), "v4_session")
+        self.assertEqual(data["meta"].get("policyMode"), "ARM")
+
+    def test_v4_recently_active_after_tick(self):
+        sid = self.store.start({"source": "v4_session"})
+        self.assertFalse(self.store.v4_recently_active())
+        self.store.append(sid, [{"type": "tick", "headline": "test"}])
+        self.assertTrue(self.store.v4_recently_active())
+
 
 if __name__ == "__main__":
     unittest.main()

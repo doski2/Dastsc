@@ -44,4 +44,10 @@ export {
   type ProfileSummary,
   type WsMessage,
 } from './telemetryHubUtils';
-export type { NormalizerProfile, SimulatorRawInput } from './dataNormalizerUtils';
+export type {
+  GradientSignMode,
+  NormalizeOptions,
+  NormalizerProfile,
+  SimulatorRawInput,
+} from './dataNormalizerUtils';
+export { applyManualGradientSign } from './dataNormalizerUtils';

@@ -43,7 +43,10 @@ export interface TelemetrySnapshot {
     /** Posición del freno 0–1 (split: VirtualBrake/TrainBrakeControl). */
     position: number;
     cylinder: number;
+    /** Estimación neumática+dinámico (kernel). */
     effortKn: number;
+    /** Esfuerzo neto del sim (kN); − = frenar, + = tracción. */
+    tractiveKn: number;
     projectedStopM: number;
   };
   tail: {
