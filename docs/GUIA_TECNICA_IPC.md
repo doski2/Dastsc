@@ -151,14 +151,14 @@ Un refactor del script rompió la estructura que Train Simulator Classic espera:
 
 ### Solución aplicada (versión repo `NexusLuaVersion:6`)
 
-- Restaurar el **mismo esqueleto** que la copia de respaldo del usuario
+ Restaurar el **mismo esqueleto** que la copia de respaldo del usuario
 
   (`Documents\Railworks_GetData_Script.lua`).
 
-- `SendData()` **dentro** de `GetIsEngineWithKey == 1`, después de `WriteData()`.
-- Solo **`SetControlValue`** (sin `SetControlTargetValue`).
-- Purga de `SendCommand.txt` en `deleteFiles()` al iniciar escenario.
-- Marca `NexusLuaVersion:11` en `GetData.txt` para verificar qué script carga TSC.
+ `SendData()` **dentro** de `GetIsEngineWithKey == 1`, después de `WriteData()`.
+ Solo **`SetControlValue`** (sin `SetControlTargetValue`).
+ Purga de `SendCommand.txt` en `deleteFiles()` al iniciar escenario.
+ Marca `NexusLuaVersion:11` en `GetData.txt` para verificar qué script carga TSC.
 
 ### Causa raíz (Nexus — NEU / tecla N)
 
@@ -178,9 +178,9 @@ Un refactor del script rompió la estructura que Train Simulator Classic espera:
 
 ### Qué no tocar sin probar en TSC
 
-- No mover `SendData` fuera del bloque de cabina con llave.
-- No introducir `local function` ni refactor grande en el plugin global.
-- No volver a añadir `SetControlTargetValue`.
+ No mover `SendData` fuera del bloque de cabina con llave.
+ No introducir `local function` ni refactor grande en el plugin global.
+ No volver a añadir `SetControlTargetValue`.
 
 ---
 
@@ -195,8 +195,7 @@ Un refactor del script rompió la estructura que Train Simulator Classic espera:
 
 Ejecutar:
 
-```bash
-```
+``bash
 
 ---
 

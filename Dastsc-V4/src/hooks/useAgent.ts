@@ -40,6 +40,8 @@ import { sessionDiagnostic } from '../lib/sessionDiagnostic';
 export interface UseAgentResult {
   snapshot: TelemetrySnapshot;
   agent: AgentTick;
+  /** Backend ejecuta AUTO (Fase 2); V4 no envía COMMAND en AUTO. */
+  backendAutoActive: boolean;
   /** WebSocket con el backend Python (puede escribir SendCommand.txt). */
   isBackendConnected: boolean;
   /** Telemetría fresca desde TSC (GetData.txt). */
@@ -71,6 +73,16 @@ function sendProfileCommand(ws: WebSocket | null, profileId: string): void {
   }));
 }
 
+function sendPolicyCommand(ws: WebSocket | null, mode: PolicyMode): void {
+  if (ws?.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'SET_POLICY', mode }));
+}
+
+function sendGradientSignCommand(ws: WebSocket | null, sign: GradientSignMode): void {
+  if (ws?.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'SET_GRADIENT_SIGN', sign }));
+}
+
 function parseCommandAck(message: WsMessage): CommandAck {
   return {
     ok: Boolean(message.ok),
@@ -95,6 +107,8 @@ export function useAgent(): UseAgentResult {
   const [gradientSign, setGradientSignState] = useState<GradientSignMode>(loadGradientSign);
   const [lastCommandAck, setLastCommandAck] = useState<CommandAck | null>(null);
   const [profileAlertVisible, setProfileAlertVisible] = useState(false);
+  const [backendAutoActive, setBackendAutoActive] = useState(false);
+  const [backendAgent, setBackendAgent] = useState<AgentTick | null>(null);
 
   const trainProfile = useTrainProfile(activeProfile);
   const { brakeStats, refreshBrakeStats } = useBrakeStats(trainProfile);
@@ -138,6 +152,7 @@ export function useAgent(): UseAgentResult {
     setGradientSignState(mode);
     saveGradientSign(mode);
     hubRef.current.setGradientSign(mode);
+    sendGradientSignCommand(socketRef.current, mode);
   }, []);
 
   useEffect(() => {
@@ -153,6 +168,10 @@ export function useAgent(): UseAgentResult {
   const setPolicyMode = useCallback((mode: PolicyMode) => {
     setPolicyModeState(mode);
     savePolicyMode(mode);
+    sendPolicyCommand(socketRef.current, mode);
+    if (mode !== 'AUTO') {
+      setBackendAgent(null);
+    }
     if (mode === 'SUGGEST' && socketRef.current?.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify({ type: 'PURGE_SEND_COMMAND' }));
     }
@@ -192,6 +211,26 @@ export function useAgent(): UseAgentResult {
           return;
         }
 
+        if (message.type === 'AUTO_COMMAND_ACK') {
+          setLastCommandAck(parseCommandAck(message));
+          return;
+        }
+
+        if (message.type === 'POLICY_CHANGED') {
+          setBackendAutoActive(Boolean(message.backendAutoActive));
+          return;
+        }
+
+        if (message.type === 'AGENT_TICK') {
+          if (message.agent && typeof message.agent === 'object') {
+            setBackendAgent(message.agent as AgentTick);
+          }
+          if (message.backendAutoActive !== undefined) {
+            setBackendAutoActive(Boolean(message.backendAutoActive));
+          }
+          return;
+        }
+
         if (Array.isArray(message.available_profiles)) {
           profilesRef.current = message.available_profiles;
           setAvailableProfiles(message.available_profiles);
@@ -210,6 +249,9 @@ export function useAgent(): UseAgentResult {
           }
           if (message.isConnected !== undefined) {
             setIsConnected(Boolean(message.isConnected));
+          }
+          if (message.backendAutoActive !== undefined) {
+            setBackendAutoActive(Boolean(message.backendAutoActive));
           }
           return;
         }
@@ -276,6 +318,8 @@ export function useAgent(): UseAgentResult {
         if (selection && selection.toUpperCase() !== 'AUTO') {
           sendProfileCommand(ws, selection);
         }
+        sendPolicyCommand(ws, policyModeRef.current);
+        sendGradientSignCommand(ws, gradientSignRef.current);
       };
 
       ws.onmessage = handleMessage;
@@ -308,7 +352,7 @@ export function useAgent(): UseAgentResult {
     [trainProfile],
   );
 
-  const agent = useMemo(
+  const localAgent = useMemo(
     () => tickAgent(snapshot, policyMode, {
       profile: toBrakePlanProfile(trainProfile),
       commandProfile,
@@ -316,6 +360,13 @@ export function useAgent(): UseAgentResult {
     }),
     [snapshot, policyMode, trainProfile, commandProfile, brakeStats],
   );
+
+  const agent = useMemo(() => {
+    if (policyMode === 'AUTO' && backendAutoActive && backendAgent) {
+      return backendAgent;
+    }
+    return localAgent;
+  }, [policyMode, backendAutoActive, backendAgent, localAgent]);
 
   const stillBraking = useMemo(
     () => isBrakeApplied(snapshot, commandProfile),
@@ -330,6 +381,7 @@ export function useAgent(): UseAgentResult {
 
   useAutoCommand({
     policyMode,
+    backendAutoActive,
     backendConnected: isConnected,
     gameLinked: useLive && snapshot.connected,
     agent,
@@ -360,6 +412,7 @@ export function useAgent(): UseAgentResult {
   return {
     snapshot,
     agent,
+    backendAutoActive,
     isBackendConnected: isConnected,
     isGameLinked,
     isConnected,

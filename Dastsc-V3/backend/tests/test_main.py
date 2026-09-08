@@ -140,6 +140,27 @@ class TestTelemetryManager(unittest.TestCase):
         asyncio.run(self.manager.handle_command({"type": "SELECT_PROFILE", "profile_id": "missing"}))
         self.assertIsNone(self.manager.current_profile)
 
+    def test_handle_set_policy(self):
+        import asyncio
+
+        async def run():
+            ack = await self.manager.handle_command({"type": "SET_POLICY", "mode": "SUGGEST"})
+            self.assertTrue(ack.get("ok"))
+            self.assertEqual(ack.get("policyMode"), "SUGGEST")
+            self.assertFalse(ack.get("backendAutoActive"))
+
+        asyncio.run(run())
+
+    def test_handle_set_gradient_sign(self):
+        import asyncio
+
+        async def run():
+            ack = await self.manager.handle_command({"type": "SET_GRADIENT_SIGN", "sign": "+"})
+            self.assertTrue(ack.get("ok"))
+            self.assertEqual(ack.get("gradientSign"), "+")
+
+        asyncio.run(run())
+
 
 def _suppress_create_task(coro):
     if hasattr(coro, "close"):

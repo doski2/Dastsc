@@ -2,7 +2,8 @@
 
 **Estado:** AUTO frenado en validación (323, 350, Acela) · géneros operativos · UI dos columnas ·
 log sesión V4 · gradiente manual · brakeStats por banda · Lua v12 · agosto 2026
-**Relación con V3:** V3 = motor de telemetría + PILOT legacy (BrakingCurve, gauges). V4 = producto
+**Relación con V3:** backend en `Dastsc-V3/backend/` (histórico). **V3 PILOT retirado** (2026-09-08);
+V4 = único producto UI. Código PILOT (`Dastsc-V3/src`) archivado, no mantener.
 AI-first con agente protagonista.
 
 **Foco actual:** cerrar **P0.1** (log V4 completo) y **P1** (paradas AUTO, límites UK, consist
@@ -59,17 +60,17 @@ Salida estable del kernel (`TelemetryHub` + `toTelemetrySnapshot`).
 
 Campos clave:
 
-| Bloque | Campos | Notas |
-| ------ | ------ | ----- |
-| Velocidad | `speedMs`, `speedDisplay`, `speedUnit` | Interno m/s; display según perfil / `SpeedoType` |
-| Límites | `effective`, `frontal`, `next`, `upcoming[]` | Cadena UK en `upcoming`; frontal = cola del tren |
-| Señal | `aspect`, `distanceM` | |
-| Estación | `distanceM`, `nameOcr`, `source`, `driftM`, … | `source`: `lua` \| `ocr_tracker` \| `none` |
-| Freno | `position`, `combined`, `cylinder`, `effortKn`, `tractiveKn` | `tractiveKn` = esfuerzo neto sim (kN); Acela vía alias `Effort` |
-| Cola / seguridad | `tail.*`, `safety.*` | |
-| Tren | `massT`, `lengthM`, `consistType`, `profileId`, `name` | |
-| Gradiente | `gradient`, `rawGradient` | **‰** (+ = subida en convención plan); ver §4.5 |
-| Cabina | `activeCab`, `reverser` | Solo referencia; signo gradiente V4 = botón manual §4.5 |
+| Bloque | Campos | Notas | | |
+| --- | --- | --- | --- | --- |
+| Velocidad | `speedMs`, `speedDisplay`, `speedUnit` | Interno m/s; display según perfil / `SpeedoType` | | |
+| Límites | `effective`, `frontal`, `next`, `upcoming[]` | Cadena UK en `upcoming`; frontal = cola del tren | | |
+| Señal | `aspect`, `distanceM` | | | |
+| Estación | `distanceM`, `nameOcr`, `source`, `driftM`, … | `source`: `lua` \ | `ocr_tracker` \ | `none` |
+| Freno | `position`, `combined`, `cylinder`, `effortKn`, `tractiveKn` | `tractiveKn` = esfuerzo neto sim (kN); Acela vía alias `Effort` | | |
+| Cola / seguridad | `tail.*`, `safety.*` | | | |
+| Tren | `massT`, `lengthM`, `consistType`, `profileId`, `name` | | | |
+| Gradiente | `gradient`, `rawGradient` | **‰** (+ = subida en convención plan); ver §4.5 | | |
+| Cabina | `activeCab`, `reverser` | Solo referencia; signo gradiente V4 = botón manual §4.5 | | |
 
 Unidades: **gradiente en ‰** en kernel/agente; **% = ‰ / 10** en UI y log (`gradientPct`).
 
@@ -105,16 +106,22 @@ El headline y el horizonte reflejan el mismo orden (señal antes que límite ant
 **Flujo de signo (V4):**
 
 1. Lua emite `Gradient` (‰ crudo) → `TelemetrySnapshot.rawGradient`.
-2. En V4 el conductor elige **+ directo** o **− invertir** (`BrakePlanPanel` → `TelemetryHub.setGradientSign`).
-3. Kernel aplica `applyManualGradientSign(raw, mode)` — **sustituye** la tabla cabina UK / `gradient_mode` del perfil mientras el modo manual esté activo.
+2. En V4 el conductor elige **+ directo** o **− invertir** (`BrakePlanPanel` →
+
+   `TelemetryHub.setGradientSign`).
+
+3. Kernel aplica `applyManualGradientSign(raw, mode)` — **sustituye** la tabla cabina UK /
+
+   `gradient_mode` del perfil mientras el modo manual esté activo.
+
 4. `TelemetrySnapshot.gradient` alimenta `planBrake()` y el log de sesión.
 
-Persistencia: `localStorage` clave `nexus-v4-gradient-sign`. Cambio de modo → evento log `gradient_sign` (no por tick).
+Persistencia: `localStorage` clave `nexus-v4-gradient-sign`. Cambio de modo → evento log
+`gradient_sign` (no por tick).
 
 **Efecto en `decelForNotch` (sin stats aprendidas):**
 
 ```text
-decel = (baseDecel × fracción_muesca) / (massFactor × lagFactor) + g × gradiente_‰
 ```
 
 | Pendiente | Decel efectiva | Distancia de parada | Conducción |
@@ -131,7 +138,8 @@ Perfiles pueden definir `physics_config.gradient_mode` (`uk_consist` \| `driver`
 
 ### 4.6 Log de sesión V4 (`logs/nexus-v4/`)
 
-Objetivo: `meta.source: v4_session` con eventos `tick` / `tick_change` (ver [debug/README.md](./debug/README.md)).
+Objetivo: `meta.source: v4_session` con eventos `tick` / `tick_change` (ver
+[debug/README.md](./debug/README.md)).
 
 **Por tick (`tick_change`):** campos mínimos para post-mortem:
 
@@ -169,10 +177,11 @@ Objetivo: `meta.source: v4_session` con eventos `tick` / `tick_change` (ver [deb
 **No en esta fase:** ETCS skin, grid 3 columnas, tracción automática. `MiniHud.tsx` sustituido por
 `DriveHudBar` (barra superior fija).
 
-### 5.2 **PILOT** — vista legacy (V3)
+### 5.2 ~~PILOT~~ — retirado (V3, 2026-09-08)
 
-`http://localhost:5173` — Speedometer + TrackProfile + BrakingCurve. Referencia visual mientras se
-afina el agente V4.
+~~`http://localhost:5173`~~ — Speedometer + BrakingCurve en `Dastsc-V3/src`. **No usar.**
+Plan de frenado y telemetría normalizada: solo V4 (`BrakePlanPanel`, `@nexus/kernel`) +
+`nexus-agent`.
 
 ### 5.3 **CONFIG**
 
@@ -195,7 +204,7 @@ Pestaña **Config** en V4 (`localhost:5175`):
 | `brakeStats` (bandas) | ✅     | `high` / `med` / `low` por `start_speed_ms`; `decelForNotch(..., speedMs)` (P3.7)        |
 | `tickAgent()`         | ✅     | Headline + `suggestedAction` en ARM/AUTO                                                 |
 | `commandBus`          | ✅     | Muesca + OFF; EMG bloqueado; AUTO suspende en SAFETY                                     |
-| `useAutoCommand`      | ✅     | V4: rate limit 2 s, fallback a SUGGEST si ack falla                                      |
+| `useAutoCommand`      | ✅     | V4: APPLY inmediato; NEU retry 2 s; fallback SUGGEST si ack falla                        |
 | `useBrakeLearning`    | ✅     | V4 → `POST /api/brake/event`                                                             |
 | `evaluateVigilance()` | ⏳     | Solo vía horizon SAFETY hoy                                                              |
 | `evaluateCruise()`    | ⏳     | **Fase tracción** — ver §8.4                                                             |
@@ -255,7 +264,7 @@ Los comandos ARM funcionan en ruta real. **AUTO v1** envía sin confirmación co
 | Regla | Descripción                                         | Estado                         |
 | ----- | --------------------------------------------------- | ------------------------------ |
 | R1    | Solo mandos permitidos (sin EMG, sin reverser)      | ✅                             |
-| R2    | Rate limit 2 s; mismo `command:value` no se reenvía | ✅ `useAutoCommand`            |
+| R2    | NEU retry 2 s si `stillBraking`; dedup apply con feedback (`isBrakeApplied`, reassert 500 ms); escalado B3→B2 inmediato | ✅ `autoCommandDispatch.ts`, `auto_loop`, `useAutoCommand` |
 | R3    | Sin mandos si `horizon` tiene `SAFETY`              | ✅                             |
 | R4    | Vuelve a SUGGEST si `COMMAND_ACK` falla             | ✅                             |
 | R5    | Solo frenado B1–B3 + OFF; sin tracción              | ✅                             |
@@ -267,7 +276,9 @@ Los comandos ARM funcionan en ruta real. **AUTO v1** envía sin confirmación co
 
   `resolveReleaseAction`
 
-- `Dastsc-V4/hooks/useAutoCommand.ts` — dispatch automático
+- `Dastsc-V4/hooks/useAutoCommand.ts` — dispatch automático (fallback; usa `shouldDispatchAutoCommand`)
+- `nexus-agent/command/autoCommandDispatch.ts` — dedup/reassert compartido (tests Vitest)
+- `Dastsc-V3/backend/core/auto_loop.py` — mismo criterio en AUTO backend
 - `Dastsc-V4/PolicyModeSelector` — AUTO habilitado en CONFIG
 - Sin DLL escritura en AUTO v1 (solo Lua)
 
@@ -376,7 +387,7 @@ Ver también `docs/COMPARATIVA_LUA_RAILDRIVER.md`, `docs/GUIA_TECNICA_IPC.md`.
 | D1  | Monorepo            | npm workspaces en raíz                                   |
 | D2  | Backend             | `Dastsc-V3/backend/` :8000                               |
 | D3  | V3 en paralelo      | Sí (`dev:v3` PILOT)                                      |
-| D4  | Puertos             | V4 **5175**, V3 **5173**, backend **8000**               |
+| D4  | Puertos             | V4 **5175**, backend **8000** (~~V3 5173~~ retirado)     |
 | D5  | Modo agente default | **SUGGEST**; **ARM** + **AUTO** frenado v1 operativos    |
 | D6  | Perfil referencia   | **`class323.json`** — gold hasta multi-tren              |
 | D9  | Canal de mando      | **Lua** `SendCommand.txt` primero; DLL escritura después |
@@ -390,9 +401,13 @@ Ver también `docs/COMPARATIVA_LUA_RAILDRIVER.md`, `docs/GUIA_TECNICA_IPC.md`.
 ### Hecho — fase 323
 
 - [x] Gradiente V4 — botón **+ directo / − invertir**; `rawGradient` + `gradient` en snapshot;
+
   evento log `gradient_sign`; física subida/bajada documentada §4.5
+
 - [x] Log sesión — `gradient`, `gradientPct`, `limits.upcoming`, `brake.tractiveKn` / `effortKn` /
+
   `cylinder` en `tick_change`
+
 - [x] UI validación frenado — layout dos columnas `xl`, `BrakePlanPanel` sidebar, bandas H/M/B
 - [x] Lua **v12** — alias `Effort`, presiones Acela, `EffortSource` en GetData (P3.5)
 - [x] `brakeStats` por banda de velocidad — backend + agente (P3.7)

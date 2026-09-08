@@ -27,6 +27,8 @@ import core.session_log as session_log
 import core.command_bus as command_bus
 import core.station_distance as station_distance
 from core.cab_inference import CabInferenceState, enrich_cab_telemetry
+from core.agent_sidecar import get_agent_sidecar
+from core.auto_loop import get_auto_loop
 
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _DEFAULT_PROFILES_DIR = os.path.normpath(os.path.join(_BACKEND_DIR, "..", "..", "profiles"))
@@ -371,12 +373,15 @@ class TelemetryManager:
         await websocket.send_json(self._build_init_payload())
 
     def _build_init_payload(self) -> Dict[str, Any]:
+        auto_loop = get_auto_loop()
         return {
             "type": "INIT",
             "available_profiles": self.profile_manager.get_all_profiles(),
             "active_profile": self.current_profile,
             "active_profile_id": self.current_profile.get("id") if self.current_profile else None,
             "isConnected": True,
+            "policyMode": auto_loop.policy_mode,
+            "backendAutoActive": auto_loop.backend_auto_active,
             **self.last_payload,
         }
 
@@ -403,10 +408,56 @@ class TelemetryManager:
             if not self.profile_manager.select_manual_profile(profile_id):
                 return {"type": "COMMAND_ACK", "ok": False, "error": "profile_not_found"}
             self.current_profile = self.profile_manager.manual_profile
+            get_auto_loop()._sidecar_config_key = None
             await self._broadcast_profile_change()
             return {"type": "COMMAND_ACK", "ok": True, "action": "profile_changed"}
 
+        if cmd_type == "SET_POLICY":
+            mode = str(cmd.get("mode") or "").upper()
+            auto_loop = get_auto_loop()
+            if not auto_loop.set_policy(mode):
+                return {"type": "COMMAND_ACK", "ok": False, "error": "invalid_policy_mode"}
+            sidecar_ok = get_agent_sidecar().start() if mode == "AUTO" else True
+            backend_auto = mode == "AUTO" and sidecar_ok
+            if mode == "SUGGEST":
+                _purge_send_command_file()
+            await self.broadcast({
+                "type": "POLICY_CHANGED",
+                "policyMode": auto_loop.policy_mode,
+                "backendAutoActive": backend_auto,
+            })
+            return {
+                "type": "COMMAND_ACK",
+                "ok": True,
+                "action": "policy_changed",
+                "policyMode": auto_loop.policy_mode,
+                "backendAutoActive": backend_auto,
+            }
+
+        if cmd_type == "SET_GRADIENT_SIGN":
+            sign = str(cmd.get("sign") or "auto").lower()
+            if sign == "plus":
+                sign = "+"
+            elif sign == "minus":
+                sign = "-"
+            auto_loop = get_auto_loop()
+            if not auto_loop.set_gradient_sign(sign):
+                return {"type": "COMMAND_ACK", "ok": False, "error": "invalid_gradient_sign"}
+            return {
+                "type": "COMMAND_ACK",
+                "ok": True,
+                "action": "gradient_sign_changed",
+                "gradientSign": auto_loop.gradient_sign,
+            }
+
         if cmd_type == "COMMAND":
+            auto_loop = get_auto_loop()
+            if auto_loop.backend_auto_active:
+                return {
+                    "type": "COMMAND_ACK",
+                    "ok": False,
+                    "error": "backend_auto_active",
+                }
             control = str(cmd.get("command") or "").strip()
             try:
                 value = float(cmd.get("value", 0))
@@ -512,6 +563,7 @@ class TelemetryManager:
 
         self._profile_sync_key = sync_key
         self.current_profile = resolved
+        get_auto_loop()._sidecar_config_key = None
         await self._broadcast_profile_change()
 
 
@@ -535,8 +587,14 @@ async def lifespan(app: FastAPI):
     print(f"[Nexus] OCR: {ocr_status}")
     if _purge_send_command_file():
         print("[Nexus] SendCommand.txt huérfano eliminado al arranque")
+    sidecar = get_agent_sidecar()
+    if sidecar.start():
+        print("[Nexus] Backend AUTO sidecar: activo")
+    else:
+        print("[Nexus] Backend AUTO sidecar: no disponible (npx/tsx)")
     asyncio.create_task(telemetry_reader())
     yield
+    sidecar.stop()
 
 
 app = FastAPI(title="Nexus v3 Engine", lifespan=lifespan)
@@ -674,6 +732,19 @@ async def telemetry_reader() -> None:
                             "timestamp": time.time(),
                             "gameLinked": True,
                         })
+
+                        if get_auto_loop().backend_auto_active:
+                            agent_msg, ack_msg = await asyncio.to_thread(
+                                get_auto_loop().process_telemetry,
+                                dict(data),
+                                game_linked=True,
+                                profile=manager.current_profile,
+                                send_command_path=_resolve_send_command_path(),
+                            )
+                            if agent_msg:
+                                await manager.broadcast(agent_msg)
+                            if ack_msg:
+                                await manager.broadcast(ack_msg)
                     sync_counter += 1
                 elif sync_counter % _HEARTBEAT_EVERY_N == 0:
                     game_linked = (now - last_game_telemetry_at) <= _GAME_LINK_STALE_S

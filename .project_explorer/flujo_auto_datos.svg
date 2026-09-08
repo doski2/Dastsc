@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="400" viewBox="0 0 760 400" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="760" height="400" fill="#fafafa"/>
+  <text x="380" y="30" text-anchor="middle" font-size="17" font-weight="700">Flujo de datos entre módulos</text>
+  <text x="380" y="48" text-anchor="middle" font-size="10" fill="#666">5 conexiones detectadas por imports (Dastsc-V4 | docs | logs (+5 más)).</text>
+  <circle cx="56" cy="86" r="15" fill="#276749"/>
+  <text x="56" y="91" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">01</text>
+  <rect x="88" y="64" width="640" height="50" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="100" y="80" font-size="11" font-weight="600">src → components</text>
+  <text x="100" y="94" font-size="9" fill="#555">Dastsc-V4/src/App.tsx</text>
+  <text x="100" y="108" font-size="8" fill="#777">8 dependencia(s) · App.tsx→AgentHeadline.tsx, App.tsx→ArmActionBar.tsx, App.tsx→AppS...</text>
+  <line x1="56" y1="114" x2="56" y2="126" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="148" r="15" fill="#276749"/>
+  <text x="56" y="153" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">02</text>
+  <rect x="88" y="126" width="640" height="50" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="100" y="142" font-size="11" font-weight="600">src → normalizers</text>
+  <text x="100" y="156" font-size="9" fill="#555">nexus-kernel/src/DataNormalizer.ts</text>
+  <text x="100" y="170" font-size="8" fill="#777">8 dependencia(s) · DataNormalizer.ts→Constants.ts, DataNormalizer.ts→PhysicsNormaliz...</text>
+  <line x1="56" y1="176" x2="56" y2="188" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="210" r="15" fill="#276749"/>
+  <text x="56" y="215" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">03</text>
+  <rect x="88" y="188" width="640" height="50" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="100" y="204" font-size="11" font-weight="600">src → brake</text>
+  <text x="100" y="218" font-size="9" fill="#555">nexus-agent/src/horizon.test.ts</text>
+  <text x="100" y="232" font-size="8" fill="#777">5 dependencia(s) · horizon.ts→signalUtils.ts, tick.ts→agentConfig.ts, tick.ts→physic...</text>
+  <line x1="56" y1="238" x2="56" y2="250" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="272" r="15" fill="#276749"/>
+  <text x="56" y="277" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">04</text>
+  <rect x="88" y="250" width="640" height="50" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="100" y="266" font-size="11" font-weight="600">src → hooks</text>
+  <text x="100" y="280" font-size="9" fill="#555">Dastsc-V4/src/App.tsx</text>
+  <text x="100" y="294" font-size="8" fill="#777">3 dependencia(s) · App.tsx→useManualOcrCapture.ts, App.tsx→useAgent.ts, App.tsx→useS...</text>
+  <line x1="56" y1="300" x2="56" y2="312" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="334" r="15" fill="#276749"/>
+  <text x="56" y="339" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">05</text>
+  <rect x="88" y="312" width="640" height="50" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="100" y="328" font-size="11" font-weight="600">src → command</text>
+  <text x="100" y="342" font-size="9" fill="#555">nexus-agent/src/horizon.test.ts</text>
+  <text x="100" y="356" font-size="8" fill="#777">1 dependencia(s) · tick.ts→commandBus.ts</text>
+</svg>

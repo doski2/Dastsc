@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="1244" viewBox="0 0 920 1244" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="920" height="1244" fill="#fafafa"/>
+  <text x="460" y="36" text-anchor="middle" font-size="22" font-weight="700">Dastsc</text>
+  <text x="460" y="58" text-anchor="middle" font-size="12" fill="#666">Mapa auto-generado - .project_explorer/arquitectura.svg</text>
+  <text x="40" y="78" font-size="11" font-weight="700">Puntos de entrada</text>
+  <rect x="40" y="88" width="152" height="28" rx="5" fill="#ebf8ff" stroke="#63b3ed"/>
+  <text x="48" y="106" font-size="10">package.json</text>
+  <rect x="200" y="88" width="134" height="28" rx="5" fill="#ebf8ff" stroke="#63b3ed"/>
+  <text x="208" y="106" font-size="10">README.md</text>
+  <rect x="342" y="88" width="158" height="28" rx="5" fill="#ebf8ff" stroke="#63b3ed"/>
+  <text x="350" y="106" font-size="10">flow_map.json</text>
+  <line x1="460" y1="132" x2="460" y2="148" stroke="#333" stroke-width="2"/>
+  <text x="40" y="160" font-size="11" font-weight="700">Carpetas principales (12)</text>
+  <rect x="40" y="120" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="142" font-size="13" font-weight="700">ETCS-master/</text>
+  <text x="56" y="160" font-size="10" fill="#666">453 archivos</text>
+  <text x="220" y="148" font-size="9" fill="#444">ETCS-master/.github/workflows/ci.yml</text>
+  <text x="390" y="148" font-size="9" fill="#444">ETCS-master/.gradle/8.9/gc.properties</text>
+  <text x="560" y="148" font-size="9" fill="#444">...ldOutputCleanup/buildOutputCleanup.lock</text>
+  <text x="730" y="148" font-size="9" fill="#444">...dle/buildOutputCleanup/cache.properties</text>
+  <text x="220" y="172" font-size="9" fill="#999">+ 2 mas...</text>
+  <rect x="40" y="192" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="214" font-size="13" font-weight="700">profiles/</text>
+  <text x="56" y="232" font-size="10" fill="#666">112 archivos</text>
+  <text x="220" y="220" font-size="9" fill="#444">...es/nexus/genres/high_speed_express.json</text>
+  <text x="390" y="220" font-size="9" fill="#444">profiles/nexus/genres/passenger.json</text>
+  <text x="560" y="220" font-size="9" fill="#444">...les/nexus/genres/regional_commuter.json</text>
+  <text x="730" y="220" font-size="9" fill="#444">profiles/nexus/trains/class323.json</text>
+  <text x="220" y="244" font-size="9" fill="#999">+ 2 mas...</text>
+  <rect x="40" y="264" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="286" font-size="13" font-weight="700">Dastsc-V3/</text>
+  <text x="56" y="304" font-size="10" fill="#666">46 archivos</text>
+  <text x="220" y="292" font-size="9" fill="#444">Dastsc-V3/backend/core/brake_log.py</text>
+  <text x="390" y="292" font-size="9" fill="#444">Dastsc-V3/backend/core/cab_inference.py</text>
+  <text x="560" y="292" font-size="9" fill="#444">Dastsc-V3/backend/core/command_bus.py</text>
+  <text x="730" y="292" font-size="9" fill="#444">Dastsc-V3/backend/core/notch_capture.py</text>
+  <text x="220" y="316" font-size="9" fill="#999">+ 2 mas...</text>
+  <rect x="40" y="336" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="358" font-size="13" font-weight="700">docs/</text>
+  <text x="56" y="376" font-size="10" fill="#666">46 archivos</text>
+  <text x="220" y="364" font-size="9" fill="#444">docs/debug/_plantillas/checklist-semana.md</text>
+  <text x="390" y="364" font-size="9" fill="#444">docs/debug/_plantillas/issue.md</text>
+  <text x="560" y="364" font-size="9" fill="#444">docs/debug/_plantillas/sesion.md</text>
+  <text x="730" y="364" font-size="9" fill="#444">docs/debug/semana-01-lua-ipc/checklist.md</text>
+  <text x="220" y="388" font-size="9" fill="#999">+ 2 mas...</text>
+  <rect x="40" y="408" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="430" font-size="13" font-weight="700">Dastsc-V4/</text>
+  <text x="56" y="448" font-size="10" fill="#666">35 archivos</text>
+  <text x="220" y="436" font-size="9" fill="#444">Dastsc-V4/src/components/AgentHeadline.tsx</text>
+  <text x="390" y="436" font-size="9" fill="#444">Dastsc-V4/src/components/AppShell.tsx</text>
+  <text x="560" y="436" font-size="9" fill="#444">Dastsc-V4/src/components/ArmActionBar.tsx</text>
+  <text x="730" y="436" font-size="9" fill="#444">...sc-V4/src/components/BrakePlanPanel.tsx</text>
+  <text x="220" y="460" font-size="9" fill="#999">+ 2 mas...</text>
+  <rect x="40" y="480" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="502" font-size="13" font-weight="700">nexus-agent/</text>
+  <text x="56" y="520" font-size="10" fill="#666">24 archivos</text>
+  <text x="220" y="508" font-size="9" fill="#444">nexus-agent/src/brake/agentConfig.test.ts</text>
+  <text x="390" y="508" font-size="9" fill="#444">nexus-agent/src/brake/agentConfig.ts</text>
+  <text x="560" y="508" font-size="9" fill="#444">...s-agent/src/brake/brakeLearning.test.ts</text>
+  <text x="730" y="508" font-size="9" fill="#444">nexus-agent/src/brake/brakeLearning.ts</text>
+  <text x="220" y="532" font-size="9" fill="#999">+ 2 mas...</text>
+  <rect x="40" y="552" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="574" font-size="13" font-weight="700">nexus-kernel/</text>
+  <text x="56" y="592" font-size="10" fill="#666">24 archivos</text>
+  <text x="220" y="580" font-size="9" fill="#444">...rnel/src/normalizers/BrakeNormalizer.ts</text>
+  <text x="390" y="580" font-size="9" fill="#444">nexus-kernel/src/normalizers/Constants.ts</text>
+  <text x="560" y="580" font-size="9" fill="#444">...el/src/normalizers/PhysicsNormalizer.ts</text>
+  <text x="730" y="580" font-size="9" fill="#444">.../src/normalizers/SignalingNormalizer.ts</text>
+  <text x="220" y="604" font-size="9" fill="#999">+ 2 mas...</text>
+  <rect x="40" y="624" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="646" font-size="13" font-weight="700">.vs/</text>
+  <text x="56" y="664" font-size="10" fill="#666">7 archivos</text>
+  <text x="220" y="652" font-size="9" fill="#444">...99e17-9e94-4dd6-a323-9d4b7ddba5e4.vsidx</text>
+  <text x="390" y="652" font-size="9" fill="#444">.vs/Dastsc.slnx/v18/.wsuo</text>
+  <text x="560" y="652" font-size="9" fill="#444">...tsc.slnx/v18/DocumentLayout.backup.json</text>
+  <text x="730" y="652" font-size="9" fill="#444">.vs/Dastsc.slnx/v18/DocumentLayout.json</text>
+  <text x="220" y="676" font-size="9" fill="#999">+ 2 mas...</text>
+  <rect x="40" y="696" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="718" font-size="13" font-weight="700">logs/</text>
+  <text x="56" y="736" font-size="10" fill="#666">3 archivos</text>
+  <text x="220" y="724" font-size="9" fill="#444">...xus-v4/session_2026-08-17_01-20-35.json</text>
+  <text x="390" y="724" font-size="9" fill="#444">...xus-v4/session_2026-08-17_02-52-08.json</text>
+  <text x="560" y="724" font-size="9" fill="#444">...xus-v4/session_2026-08-17_02-54-49.json</text>
+  <rect x="40" y="768" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="790" font-size="13" font-weight="700">lua/</text>
+  <text x="56" y="808" font-size="10" fill="#666">1 archivos</text>
+  <text x="220" y="796" font-size="9" fill="#444">lua/Railworks_GetData_Script.lua</text>
+  <rect x="40" y="840" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="862" font-size="13" font-weight="700">scripts/</text>
+  <text x="56" y="880" font-size="10" fill="#666">1 archivos</text>
+  <text x="220" y="868" font-size="9" fill="#444">scripts/debug/pre-vuelo-tests.bat</text>
+  <rect x="40" y="912" width="840" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="56" y="934" font-size="13" font-weight="700">debug/</text>
+  <text x="56" y="952" font-size="10" fill="#666">0 archivos</text>
+  <text x="460" y="1044" text-anchor="middle" font-size="12" font-weight="700" fill="#c53030">Flujo: Flujo principal</text>
+  <rect x="120" y="1064" width="680" height="36" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="140" y="1086" font-size="11" font-weight="600">(01) Entrada</text>
+  <text x="320" y="1086" font-size="10" fill="#555">src/main.py</text>
+  <line x1="460" y1="1100" x2="460" y2="1108" stroke="#c53030" stroke-width="1.5"/>
+  <rect x="120" y="1108" width="680" height="36" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="140" y="1130" font-size="11" font-weight="600">(02) Procesamiento</text>
+  <text x="320" y="1130" font-size="10" fill="#555">src/core.py</text>
+  <line x1="460" y1="1144" x2="460" y2="1152" stroke="#c53030" stroke-width="1.5"/>
+  <rect x="120" y="1152" width="680" height="36" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="140" y="1174" font-size="11" font-weight="600">(03) Salida</text>
+  <text x="320" y="1174" font-size="10" fill="#555">src/output.py</text>
+
+  <text x="40" y="1224" font-size="9" fill="#999">Generado por project_explorer.py - edita flow_map.json para personalizar</text>
+</svg>

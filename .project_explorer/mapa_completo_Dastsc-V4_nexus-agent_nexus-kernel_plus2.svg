@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="2452" viewBox="0 0 920 2452" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="920" height="2452" fill="#fafafa"/>
+  <text x="460" y="36" text-anchor="middle" font-size="22" font-weight="700">Dastsc - mapa completo [Dastsc-V4 | scripts | node_modules (+2 más)]</text>
+  <text x="460" y="58" text-anchor="middle" font-size="11" fill="#666">Exploración automática de archivos y líneas — alcance: Dastsc-V4 | scripts | node_modules (+2 más)</text>
+  <text x="40" y="78" font-size="10" font-weight="700">Entradas: Dastsc-V4/package.json, nexus-agent/package.json, nexus-agent/src/index.ts, nexus-kernel/package.json, nexus-kernel/src/index.ts</text>
+  <text x="460" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="#c53030">Carpetas principales</text>
+  <text x="460" y="136" text-anchor="middle" font-size="10" fill="#666">Resumen por carpeta de primer nivel del repositorio.</text>
+  <rect x="32" y="150" width="856" height="268" rx="10" fill="#f7fafc" stroke="#4a5568" stroke-width="1.5"/>
+  <text x="48" y="170" font-size="11" font-weight="700" fill="#4a5568">Otros (4 pasos)</text>
+  <rect x="48" y="182" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="56" y="198" font-size="10" font-weight="700" fill="#4a5568">(01) Dastsc-V4/</text>
+  <text x="56" y="212" font-size="9" fill="#444">vite.config.ts</text>
+  <text x="56" y="226" font-size="8" fill="#666">33 archivos · 3,487 L</text>
+  <rect x="468" y="182" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="476" y="198" font-size="10" font-weight="700" fill="#4a5568">(02) nexus-kernel/</text>
+  <text x="476" y="212" font-size="9" fill="#444">dataNormalizerUtils.ts</text>
+  <text x="476" y="226" font-size="8" fill="#666">24 archivos · 2,676 L</text>
+  <rect x="48" y="240" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="56" y="256" font-size="10" font-weight="700" fill="#4a5568">(03) nexus-agent/</text>
+  <text x="56" y="270" font-size="9" fill="#444">vitest.config.ts</text>
+  <text x="56" y="284" font-size="8" fill="#666">24 archivos · 4,237 L</text>
+  <rect x="468" y="240" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="476" y="256" font-size="10" font-weight="700" fill="#4a5568">(04) scripts/</text>
+  <text x="476" y="270" font-size="9" fill="#444">pre-vuelo-tests.bat</text>
+  <text x="476" y="284" font-size="8" fill="#666">1 archivos · 13 L</text>
+  <text x="460" y="464" text-anchor="middle" font-size="14" font-weight="700" fill="#2d3748">Flujo de datos entre módulos</text>
+  <text x="460" y="480" text-anchor="middle" font-size="10" fill="#666">5 conexiones detectadas por imports (Dastsc-V4 | scripts | node_modules (+2 más)).</text>
+  <rect x="32" y="494" width="856" height="326" rx="10" fill="#f0fff4" stroke="#276749" stroke-width="1.5"/>
+  <text x="48" y="514" font-size="11" font-weight="700" fill="#276749">Bucle principal (5 pasos)</text>
+  <rect x="48" y="526" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="542" font-size="10" font-weight="700" fill="#276749">(01) src → components</text>
+  <text x="56" y="556" font-size="9" fill="#444">App.tsx</text>
+  <text x="56" y="570" font-size="8" fill="#666">8 dependencia(s) · App.tsx→AgentHeadline.tsx, App.t...</text>
+  <rect x="468" y="526" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="542" font-size="10" font-weight="700" fill="#276749">(02) src → normalizers</text>
+  <text x="476" y="556" font-size="9" fill="#444">DataNormalizer.ts</text>
+  <text x="476" y="570" font-size="8" fill="#666">8 dependencia(s) · DataNormalizer.ts→Constants.ts, ...</text>
+  <rect x="48" y="584" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="600" font-size="10" font-weight="700" fill="#276749">(03) src → brake</text>
+  <text x="56" y="614" font-size="9" fill="#444">horizon.test.ts</text>
+  <text x="56" y="628" font-size="8" fill="#666">5 dependencia(s) · horizon.ts→signalUtils.ts, tick....</text>
+  <rect x="468" y="584" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="600" font-size="10" font-weight="700" fill="#276749">(04) src → hooks</text>
+  <text x="476" y="614" font-size="9" fill="#444">App.tsx</text>
+  <text x="476" y="628" font-size="8" fill="#666">3 dependencia(s) · App.tsx→useManualOcrCapture.ts, ...</text>
+  <rect x="48" y="642" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="658" font-size="10" font-weight="700" fill="#276749">(05) src → command</text>
+  <text x="56" y="672" font-size="9" fill="#444">horizon.test.ts</text>
+  <text x="56" y="686" font-size="8" fill="#666">1 dependencia(s) · tick.ts→commandBus.ts</text>
+  <text x="40" y="864" font-size="13" font-weight="700" fill="#2b6cb0">Índice automático del código</text>
+  <text x="40" y="880" font-size="10" fill="#666">82 archivos · 10,288 líneas en Dastsc-V4 | scripts | node_modules (+2 más)</text>
+  <text x="40" y="908" font-size="13" font-weight="700" fill="#276749">Flujo de datos entre módulos</text>
+  <text x="40" y="924" font-size="10" fill="#666">5 conexiones detectadas por imports (flechas: origen → destino)</text>
+  <rect x="40" y="936" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="140" y="954" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">src/</text>
+  <text x="140" y="968" text-anchor="middle" font-size="8" fill="#444">→ 2  ← 0</text>
+  <rect x="252" y="936" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="352" y="954" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">src/components/</text>
+  <text x="352" y="968" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="464" y="936" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="564" y="954" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">src/hooks/</text>
+  <text x="564" y="968" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="676" y="936" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="776" y="954" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">src/</text>
+  <text x="776" y="968" text-anchor="middle" font-size="8" fill="#444">→ 2  ← 0</text>
+  <rect x="40" y="1006" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="140" y="1024" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">src/brake/</text>
+  <text x="140" y="1038" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="252" y="1006" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="352" y="1024" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">src/command/</text>
+  <text x="352" y="1038" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="464" y="1006" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="564" y="1024" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">src/</text>
+  <text x="564" y="1038" text-anchor="middle" font-size="8" fill="#444">→ 1  ← 0</text>
+  <rect x="676" y="1006" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="776" y="1024" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">src/normalizers/</text>
+  <text x="776" y="1038" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <defs><marker id="arrow-data" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#4a5568"/></marker></defs>
+  <path d="M140,957 Q246,939 352,957" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="246" y="935" text-anchor="middle" font-size="7" fill="#666">8</text>
+  <path d="M564,1027 Q670,1009 776,1027" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="670" y="1005" text-anchor="middle" font-size="7" fill="#666">8</text>
+  <path d="M776,957 Q458,974 140,1027" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="458" y="970" text-anchor="middle" font-size="7" fill="#666">5</text>
+  <path d="M140,957 Q352,939 564,957" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="352" y="935" text-anchor="middle" font-size="7" fill="#666">3</text>
+  <path d="M776,957 Q564,974 352,1027" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="564" y="970" text-anchor="middle" font-size="7" fill="#666">1</text>
+  <text x="48" y="1092" font-size="9" font-weight="600" fill="#444">Detalle (origen → destino):</text>
+  <text x="56" y="1106" font-size="8" fill="#555">src/ → src/components/  [8] (App.tsx→AgentHeadline.tsx, App.tsx→ArmActionBar.tsx)</text>
+  <text x="56" y="1118" font-size="8" fill="#555">src/ → src/normalizers/  [8] (DataNormalizer.ts→Constants.ts, DataNormalizer.ts→PhysicsNormalizer.ts)</text>
+  <text x="56" y="1130" font-size="8" fill="#555">src/ → src/brake/  [5] (horizon.ts→signalUtils.ts, tick.ts→agentConfig.ts)</text>
+  <text x="56" y="1142" font-size="8" fill="#555">src/ → src/hooks/  [3] (App.tsx→useManualOcrCapture.ts, App.tsx→useAgent.ts)</text>
+  <text x="56" y="1154" font-size="8" fill="#555">src/ → src/command/  [1] (tick.ts→commandBus.ts)</text>
+  <rect x="32" y="1178" width="856" height="118" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1196" font-size="11" font-weight="700" fill="#2d3748">src/brake/  (15 archivos · 2,641 L)</text>
+  <text x="56" y="1208" font-size="8" fill="#2b6cb0">← desde: src</text>
+  <text x="48" y="1220" font-size="8" fill="#444">planBrake.ts (918 L)</text>
+  <text x="326" y="1220" font-size="8" fill="#444">planBrake.test.ts (479 L)</text>
+  <text x="604" y="1220" font-size="8" fill="#444">stationBrake.test.ts (289 L)</text>
+  <text x="48" y="1234" font-size="8" fill="#444">planBrake.golden.test.ts (242 L)</text>
+  <text x="326" y="1234" font-size="8" fill="#444">types.ts (123 L)</text>
+  <text x="604" y="1234" font-size="8" fill="#444">agentConfig.ts (107 L)</text>
+  <text x="48" y="1248" font-size="8" fill="#444">signalBrake.test.ts (83 L)</text>
+  <text x="326" y="1248" font-size="8" fill="#444">brakeLearning.ts (82 L)</text>
+  <text x="604" y="1248" font-size="8" fill="#444">schedule.ts (82 L)</text>
+  <text x="48" y="1262" font-size="8" fill="#444">physics.ts (77 L)</text>
+  <text x="326" y="1262" font-size="8" fill="#444">brakeLearning.test.ts (60 L)</text>
+  <text x="604" y="1262" font-size="8" fill="#444">brakeStats.ts (37 L)</text>
+  <text x="48" y="1276" font-size="8" fill="#444">brakeStats.test.ts (33 L)</text>
+  <text x="326" y="1276" font-size="8" fill="#444">agentConfig.test.ts (25 L)</text>
+  <text x="604" y="1276" font-size="8" fill="#444">signalUtils.ts (4 L)</text>
+  <rect x="32" y="1306" width="856" height="104" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1324" font-size="11" font-weight="700" fill="#2d3748">src/  (12 archivos · 1,546 L)</text>
+  <text x="56" y="1336" font-size="8" fill="#276749">→ hacia: src/normalizers</text>
+  <text x="48" y="1348" font-size="8" fill="#444">dataNormalizerUtils.ts (526 L)</text>
+  <text x="326" y="1348" font-size="8" fill="#444">DataNormalizer.ts (254 L)</text>
+  <text x="604" y="1348" font-size="8" fill="#444">telemetryTypes.ts (160 L)</text>
+  <text x="48" y="1362" font-size="8" fill="#444">types.ts (131 L)</text>
+  <text x="326" y="1362" font-size="8" fill="#444">telemetryHubUtils.ts (88 L)</text>
+  <text x="604" y="1362" font-size="8" fill="#444">toSnapshot.ts (79 L)</text>
+  <text x="48" y="1376" font-size="8" fill="#444">limitUtils.ts (77 L)</text>
+  <text x="326" y="1376" font-size="8" fill="#444">TelemetryHub.ts (64 L)</text>
+  <text x="604" y="1376" font-size="8" fill="#444">mock.ts (61 L)</text>
+  <text x="48" y="1390" font-size="8" fill="#444">index.ts (53 L)</text>
+  <text x="326" y="1390" font-size="8" fill="#444">safetyUtils.ts (31 L)</text>
+  <text x="604" y="1390" font-size="8" fill="#444">format.ts (22 L)</text>
+  <rect x="32" y="1420" width="856" height="104" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1438" font-size="11" font-weight="700" fill="#2d3748">src/components/  (12 archivos · 1,345 L)</text>
+  <text x="56" y="1450" font-size="8" fill="#2b6cb0">← desde: src</text>
+  <text x="48" y="1462" font-size="8" fill="#444">BrakePlanPanel.tsx (377 L)</text>
+  <text x="326" y="1462" font-size="8" fill="#444">DriveHudBar.tsx (174 L)</text>
+  <text x="604" y="1462" font-size="8" fill="#444">ProfileSelector.tsx (136 L)</text>
+  <text x="48" y="1476" font-size="8" fill="#444">ConfigView.tsx (114 L)</text>
+  <text x="326" y="1476" font-size="8" fill="#444">ProfileCompletenessPanel.tsx (96 L)</text>
+  <text x="604" y="1476" font-size="8" fill="#444">ArmActionBar.tsx (95 L)</text>
+  <text x="48" y="1490" font-size="8" fill="#444">SessionLogsPanel.tsx (85 L)</text>
+  <text x="326" y="1490" font-size="8" fill="#444">AppShell.tsx (83 L)</text>
+  <text x="604" y="1490" font-size="8" fill="#444">PolicyModeSelector.tsx (60 L)</text>
+  <text x="48" y="1504" font-size="8" fill="#444">HorizonStrip.tsx (50 L)</text>
+  <text x="326" y="1504" font-size="8" fill="#444">AgentHeadline.tsx (39 L)</text>
+  <text x="604" y="1504" font-size="8" fill="#444">MiniHud.tsx (36 L)</text>
+  <rect x="32" y="1534" width="856" height="62" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1552" font-size="11" font-weight="700" fill="#2d3748">src/command/  (2 archivos · 1,052 L)</text>
+  <text x="56" y="1564" font-size="8" fill="#2b6cb0">← desde: src</text>
+  <text x="48" y="1576" font-size="8" fill="#444">commandBus.test.ts (649 L)</text>
+  <text x="326" y="1576" font-size="8" fill="#444">commandBus.ts (403 L)</text>
+  <rect x="32" y="1606" width="856" height="90" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1624" font-size="11" font-weight="700" fill="#2d3748">src/hooks/  (8 archivos · 998 L)</text>
+  <text x="56" y="1636" font-size="8" fill="#2b6cb0">← desde: src</text>
+  <text x="48" y="1648" font-size="8" fill="#444">useAgent.ts (382 L)</text>
+  <text x="326" y="1648" font-size="8" fill="#444">useSessionDiagnostic.ts (274 L)</text>
+  <text x="604" y="1648" font-size="8" fill="#444">useAutoCommand.ts (77 L)</text>
+  <text x="48" y="1662" font-size="8" fill="#444">useBrakeLearning.ts (73 L)</text>
+  <text x="326" y="1662" font-size="8" fill="#444">useStationDistanceDebug.ts (60 L)</text>
+  <text x="604" y="1662" font-size="8" fill="#444">useManualOcrCapture.ts (51 L)</text>
+  <text x="48" y="1676" font-size="8" fill="#444">useTrainProfile.ts (41 L)</text>
+  <text x="326" y="1676" font-size="8" fill="#444">useBrakeStats.ts (40 L)</text>
+  <rect x="32" y="1706" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1724" font-size="11" font-weight="700" fill="#2d3748">src/lib/  (6 archivos · 940 L)</text>
+  <text x="48" y="1736" font-size="8" fill="#444">sessionDiagnostic.ts (377 L)</text>
+  <text x="326" y="1736" font-size="8" fill="#444">brakeLearningUtils.ts (259 L)</text>
+  <text x="604" y="1736" font-size="8" fill="#444">profileCompleteness.ts (191 L)</text>
+  <text x="48" y="1750" font-size="8" fill="#444">profileBrake.ts (65 L)</text>
+  <text x="326" y="1750" font-size="8" fill="#444">agentSettings.ts (41 L)</text>
+  <text x="604" y="1750" font-size="8" fill="#444">commandTypes.ts (7 L)</text>
+  <rect x="32" y="1780" width="856" height="76" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1798" font-size="11" font-weight="700" fill="#2d3748">src/  (4 archivos · 501 L)</text>
+  <text x="56" y="1810" font-size="8" fill="#276749">→ hacia: src/brake, src/command</text>
+  <text x="48" y="1822" font-size="8" fill="#444">tick.ts (331 L)</text>
+  <text x="326" y="1822" font-size="8" fill="#444">horizon.ts (88 L)</text>
+  <text x="604" y="1822" font-size="8" fill="#444">index.ts (56 L)</text>
+  <text x="48" y="1836" font-size="8" fill="#444">horizon.test.ts (26 L)</text>
+  <rect x="32" y="1866" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1884" font-size="11" font-weight="700" fill="#2d3748">src/tests/  (4 archivos · 469 L)</text>
+  <text x="48" y="1896" font-size="8" fill="#444">normalize.test.ts (297 L)</text>
+  <text x="326" y="1896" font-size="8" fill="#444">inferActiveCab.test.ts (74 L)</text>
+  <text x="604" y="1896" font-size="8" fill="#444">limitUtils.test.ts (59 L)</text>
+  <text x="48" y="1910" font-size="8" fill="#444">safety.test.ts (39 L)</text>
+  <rect x="32" y="1940" width="856" height="76" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1958" font-size="11" font-weight="700" fill="#2d3748">src/normalizers/  (4 archivos · 455 L)</text>
+  <text x="56" y="1970" font-size="8" fill="#2b6cb0">← desde: src</text>
+  <text x="48" y="1982" font-size="8" fill="#444">PhysicsNormalizer.ts (169 L)</text>
+  <text x="326" y="1982" font-size="8" fill="#444">BrakeNormalizer.ts (141 L)</text>
+  <text x="604" y="1982" font-size="8" fill="#444">SignalingNormalizer.ts (128 L)</text>
+  <text x="48" y="1996" font-size="8" fill="#444">Constants.ts (17 L)</text>
+  <rect x="32" y="2026" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="2044" font-size="11" font-weight="700" fill="#2d3748">src/tail/  (2 archivos · 175 L)</text>
+  <text x="48" y="2056" font-size="8" fill="#444">tailProtectionUtils.ts (136 L)</text>
+  <text x="326" y="2056" font-size="8" fill="#444">TailProtectionService.ts (39 L)</text>
+  <rect x="32" y="2086" width="856" height="62" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="2104" font-size="11" font-weight="700" fill="#2d3748">src/  (3 archivos · 128 L)</text>
+  <text x="56" y="2116" font-size="8" fill="#276749">→ hacia: src/components, src/hooks</text>
+  <text x="48" y="2128" font-size="8" fill="#444">App.tsx (117 L)</text>
+  <text x="326" y="2128" font-size="8" fill="#444">main.tsx (10 L)</text>
+  <text x="604" y="2128" font-size="8" fill="#444">vite-env.d.ts (1 L)</text>
+  <rect x="32" y="2158" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="2176" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V4/  (4 archivos · 76 L)</text>
+  <text x="48" y="2188" font-size="8" fill="#444">package.json (27 L)</text>
+  <text x="326" y="2188" font-size="8" fill="#444">tsconfig.json (18 L)</text>
+  <text x="604" y="2188" font-size="8" fill="#444">vite.config.ts (18 L)</text>
+  <text x="48" y="2202" font-size="8" fill="#444">tsconfig.node.json (13 L)</text>
+  <rect x="32" y="2232" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="2250" font-size="11" font-weight="700" fill="#2d3748">nexus-agent/  (3 archivos · 43 L)</text>
+  <text x="48" y="2262" font-size="8" fill="#444">package.json (22 L)</text>
+  <text x="326" y="2262" font-size="8" fill="#444">tsconfig.json (14 L)</text>
+  <text x="604" y="2262" font-size="8" fill="#444">vitest.config.ts (7 L)</text>
+  <rect x="32" y="2292" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="2310" font-size="11" font-weight="700" fill="#2d3748">nexus-kernel/  (2 archivos · 31 L)</text>
+  <text x="48" y="2322" font-size="8" fill="#444">package.json (18 L)</text>
+  <text x="326" y="2322" font-size="8" fill="#444">tsconfig.json (13 L)</text>
+  <rect x="32" y="2352" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="2370" font-size="11" font-weight="700" fill="#2d3748">debug/  (1 archivos · 13 L)</text>
+  <text x="48" y="2382" font-size="8" fill="#444">pre-vuelo-tests.bat (13 L)</text>
+  <text x="40" y="2436" font-size="9" fill="#999">.project_explorer/mapa_completo_Dastsc-V4_nexus-agent_nexus-kernel_plus2.svg</text>
+</svg>

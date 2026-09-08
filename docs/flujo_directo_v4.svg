@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#4a5568"/>
+    </marker>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect width="960" height="720" fill="#f4f6f8"/>
+
+  <text x="480" y="40" text-anchor="middle" font-size="20" font-weight="700" fill="#1a202c">Flujo directo AUTO - Nexus V4 (Dastsc)</text>
+  <text x="480" y="64" text-anchor="middle" font-size="11" fill="#718096">Objetivo: 4 pasos en loop caliente | docs/FLUJO_DIRECTO_V4.md | 2026-08-25</text>
+
+  <g font-size="11" font-weight="700" fill="#fff">
+    <rect x="40" y="88" width="200" height="28" rx="4" fill="#3182ce"/>
+    <text x="140" y="106" text-anchor="middle">1 LECTURA</text>
+    <rect x="260" y="88" width="200" height="28" rx="4" fill="#dd6b20"/>
+    <text x="360" y="106" text-anchor="middle">2 DECISION</text>
+    <rect x="480" y="88" width="200" height="28" rx="4" fill="#2c5282"/>
+    <text x="580" y="106" text-anchor="middle">3 EJECUCION</text>
+    <rect x="700" y="88" width="200" height="28" rx="4" fill="#4299e1"/>
+    <text x="800" y="106" text-anchor="middle">4 JUEGO</text>
+  </g>
+
+  <circle cx="72" cy="168" r="16" fill="#2d3748"/>
+  <text x="72" y="173" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">1</text>
+  <rect x="100" y="142" width="760" height="52" rx="6" fill="#fff" stroke="#3182ce" stroke-width="2" filter="url(#shadow)"/>
+  <text x="116" y="162" font-size="12" font-weight="600" fill="#2b6cb0">Lua GetData</text>
+  <text x="116" y="178" font-size="10" fill="#4a5568">Railworks_GetData_Script.lua -&gt; GetData.txt (~10-20 Hz)</text>
+  <line x1="72" y1="194" x2="72" y2="214" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <circle cx="72" cy="234" r="16" fill="#2d3748"/>
+  <text x="72" y="239" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">2</text>
+  <rect x="100" y="208" width="760" height="68" rx="6" fill="#fff" stroke="#3182ce" stroke-width="2" filter="url(#shadow)"/>
+  <text x="116" y="228" font-size="12" font-weight="600" fill="#2b6cb0">Backend telemetry_reader</text>
+  <text x="116" y="244" font-size="10" fill="#4a5568">parse + station_distance + OCR | snapshot + tickAgent + planBrake (Fase 2)</text>
+  <text x="116" y="260" font-size="10" fill="#718096">Hoy Fase 1: tickAgent sigue en V4; muescas APPLY sin espera 2 s</text>
+  <line x1="72" y1="276" x2="72" y2="296" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <circle cx="72" cy="316" r="16" fill="#2d3748"/>
+  <text x="72" y="321" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">3</text>
+  <rect x="100" y="290" width="760" height="52" rx="6" fill="#fff" stroke="#2c5282" stroke-width="2" filter="url(#shadow)"/>
+  <text x="116" y="310" font-size="12" font-weight="600" fill="#2c5282">command_bus directo</text>
+  <text x="116" y="326" font-size="10" fill="#4a5568">SendCommand.txt + flag (sin WS COMMAND en objetivo Fase 2)</text>
+  <line x1="72" y1="342" x2="72" y2="362" stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <circle cx="72" cy="382" r="16" fill="#2d3748"/>
+  <text x="72" y="387" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">4</text>
+  <rect x="100" y="356" width="760" height="52" rx="6" fill="#fff" stroke="#4299e1" stroke-width="2" filter="url(#shadow)"/>
+  <text x="116" y="376" font-size="12" font-weight="600" fill="#2b6cb0">Lua SendData</text>
+  <text x="116" y="392" font-size="10" fill="#4a5568">VirtualBrake / ThrottleAndBrake -&gt; proximo tick paso 1</text>
+
+  <path d="M 72 408 L 72 440 L 40 440 L 40 168 L 72 168" fill="none" stroke="#4a5568" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrow)"/>
+
+  <rect x="100" y="460" width="760" height="100" rx="6" fill="#edf2f7" stroke="#a0aec0" stroke-width="1.5" stroke-dasharray="8 4"/>
+  <text x="116" y="484" font-size="11" font-weight="600" fill="#4a5568">Paralelo (no bloquea AUTO)</text>
+  <text x="116" y="504" font-size="10" fill="#4a5568">WebSocket -&gt; V4: panel, headline, log sesion (SUGGEST / ARM siguen en UI)</text>
+  <text x="116" y="524" font-size="10" fill="#718096">Eliminado del camino caliente: WS TELEMETRY para decidir, TelemetryHub, useAutoCommand (Fase 2)</text>
+  <text x="116" y="544" font-size="10" fill="#718096">Flujo largo (15 pasos): docs/FLUJO_FRENOS_V4.md</text>
+
+  <g font-size="10" fill="#4a5568">
+    <rect x="100" y="590" width="18" height="14" rx="2" fill="#3182ce"/>
+    <text x="126" y="602">Lectura</text>
+    <rect x="220" y="590" width="18" height="14" rx="2" fill="#dd6b20"/>
+    <text x="246" y="602">Decision (backend)</text>
+    <rect x="400" y="590" width="18" height="14" rx="2" fill="#2c5282"/>
+    <text x="426" y="602">Ejecucion</text>
+    <rect x="540" y="590" width="18" height="14" rx="2" fill="#4299e1"/>
+    <text x="566" y="602">Juego</text>
+  </g>
+</svg>

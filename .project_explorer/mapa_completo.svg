@@ -1,0 +1,1291 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="12460" viewBox="0 0 920 12460" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="920" height="12460" fill="#fafafa"/>
+  <text x="460" y="36" text-anchor="middle" font-size="22" font-weight="700">Dastsc - mapa completo</text>
+  <text x="460" y="58" text-anchor="middle" font-size="11" fill="#666">Exploración automática de archivos y líneas</text>
+  <text x="40" y="78" font-size="10" font-weight="700">Entradas: Dastsc-V3/backend/main.py, Dastsc-V3/package.json, Dastsc-V4/package.json, docs/debug/README.md, docs/debug/semana-01-lua-ipc/README.md, docs/debug/semana-02-telemetria-kernel/README.md, docs/debug/semana-03-backend-comandos/README.md, docs/debug/semana-04-agente-frenado/README.md</text>
+  <text x="460" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="#c53030">Carpetas principales</text>
+  <text x="460" y="136" text-anchor="middle" font-size="10" fill="#666">Resumen por carpeta de primer nivel del repositorio.</text>
+  <rect x="32" y="150" width="856" height="732" rx="10" fill="#f7fafc" stroke="#4a5568" stroke-width="1.5"/>
+  <text x="48" y="170" font-size="11" font-weight="700" fill="#4a5568">Otros (12 pasos)</text>
+  <rect x="48" y="182" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="56" y="198" font-size="10" font-weight="700" fill="#4a5568">(01) ETCS-master/</text>
+  <text x="56" y="212" font-size="9" fill="#444">gradlew.bat</text>
+  <text x="56" y="226" font-size="8" fill="#666">480 archivos · 91,299 L</text>
+  <rect x="468" y="182" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="476" y="198" font-size="10" font-weight="700" fill="#4a5568">(02) docs/</text>
+  <text x="476" y="212" font-size="9" fill="#444">PENDIENTES_V4.md</text>
+  <text x="476" y="226" font-size="8" fill="#666">47 archivos · 3,532 L</text>
+  <rect x="48" y="240" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="56" y="256" font-size="10" font-weight="700" fill="#4a5568">(03) Dastsc-V3/</text>
+  <text x="56" y="270" font-size="9" fill="#444">vite.config.ts</text>
+  <text x="56" y="284" font-size="8" fill="#666">79 archivos · 20,055 L</text>
+  <rect x="468" y="240" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="476" y="256" font-size="10" font-weight="700" fill="#4a5568">(04) Dastsc-V4/</text>
+  <text x="476" y="270" font-size="9" fill="#444">vite.config.ts</text>
+  <text x="476" y="284" font-size="8" fill="#666">33 archivos · 3,487 L</text>
+  <rect x="48" y="298" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="56" y="314" font-size="10" font-weight="700" fill="#4a5568">(05) nexus-kernel/</text>
+  <text x="56" y="328" font-size="9" fill="#444">dataNormalizerUtils.ts</text>
+  <text x="56" y="342" font-size="8" fill="#666">24 archivos · 2,676 L</text>
+  <rect x="468" y="298" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="476" y="314" font-size="10" font-weight="700" fill="#4a5568">(06) nexus-agent/</text>
+  <text x="476" y="328" font-size="9" fill="#444">vitest.config.ts</text>
+  <text x="476" y="342" font-size="8" fill="#666">24 archivos · 4,237 L</text>
+  <rect x="48" y="356" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="56" y="372" font-size="10" font-weight="700" fill="#4a5568">(07) .vs/</text>
+  <text x="56" y="386" font-size="9" fill="#444">VSWorkspaceState.json</text>
+  <text x="56" y="400" font-size="8" fill="#666">4 archivos · 81 L</text>
+  <rect x="468" y="356" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="476" y="372" font-size="10" font-weight="700" fill="#4a5568">(08) (raíz)/</text>
+  <text x="476" y="386" font-size="9" fill="#444">fix_markdownlint.py</text>
+  <text x="476" y="400" font-size="8" fill="#666">17 archivos · 5,885 L</text>
+  <rect x="48" y="414" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="56" y="430" font-size="10" font-weight="700" fill="#4a5568">(09) .project_explorer/</text>
+  <text x="56" y="444" font-size="9" fill="#444">indice_codigo.md</text>
+  <text x="56" y="458" font-size="8" fill="#666">3 archivos · 1,288 L</text>
+  <rect x="468" y="414" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="476" y="430" font-size="10" font-weight="700" fill="#4a5568">(10) logs/</text>
+  <text x="476" y="444" font-size="9" fill="#444">session_2026-08-17_02-52-08.json</text>
+  <text x="476" y="458" font-size="8" fill="#666">2 archivos · 2 L</text>
+  <rect x="48" y="472" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="56" y="488" font-size="10" font-weight="700" fill="#4a5568">(11) lua/</text>
+  <text x="56" y="502" font-size="9" fill="#444">Railworks_GetData_Script.lua</text>
+  <text x="56" y="516" font-size="8" fill="#666">1 archivos · 518 L</text>
+  <rect x="468" y="472" width="412" height="54" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="476" y="488" font-size="10" font-weight="700" fill="#4a5568">(12) scripts/</text>
+  <text x="476" y="502" font-size="9" fill="#444">pre-vuelo-tests.bat</text>
+  <text x="476" y="516" font-size="8" fill="#666">1 archivos · 13 L</text>
+  <rect x="32" y="898" width="856" height="94" rx="10" fill="#fffaf0" stroke="#c05621" stroke-width="1.5"/>
+  <text x="48" y="918" font-size="11" font-weight="700" fill="#c05621">Gestion / fisica (1 pasos)</text>
+  <rect x="48" y="930" width="412" height="54" rx="6" fill="#fff" stroke="#c05621"/>
+  <text x="56" y="946" font-size="10" font-weight="700" fill="#c05621">(13) profiles/</text>
+  <text x="56" y="960" font-size="9" fill="#444">class350_expert_wcml.json</text>
+  <text x="56" y="974" font-size="8" fill="#666">112 archivos · 2,417 L</text>
+  <text x="460" y="1038" text-anchor="middle" font-size="14" font-weight="700" fill="#2d3748">Flujo de datos entre módulos</text>
+  <text x="460" y="1054" text-anchor="middle" font-size="10" fill="#666">13 conexiones detectadas por imports (proyecto completo).</text>
+  <rect x="32" y="1068" width="856" height="790" rx="10" fill="#f0fff4" stroke="#276749" stroke-width="1.5"/>
+  <text x="48" y="1088" font-size="11" font-weight="700" fill="#276749">Bucle principal (13 pasos)</text>
+  <rect x="48" y="1100" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="1116" font-size="10" font-weight="700" fill="#276749">(01) backend → core</text>
+  <text x="56" y="1130" font-size="9" fill="#444">main.py</text>
+  <text x="56" y="1144" font-size="8" fill="#666">9 dependencia(s) · main.py→parser.py, main.py→profi...</text>
+  <rect x="468" y="1100" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="1116" font-size="10" font-weight="700" fill="#276749">(02) core → normalizers</text>
+  <text x="476" y="1130" font-size="9" fill="#444">DataNormalizer.ts</text>
+  <text x="476" y="1144" font-size="8" fill="#666">8 dependencia(s) · DataNormalizer.ts→Constants.ts, ...</text>
+  <rect x="48" y="1158" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="1174" font-size="10" font-weight="700" fill="#276749">(03) src → components</text>
+  <text x="56" y="1188" font-size="9" fill="#444">App.tsx</text>
+  <text x="56" y="1202" font-size="8" fill="#666">8 dependencia(s) · App.tsx→AgentHeadline.tsx, App.t...</text>
+  <rect x="468" y="1158" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="1174" font-size="10" font-weight="700" fill="#276749">(04) src → normalizers</text>
+  <text x="476" y="1188" font-size="9" fill="#444">DataNormalizer.ts</text>
+  <text x="476" y="1202" font-size="8" fill="#666">8 dependencia(s) · DataNormalizer.ts→Constants.ts, ...</text>
+  <rect x="48" y="1216" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="1232" font-size="10" font-weight="700" fill="#276749">(05) tests → core</text>
+  <text x="56" y="1246" font-size="9" fill="#444">__init__.py</text>
+  <text x="56" y="1260" font-size="8" fill="#666">5 dependencia(s) · test_brake_log.py→brake_log.py, ...</text>
+  <rect x="468" y="1216" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="1232" font-size="10" font-weight="700" fill="#276749">(06) src → shell</text>
+  <text x="476" y="1246" font-size="9" fill="#444">App.tsx</text>
+  <text x="476" y="1260" font-size="8" fill="#666">5 dependencia(s) · App.tsx→AppHeader.tsx, App.tsx→A...</text>
+  <rect x="48" y="1274" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="1290" font-size="10" font-weight="700" fill="#276749">(07) src → brake</text>
+  <text x="56" y="1304" font-size="9" fill="#444">horizon.test.ts</text>
+  <text x="56" y="1318" font-size="8" fill="#666">5 dependencia(s) · horizon.ts→signalUtils.ts, tick....</text>
+  <rect x="468" y="1274" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="1290" font-size="10" font-weight="700" fill="#276749">(08) src → hooks</text>
+  <text x="476" y="1304" font-size="9" fill="#444">App.tsx</text>
+  <text x="476" y="1318" font-size="8" fill="#666">3 dependencia(s) · App.tsx→useManualOcrCapture.ts, ...</text>
+  <rect x="48" y="1332" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="1348" font-size="10" font-weight="700" fill="#276749">(09) (raíz) → core</text>
+  <text x="56" y="1362" font-size="9" fill="#444">Asistente_Perfil.bat</text>
+  <text x="56" y="1376" font-size="8" fill="#666">1 dependencia(s) · raildriver-poc.py→ocr_hud.py</text>
+  <rect x="468" y="1332" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="1348" font-size="10" font-weight="700" fill="#276749">(10) tests → backend</text>
+  <text x="476" y="1362" font-size="9" fill="#444">__init__.py</text>
+  <text x="476" y="1376" font-size="8" fill="#666">1 dependencia(s) · test_main.py→main.py</text>
+  <rect x="48" y="1390" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="1406" font-size="10" font-weight="700" fill="#276749">(11) src → bootstrap</text>
+  <text x="56" y="1420" font-size="9" fill="#444">App.tsx</text>
+  <text x="56" y="1434" font-size="8" fill="#666">1 dependencia(s) · main.tsx→mountApp.tsx</text>
+  <rect x="468" y="1390" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="1406" font-size="10" font-weight="700" fill="#276749">(12) src → core</text>
+  <text x="476" y="1420" font-size="9" fill="#444">App.tsx</text>
+  <text x="476" y="1434" font-size="8" fill="#666">1 dependencia(s) · App.tsx→TelemetryContext.tsx</text>
+  <rect x="48" y="1448" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="1464" font-size="10" font-weight="700" fill="#276749">(13) src → command</text>
+  <text x="56" y="1478" font-size="9" fill="#444">horizon.test.ts</text>
+  <text x="56" y="1492" font-size="8" fill="#666">1 dependencia(s) · tick.ts→commandBus.ts</text>
+  <text x="40" y="1902" font-size="13" font-weight="700" fill="#2b6cb0">Índice automático del código</text>
+  <text x="40" y="1918" font-size="10" fill="#666">827 archivos · 102,705 líneas</text>
+  <text x="40" y="1946" font-size="13" font-weight="700" fill="#276749">Flujo de datos entre módulos</text>
+  <text x="40" y="1962" font-size="10" fill="#666">13 conexiones detectadas por imports (flechas: origen → destino)</text>
+  <rect x="40" y="1974" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="140" y="1992" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">(raíz)/</text>
+  <text x="140" y="2006" text-anchor="middle" font-size="8" fill="#444">→ 1  ← 0</text>
+  <rect x="252" y="1974" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="352" y="1992" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V3/backend/</text>
+  <text x="352" y="2006" text-anchor="middle" font-size="8" fill="#444">→ 1  ← 1</text>
+  <rect x="464" y="1974" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="564" y="1992" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V3/backend/core/</text>
+  <text x="564" y="2006" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 3</text>
+  <rect x="676" y="1974" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="776" y="1992" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V3/backend/tests/</text>
+  <text x="776" y="2006" text-anchor="middle" font-size="8" fill="#444">→ 2  ← 0</text>
+  <rect x="40" y="2044" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="140" y="2062" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V3/src/</text>
+  <text x="140" y="2076" text-anchor="middle" font-size="8" fill="#444">→ 3  ← 0</text>
+  <rect x="252" y="2044" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="352" y="2062" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V3/src/v3/bootstrap/</text>
+  <text x="352" y="2076" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="464" y="2044" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="564" y="2062" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V3/src/v3/components/shell/</text>
+  <text x="564" y="2076" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="676" y="2044" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="776" y="2062" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V3/src/v3/core/</text>
+  <text x="776" y="2076" text-anchor="middle" font-size="8" fill="#444">→ 1  ← 1</text>
+  <rect x="40" y="2114" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="140" y="2132" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V3/src/v3/core/normalizers/</text>
+  <text x="140" y="2146" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="252" y="2114" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="352" y="2132" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V4/src/</text>
+  <text x="352" y="2146" text-anchor="middle" font-size="8" fill="#444">→ 2  ← 0</text>
+  <rect x="464" y="2114" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="564" y="2132" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V4/src/components/</text>
+  <text x="564" y="2146" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="676" y="2114" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="776" y="2132" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">Dastsc-V4/src/hooks/</text>
+  <text x="776" y="2146" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="40" y="2184" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="140" y="2202" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">nexus-agent/src/</text>
+  <text x="140" y="2216" text-anchor="middle" font-size="8" fill="#444">→ 2  ← 0</text>
+  <rect x="252" y="2184" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="352" y="2202" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">nexus-agent/src/brake/</text>
+  <text x="352" y="2216" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="464" y="2184" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="564" y="2202" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">nexus-agent/src/command/</text>
+  <text x="564" y="2216" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <rect x="676" y="2184" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="776" y="2202" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">nexus-kernel/src/</text>
+  <text x="776" y="2216" text-anchor="middle" font-size="8" fill="#444">→ 1  ← 0</text>
+  <rect x="40" y="2254" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="140" y="2272" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">nexus-kernel/src/normalizers/</text>
+  <text x="140" y="2286" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 1</text>
+  <defs><marker id="arrow-data" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#4a5568"/></marker></defs>
+  <path d="M352,1995 Q458,1977 564,1995" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="458" y="1973" text-anchor="middle" font-size="7" fill="#666">9</text>
+  <path d="M776,2065 Q458,2082 140,2135" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="458" y="2078" text-anchor="middle" font-size="7" fill="#666">8</text>
+  <path d="M352,2135 Q458,2117 564,2135" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="458" y="2113" text-anchor="middle" font-size="7" fill="#666">8</text>
+  <path d="M776,2205 Q458,2222 140,2275" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="458" y="2218" text-anchor="middle" font-size="7" fill="#666">8</text>
+  <path d="M776,1995 Q670,1977 564,1995" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="670" y="1973" text-anchor="middle" font-size="7" fill="#666">5</text>
+  <path d="M140,2065 Q352,2047 564,2065" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="352" y="2043" text-anchor="middle" font-size="7" fill="#666">5</text>
+  <path d="M140,2205 Q246,2187 352,2205" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="246" y="2183" text-anchor="middle" font-size="7" fill="#666">5</text>
+  <path d="M352,2135 Q564,2117 776,2135" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="564" y="2113" text-anchor="middle" font-size="7" fill="#666">3</text>
+  <path d="M140,1995 Q352,1977 564,1995" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="352" y="1973" text-anchor="middle" font-size="7" fill="#666">1</text>
+  <path d="M776,1995 Q564,1977 352,1995" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="564" y="1973" text-anchor="middle" font-size="7" fill="#666">1</text>
+  <path d="M140,2065 Q246,2047 352,2065" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="246" y="2043" text-anchor="middle" font-size="7" fill="#666">1</text>
+  <path d="M140,2065 Q458,2047 776,2065" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="458" y="2043" text-anchor="middle" font-size="7" fill="#666">1</text>
+  <path d="M140,2205 Q352,2187 564,2205" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="352" y="2183" text-anchor="middle" font-size="7" fill="#666">1</text>
+  <text x="48" y="2340" font-size="9" font-weight="600" fill="#444">Detalle (origen → destino):</text>
+  <text x="56" y="2354" font-size="8" fill="#555">Dastsc-V3/backend/ → Dastsc-V3/backend/core/  [9] (main.py→parser.py, main.py→profiles.py)</text>
+  <text x="56" y="2366" font-size="8" fill="#555">Dastsc-V3/src/v3/core/ → Dastsc-V3/src/v3/core/normalizers/  [8] (DataNormalizer.ts→Constants.ts, DataNormalizer.ts→PhysicsNormalizer.ts)</text>
+  <text x="56" y="2378" font-size="8" fill="#555">Dastsc-V4/src/ → Dastsc-V4/src/components/  [8] (App.tsx→AgentHeadline.tsx, App.tsx→ArmActionBar.tsx)</text>
+  <text x="56" y="2390" font-size="8" fill="#555">nexus-kernel/src/ → nexus-kernel/src/normalizers/  [8] (DataNormalizer.ts→Constants.ts, DataNormalizer.ts→PhysicsNormalizer.ts)</text>
+  <text x="56" y="2402" font-size="8" fill="#555">Dastsc-V3/backend/tests/ → Dastsc-V3/backend/core/  [5] (test_brake_log.py→brake_log.py, test_command_bus.py→command_bus.py)</text>
+  <text x="56" y="2414" font-size="8" fill="#555">Dastsc-V3/src/ → Dastsc-V3/src/v3/components/shell/  [5] (App.tsx→AppHeader.tsx, App.tsx→AppTabBar.tsx)</text>
+  <text x="56" y="2426" font-size="8" fill="#555">nexus-agent/src/ → nexus-agent/src/brake/  [5] (horizon.ts→signalUtils.ts, tick.ts→agentConfig.ts)</text>
+  <text x="56" y="2438" font-size="8" fill="#555">Dastsc-V4/src/ → Dastsc-V4/src/hooks/  [3] (App.tsx→useManualOcrCapture.ts, App.tsx→useAgent.ts)</text>
+  <text x="56" y="2450" font-size="8" fill="#555">(raíz)/ → Dastsc-V3/backend/core/  [1] (raildriver-poc.py→ocr_hud.py)</text>
+  <text x="56" y="2462" font-size="8" fill="#555">Dastsc-V3/backend/tests/ → Dastsc-V3/backend/  [1] (test_main.py→main.py)</text>
+  <text x="56" y="2474" font-size="8" fill="#555">Dastsc-V3/src/ → Dastsc-V3/src/v3/bootstrap/  [1] (main.tsx→mountApp.tsx)</text>
+  <text x="56" y="2486" font-size="8" fill="#555">Dastsc-V3/src/ → Dastsc-V3/src/v3/core/  [1] (App.tsx→TelemetryContext.tsx)</text>
+  <rect x="32" y="2510" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="2528" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/include/nlohmann/  (1 archivos · 24,596 L)</text>
+  <text x="48" y="2540" font-size="8" fill="#444">json.hpp (24596 L)</text>
+  <rect x="32" y="2570" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="2588" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/platform/stb/  (2 archivos · 7,990 L)</text>
+  <text x="48" y="2600" font-size="8" fill="#444">stb_image.h (7987 L)</text>
+  <text x="326" y="2600" font-size="8" fill="#444">stb.c (3 L)</text>
+  <rect x="32" y="2630" width="856" height="344" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="2648" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Packets/  (65 archivos · 7,812 L)</text>
+  <text x="48" y="2660" font-size="8" fill="#444">variables.h (2172 L)</text>
+  <text x="326" y="2660" font-size="8" fill="#444">messages.cpp (1451 L)</text>
+  <text x="604" y="2660" font-size="8" fill="#444">radio.h (666 L)</text>
+  <text x="48" y="2674" font-size="8" fill="#444">information.cpp (567 L)</text>
+  <text x="326" y="2674" font-size="8" fill="#444">radio.cpp (382 L)</text>
+  <text x="604" y="2674" font-size="8" fill="#444">information.h (246 L)</text>
+  <text x="48" y="2688" font-size="8" fill="#444">packets.cpp (160 L)</text>
+  <text x="326" y="2688" font-size="8" fill="#444">3.h (152 L)</text>
+  <text x="604" y="2688" font-size="8" fill="#444">types.h (114 L)</text>
+  <text x="48" y="2702" font-size="8" fill="#444">messages.h (85 L)</text>
+  <text x="326" y="2702" font-size="8" fill="#444">12.h (82 L)</text>
+  <text x="604" y="2702" font-size="8" fill="#444">15.h (80 L)</text>
+  <text x="48" y="2716" font-size="8" fill="#444">packets.h (80 L)</text>
+  <text x="326" y="2716" font-size="8" fill="#444">vbc.cpp (80 L)</text>
+  <text x="604" y="2716" font-size="8" fill="#444">72.h (63 L)</text>
+  <text x="48" y="2730" font-size="8" fill="#444">51.h (62 L)</text>
+  <text x="326" y="2730" font-size="8" fill="#444">27.h (61 L)</text>
+  <text x="604" y="2730" font-size="8" fill="#444">76.h (58 L)</text>
+  <text x="48" y="2744" font-size="8" fill="#444">70.h (53 L)</text>
+  <text x="326" y="2744" font-size="8" fill="#444">52.h (50 L)</text>
+  <text x="604" y="2744" font-size="8" fill="#444">69.h (47 L)</text>
+  <text x="48" y="2758" font-size="8" fill="#444">79.h (46 L)</text>
+  <text x="326" y="2758" font-size="8" fill="#444">68.h (45 L)</text>
+  <text x="604" y="2758" font-size="8" fill="#444">80.h (45 L)</text>
+  <text x="48" y="2772" font-size="8" fill="#444">5.h (44 L)</text>
+  <text x="326" y="2772" font-size="8" fill="#444">41.h (41 L)</text>
+  <text x="604" y="2772" font-size="8" fill="#444">etcs_information.h (41 L)</text>
+  <text x="48" y="2786" font-size="8" fill="#444">logging.cpp (40 L)</text>
+  <text x="326" y="2786" font-size="8" fill="#444">58.h (39 L)</text>
+  <text x="604" y="2786" font-size="8" fill="#444">21.h (36 L)</text>
+  <text x="48" y="2800" font-size="8" fill="#444">46.h (36 L)</text>
+  <text x="326" y="2800" font-size="8" fill="#444">67.h (36 L)</text>
+  <text x="604" y="2800" font-size="8" fill="#444">88.h (35 L)</text>
+  <text x="48" y="2814" font-size="8" fill="#444">49.h (32 L)</text>
+  <text x="326" y="2814" font-size="8" fill="#444">63.h (32 L)</text>
+  <text x="604" y="2814" font-size="8" fill="#444">133.h (30 L)</text>
+  <text x="48" y="2828" font-size="8" fill="#444">65.h (26 L)</text>
+  <text x="326" y="2828" font-size="8" fill="#444">42.h (25 L)</text>
+  <text x="604" y="2828" font-size="8" fill="#444">131.h (24 L)</text>
+  <text x="48" y="2842" font-size="8" fill="#444">44.h (24 L)</text>
+  <text x="326" y="2842" font-size="8" fill="#444">vbc.h (24 L)</text>
+  <text x="604" y="2842" font-size="8" fill="#444">39.h (23 L)</text>
+  <text x="48" y="2856" font-size="8" fill="#444">143.h (22 L)</text>
+  <text x="326" y="2856" font-size="8" fill="#444">71.h (21 L)</text>
+  <text x="604" y="2856" font-size="8" fill="#444">6.h (20 L)</text>
+  <text x="48" y="2870" font-size="8" fill="#444">40.h (19 L)</text>
+  <text x="326" y="2870" font-size="8" fill="#444">57.h (19 L)</text>
+  <text x="604" y="2870" font-size="8" fill="#444">90.h (19 L)</text>
+  <text x="48" y="2884" font-size="8" fill="#444">136.h (18 L)</text>
+  <text x="326" y="2884" font-size="8" fill="#444">138.h (18 L)</text>
+  <text x="604" y="2884" font-size="8" fill="#444">139.h (18 L)</text>
+  <text x="48" y="2898" font-size="8" fill="#444">66.h (18 L)</text>
+  <text x="326" y="2898" font-size="8" fill="#444">180.h (17 L)</text>
+  <text x="604" y="2898" font-size="8" fill="#444">45.h (17 L)</text>
+  <text x="48" y="2912" font-size="8" fill="#444">132.h (16 L)</text>
+  <text x="326" y="2912" font-size="8" fill="#444">140.h (15 L)</text>
+  <text x="604" y="2912" font-size="8" fill="#444">141.h (15 L)</text>
+  <text x="48" y="2926" font-size="8" fill="#444">16.h (15 L)</text>
+  <text x="326" y="2926" font-size="8" fill="#444">137.h (14 L)</text>
+  <text x="604" y="2926" font-size="8" fill="#444">2.h (14 L)</text>
+  <text x="48" y="2940" font-size="8" fill="#444">logging.h (14 L)</text>
+  <text x="326" y="2940" font-size="8" fill="#444">64.h (13 L)</text>
+  <text x="604" y="2940" font-size="8" fill="#444">181.h (12 L)</text>
+  <text x="48" y="2954" font-size="8" fill="#444">254.h (12 L)</text>
+  <text x="326" y="2954" font-size="8" fill="#444">0.h (11 L)</text>
+  <rect x="32" y="2984" width="856" height="218" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="3002" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/TrainData/Spain/  (37 archivos · 7,235 L)</text>
+  <text x="48" y="3014" font-size="8" fill="#444">traindata_465.json (530 L)</text>
+  <text x="326" y="3014" font-size="8" fill="#444">traindata_CiviaA.json (530 L)</text>
+  <text x="604" y="3014" font-size="8" fill="#444">traindata_105.json (482 L)</text>
+  <text x="48" y="3028" font-size="8" fill="#444">traindata_109.json (446 L)</text>
+  <text x="326" y="3028" font-size="8" fill="#444">traindata_CiviaC.json (266 L)</text>
+  <text x="604" y="3028" font-size="8" fill="#444">traindata_100.json (242 L)</text>
+  <text x="48" y="3042" font-size="8" fill="#444">traindata_102.json (236 L)</text>
+  <text x="326" y="3042" font-size="8" fill="#444">traindata_112.json (236 L)</text>
+  <text x="604" y="3042" font-size="8" fill="#444">traindata_730.json (236 L)</text>
+  <text x="48" y="3056" font-size="8" fill="#444">traindata_130.json (233 L)</text>
+  <text x="326" y="3056" font-size="8" fill="#444">traindata_104.json (224 L)</text>
+  <text x="604" y="3056" font-size="8" fill="#444">traindata_114.json (224 L)</text>
+  <text x="48" y="3070" font-size="8" fill="#444">traindata_490.json (218 L)</text>
+  <text x="326" y="3070" font-size="8" fill="#444">traindata_451.json (200 L)</text>
+  <text x="604" y="3070" font-size="8" fill="#444">traindata_106.json (167 L)</text>
+  <text x="48" y="3084" font-size="8" fill="#444">traindata_107.json (167 L)</text>
+  <text x="326" y="3084" font-size="8" fill="#444">traindata_108.json (162 L)</text>
+  <text x="604" y="3084" font-size="8" fill="#444">traindata_103.json (160 L)</text>
+  <text x="48" y="3098" font-size="8" fill="#444">traindata_1126.json (158 L)</text>
+  <text x="326" y="3098" font-size="8" fill="#444">traindata_1127.json (158 L)</text>
+  <text x="604" y="3098" font-size="8" fill="#444">traindata_1302.json (150 L)</text>
+  <text x="48" y="3112" font-size="8" fill="#444">traindata_120.json (146 L)</text>
+  <text x="326" y="3112" font-size="8" fill="#444">traindata_121.json (146 L)</text>
+  <text x="604" y="3112" font-size="8" fill="#444">traindata_kiss.json (146 L)</text>
+  <text x="48" y="3126" font-size="8" fill="#444">traindata_355.json (144 L)</text>
+  <text x="326" y="3126" font-size="8" fill="#444">traindata_355c.json (144 L)</text>
+  <text x="604" y="3126" font-size="8" fill="#444">traindata_449.json (142 L)</text>
+  <text x="48" y="3140" font-size="8" fill="#444">traindata_446.json (134 L)</text>
+  <text x="326" y="3140" font-size="8" fill="#444">traindata_447.json (134 L)</text>
+  <text x="604" y="3140" font-size="8" fill="#444">traindata_450.json (134 L)</text>
+  <text x="48" y="3154" font-size="8" fill="#444">traindata_599.json (132 L)</text>
+  <text x="326" y="3154" font-size="8" fill="#444">traindata_162.json (85 L)</text>
+  <text x="604" y="3154" font-size="8" fill="#444">traindata_1305.json (82 L)</text>
+  <text x="48" y="3168" font-size="8" fill="#444">traindata_102adif.json (80 L)</text>
+  <text x="326" y="3168" font-size="8" fill="#444">traindata_16212.json (73 L)</text>
+  <text x="604" y="3168" font-size="8" fill="#444">traindata_470.json (58 L)</text>
+  <text x="48" y="3182" font-size="8" fill="#444">traindata_448.json (30 L)</text>
+  <rect x="32" y="3212" width="856" height="132" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="3230" font-size="11" font-weight="700" fill="#2d3748">(raíz)/  (17 archivos · 5,885 L)</text>
+  <text x="56" y="3242" font-size="8" fill="#276749">→ hacia: Dastsc-V3/backend/core</text>
+  <text x="48" y="3254" font-size="8" fill="#444">package-lock.json (3116 L)</text>
+  <text x="326" y="3254" font-size="8" fill="#444">fix_markdownlint.py (922 L)  [load_md...</text>
+  <text x="604" y="3254" font-size="8" fill="#444">nexus-profile-wizard.py (691 L)  [Not...</text>
+  <text x="48" y="3268" font-size="8" fill="#444">route-distance-poc.py (468 L)  [Route...</text>
+  <text x="326" y="3268" font-size="8" fill="#444">raildriver-poc.py (180 L)  [load_api…]</text>
+  <text x="604" y="3268" font-size="8" fill="#444">TAIL_PROTECTION_V6_README.md (163 L)</text>
+  <text x="48" y="3282" font-size="8" fill="#444">nexus-debug.py (120 L)  [format_engin...</text>
+  <text x="326" y="3282" font-size="8" fill="#444">Iniciar_Nexus_V3.bat (38 L)</text>
+  <text x="604" y="3282" font-size="8" fill="#444">Iniciar_Nexus_V4.bat (38 L)</text>
+  <text x="48" y="3296" font-size="8" fill="#444">PROJECT_MAP.md (30 L)</text>
+  <text x="326" y="3296" font-size="8" fill="#444">README.md (28 L)</text>
+  <text x="604" y="3296" font-size="8" fill="#444">flow_map.json (26 L)</text>
+  <text x="48" y="3310" font-size="8" fill="#444">Asistente_Perfil.bat (23 L)</text>
+  <text x="326" y="3310" font-size="8" fill="#444">package.json (20 L)</text>
+  <text x="604" y="3310" font-size="8" fill="#444">check-addrs-out.txt (8 L)</text>
+  <text x="48" y="3324" font-size="8" fill="#444">tsconfig.json (8 L)</text>
+  <text x="326" y="3324" font-size="8" fill="#444">pyrightconfig.json (6 L)</text>
+  <rect x="32" y="3354" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="3372" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/backend/data/  (1 archivos · 5,867 L)</text>
+  <text x="48" y="3384" font-size="8" fill="#444">brake_events.json (5867 L)</text>
+  <rect x="32" y="3414" width="856" height="78" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="3432" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/app/src/main/java/org/libsdl/app/  (9 archivos · 5,664 L)</text>
+  <text x="48" y="3444" font-size="8" fill="#444">SDLActivity.java (2120 L)</text>
+  <text x="326" y="3444" font-size="8" fill="#444">SDLControllerManager.java (856 L)</text>
+  <text x="604" y="3444" font-size="8" fill="#444">HIDDeviceManager.java (698 L)</text>
+  <text x="48" y="3458" font-size="8" fill="#444">HIDDeviceBLESteamController.java (650...</text>
+  <text x="326" y="3458" font-size="8" fill="#444">SDLAudioManager.java (514 L)</text>
+  <text x="604" y="3458" font-size="8" fill="#444">SDLSurface.java (405 L)</text>
+  <text x="48" y="3472" font-size="8" fill="#444">HIDDeviceUSB.java (309 L)</text>
+  <text x="326" y="3472" font-size="8" fill="#444">SDL.java (90 L)</text>
+  <text x="604" y="3472" font-size="8" fill="#444">HIDDevice.java (22 L)</text>
+  <rect x="32" y="3502" width="856" height="218" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="3520" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/platform/  (37 archivos · 4,703 L)</text>
+  <text x="48" y="3532" font-size="8" fill="#444">sdl_platform.cpp (755 L)</text>
+  <text x="326" y="3532" font-size="8" fill="#444">simrail_platform.cpp (654 L)</text>
+  <text x="604" y="3532" font-size="8" fill="#444">platform_util.h (620 L)</text>
+  <text x="48" y="3546" font-size="8" fill="#444">console_tools.cpp (212 L)</text>
+  <text x="326" y="3546" font-size="8" fill="#444">bus_socket_server.cpp (198 L)</text>
+  <text x="604" y="3546" font-size="8" fill="#444">console_platform.cpp (192 L)</text>
+  <text x="48" y="3560" font-size="8" fill="#444">simrail_platform.h (185 L)</text>
+  <text x="326" y="3560" font-size="8" fill="#444">bus_socket_impl.cpp (183 L)</text>
+  <text x="604" y="3560" font-size="8" fill="#444">sdl_platform.h (175 L)</text>
+  <text x="48" y="3574" font-size="8" fill="#444">platform.h (162 L)</text>
+  <text x="326" y="3574" font-size="8" fill="#444">tcp_socket.cpp (161 L)</text>
+  <text x="604" y="3574" font-size="8" fill="#444">ares_dns.h (136 L)</text>
+  <text x="48" y="3588" font-size="8" fill="#444">bus_tcp_bridge.cpp (130 L)</text>
+  <text x="326" y="3588" font-size="8" fill="#444">tcp_listener.cpp (106 L)</text>
+  <text x="604" y="3588" font-size="8" fill="#444">local_bus_socket.cpp (83 L)</text>
+  <text x="48" y="3602" font-size="8" fill="#444">orts_bridge.cpp (74 L)</text>
+  <text x="326" y="3602" font-size="8" fill="#444">console_platform.h (67 L)</text>
+  <text x="604" y="3602" font-size="8" fill="#444">console_fd_poller.cpp (61 L)</text>
+  <text x="48" y="3616" font-size="8" fill="#444">bus_tcp_bridge.h (57 L)</text>
+  <text x="326" y="3616" font-size="8" fill="#444">bus_socket_impl.h (54 L)</text>
+  <text x="604" y="3616" font-size="8" fill="#444">local_bus_socket.h (53 L)</text>
+  <text x="48" y="3630" font-size="8" fill="#444">bus_socket_server.h (41 L)</text>
+  <text x="326" y="3630" font-size="8" fill="#444">tcp_socket.h (41 L)</text>
+  <text x="604" y="3630" font-size="8" fill="#444">orts_bridge.h (32 L)</text>
+  <text x="48" y="3644" font-size="8" fill="#444">dns.h (30 L)</text>
+  <text x="326" y="3644" font-size="8" fill="#444">fstream_file_impl.cpp (30 L)</text>
+  <text x="604" y="3644" font-size="8" fill="#444">tcp_listener.h (30 L)</text>
+  <text x="48" y="3658" font-size="8" fill="#444">platform_runtime.cpp (26 L)</text>
+  <text x="326" y="3658" font-size="8" fill="#444">local_bus_container.cpp (24 L)</text>
+  <text x="604" y="3658" font-size="8" fill="#444">local_bus_container.h (22 L)</text>
+  <text x="48" y="3672" font-size="8" fill="#444">libc_time_impl.cpp (21 L)</text>
+  <text x="326" y="3672" font-size="8" fill="#444">platform_runtime.h (19 L)</text>
+  <text x="604" y="3672" font-size="8" fill="#444">console_fd_poller.h (17 L)</text>
+  <text x="48" y="3686" font-size="8" fill="#444">fstream_file_impl.h (16 L)</text>
+  <text x="326" y="3686" font-size="8" fill="#444">libc_time_impl.h (15 L)</text>
+  <text x="604" y="3686" font-size="8" fill="#444">console_tools.h (12 L)</text>
+  <text x="48" y="3700" font-size="8" fill="#444">platform.cpp (9 L)</text>
+  <rect x="32" y="3730" width="856" height="118" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="3748" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/backend/core/  (14 archivos · 3,510 L)</text>
+  <text x="56" y="3760" font-size="8" fill="#2b6cb0">← desde: Dastsc-V3/backend, Dastsc-V3/backend/tests, (raíz)</text>
+  <text x="48" y="3772" font-size="8" fill="#444">station_distance.py (576 L)  [mid_leg...</text>
+  <text x="326" y="3772" font-size="8" fill="#444">notch_capture.py (411 L)  [_percent_n...</text>
+  <text x="604" y="3772" font-size="8" fill="#444">ocr_hud.py (358 L)  [_setup_tesseract...</text>
+  <text x="48" y="3786" font-size="8" fill="#444">profile_checklist.py (344 L)  [_item…]</text>
+  <text x="326" y="3786" font-size="8" fill="#444">profile_draft.py (310 L)  [pick_mappi...</text>
+  <text x="604" y="3786" font-size="8" fill="#444">profile_auto.py (282 L)  [_deep_merge...</text>
+  <text x="48" y="3800" font-size="8" fill="#444">session_log.py (276 L)  [_merge_sessi...</text>
+  <text x="326" y="3800" font-size="8" fill="#444">command_bus.py (184 L)  [_clamp…]</text>
+  <text x="604" y="3800" font-size="8" fill="#444">profiles.py (168 L)  [_profile_id_fro...</text>
+  <text x="48" y="3814" font-size="8" fill="#444">raildriver.py (154 L)  [ControllerInf...</text>
+  <text x="326" y="3814" font-size="8" fill="#444">brake_log.py (152 L)  [speed_band_fro...</text>
+  <text x="604" y="3814" font-size="8" fill="#444">profile_completeness.py (130 L)  [_to...</text>
+  <text x="48" y="3828" font-size="8" fill="#444">cab_inference.py (123 L)  [CabInferen...</text>
+  <text x="326" y="3828" font-size="8" fill="#444">parser.py (42 L)  [_coerce_value…]</text>
+  <rect x="32" y="3858" width="856" height="162" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="3876" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Supervision/  (27 archivos · 3,123 L)</text>
+  <text x="48" y="3888" font-size="8" fill="#444">supervision.cpp (628 L)</text>
+  <text x="326" y="3888" font-size="8" fill="#444">targets.cpp (378 L)</text>
+  <text x="604" y="3888" font-size="8" fill="#444">conversion_model.cpp (375 L)</text>
+  <text x="48" y="3902" font-size="8" fill="#444">speed_profile.cpp (347 L)</text>
+  <text x="326" y="3902" font-size="8" fill="#444">national_values.cpp (249 L)</text>
+  <text x="604" y="3902" font-size="8" fill="#444">train_data.cpp (127 L)</text>
+  <text x="48" y="3916" font-size="8" fill="#444">speed_profile.h (113 L)</text>
+  <text x="326" y="3916" font-size="8" fill="#444">curve_calc.cpp (108 L)</text>
+  <text x="604" y="3916" font-size="8" fill="#444">targets.h (98 L)</text>
+  <text x="48" y="3930" font-size="8" fill="#444">sb_feedback.cpp (89 L)</text>
+  <text x="326" y="3930" font-size="8" fill="#444">national_values.h (82 L)</text>
+  <text x="604" y="3930" font-size="8" fill="#444">train_data.h (79 L)</text>
+  <text x="48" y="3944" font-size="8" fill="#444">common.h (58 L)</text>
+  <text x="326" y="3944" font-size="8" fill="#444">track_pbd.h (56 L)</text>
+  <text x="604" y="3944" font-size="8" fill="#444">fixed_values.cpp (48 L)</text>
+  <text x="48" y="3958" font-size="8" fill="#444">fixed_values.h (47 L)</text>
+  <text x="326" y="3958" font-size="8" fill="#444">conversion_model.h (38 L)</text>
+  <text x="604" y="3958" font-size="8" fill="#444">supervision.h (37 L)</text>
+  <text x="48" y="3972" font-size="8" fill="#444">acceleration.h (32 L)</text>
+  <text x="326" y="3972" font-size="8" fill="#444">emergency_stop.cpp (31 L)</text>
+  <text x="604" y="3972" font-size="8" fill="#444">acceleration.cpp (26 L)</text>
+  <text x="48" y="3986" font-size="8" fill="#444">emergency_stop.h (16 L)</text>
+  <text x="326" y="3986" font-size="8" fill="#444">supervision_targets.h (14 L)</text>
+  <text x="604" y="3986" font-size="8" fill="#444">curve_calc.h (12 L)</text>
+  <text x="48" y="4000" font-size="8" fill="#444">locomotive_data.cpp (12 L)</text>
+  <text x="326" y="4000" font-size="8" fill="#444">locomotive_data.h (12 L)</text>
+  <text x="604" y="4000" font-size="8" fill="#444">sb_feedback.h (11 L)</text>
+  <rect x="32" y="4030" width="856" height="78" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="4048" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/  (7 archivos · 3,008 L)</text>
+  <text x="48" y="4060" font-size="8" fill="#444">package-lock.json (2658 L)</text>
+  <text x="326" y="4060" font-size="8" fill="#444">PLAN_ARQUITECTURA_STD.md (174 L)</text>
+  <text x="604" y="4060" font-size="8" fill="#444">ROADMAP_EJECUCION_V3.md (76 L)</text>
+  <text x="48" y="4074" font-size="8" fill="#444">package.json (34 L)</text>
+  <text x="326" y="4074" font-size="8" fill="#444">tsconfig.json (33 L)</text>
+  <text x="604" y="4074" font-size="8" fill="#444">vite.config.ts (21 L)</text>
+  <text x="48" y="4088" font-size="8" fill="#444">tsconfig.node.json (12 L)</text>
+  <rect x="32" y="4118" width="856" height="118" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="4136" font-size="11" font-weight="700" fill="#2d3748">nexus-agent/src/brake/  (15 archivos · 2,641 L)</text>
+  <text x="56" y="4148" font-size="8" fill="#2b6cb0">← desde: nexus-agent/src</text>
+  <text x="48" y="4160" font-size="8" fill="#444">planBrake.ts (918 L)</text>
+  <text x="326" y="4160" font-size="8" fill="#444">planBrake.test.ts (479 L)</text>
+  <text x="604" y="4160" font-size="8" fill="#444">stationBrake.test.ts (289 L)</text>
+  <text x="48" y="4174" font-size="8" fill="#444">planBrake.golden.test.ts (242 L)</text>
+  <text x="326" y="4174" font-size="8" fill="#444">types.ts (123 L)</text>
+  <text x="604" y="4174" font-size="8" fill="#444">agentConfig.ts (107 L)</text>
+  <text x="48" y="4188" font-size="8" fill="#444">signalBrake.test.ts (83 L)</text>
+  <text x="326" y="4188" font-size="8" fill="#444">brakeLearning.ts (82 L)</text>
+  <text x="604" y="4188" font-size="8" fill="#444">schedule.ts (82 L)</text>
+  <text x="48" y="4202" font-size="8" fill="#444">physics.ts (77 L)</text>
+  <text x="326" y="4202" font-size="8" fill="#444">brakeLearning.test.ts (60 L)</text>
+  <text x="604" y="4202" font-size="8" fill="#444">brakeStats.ts (37 L)</text>
+  <text x="48" y="4216" font-size="8" fill="#444">brakeStats.test.ts (33 L)</text>
+  <text x="326" y="4216" font-size="8" fill="#444">agentConfig.test.ts (25 L)</text>
+  <text x="604" y="4216" font-size="8" fill="#444">signalUtils.ts (4 L)</text>
+  <rect x="32" y="4246" width="856" height="246" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="4264" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/window/  (43 archivos · 2,542 L)</text>
+  <text x="48" y="4276" font-size="8" fill="#444">data_entry.cpp (334 L)</text>
+  <text x="326" y="4276" font-size="8" fill="#444">keyboard.cpp (271 L)</text>
+  <text x="604" y="4276" font-size="8" fill="#444">input_data.cpp (147 L)</text>
+  <text x="48" y="4290" font-size="8" fill="#444">window.cpp (113 L)</text>
+  <text x="326" y="4290" font-size="8" fill="#444">menu.cpp (109 L)</text>
+  <text x="604" y="4290" font-size="8" fill="#444">window_main.cpp (107 L)</text>
+  <text x="48" y="4304" font-size="8" fill="#444">data_validation.h (103 L)</text>
+  <text x="326" y="4304" font-size="8" fill="#444">nav_buttons.cpp (93 L)</text>
+  <text x="604" y="4304" font-size="8" fill="#444">menu_main.cpp (82 L)</text>
+  <text x="48" y="4318" font-size="8" fill="#444">data_view.h (76 L)</text>
+  <text x="326" y="4318" font-size="8" fill="#444">input_data.h (75 L)</text>
+  <text x="604" y="4318" font-size="8" fill="#444">subwindow.cpp (71 L)</text>
+  <text x="48" y="4332" font-size="8" fill="#444">brightness.cpp (61 L)</text>
+  <text x="326" y="4332" font-size="8" fill="#444">volume.cpp (61 L)</text>
+  <text x="604" y="4332" font-size="8" fill="#444">window.h (57 L)</text>
+  <text x="48" y="4346" font-size="8" fill="#444">menu_radio.cpp (51 L)</text>
+  <text x="326" y="4346" font-size="8" fill="#444">menu_settings.cpp (47 L)</text>
+  <text x="604" y="4346" font-size="8" fill="#444">menu_spec.cpp (47 L)</text>
+  <text x="48" y="4360" font-size="8" fill="#444">fixed_train_data.cpp (46 L)</text>
+  <text x="326" y="4360" font-size="8" fill="#444">train_data.cpp (46 L)</text>
+  <text x="604" y="4360" font-size="8" fill="#444">driver_id.cpp (43 L)</text>
+  <text x="48" y="4374" font-size="8" fill="#444">data_entry.h (40 L)</text>
+  <text x="326" y="4374" font-size="8" fill="#444">menu.h (35 L)</text>
+  <text x="604" y="4374" font-size="8" fill="#444">track_ahead_free.cpp (35 L)</text>
+  <text x="48" y="4388" font-size="8" fill="#444">menu_ntc.cpp (34 L)</text>
+  <text x="326" y="4388" font-size="8" fill="#444">subwindow.h (32 L)</text>
+  <text x="604" y="4388" font-size="8" fill="#444">menu_override.cpp (23 L)</text>
+  <text x="48" y="4402" font-size="8" fill="#444">fixed_train_data.h (22 L)</text>
+  <text x="326" y="4402" font-size="8" fill="#444">train_data.h (22 L)</text>
+  <text x="604" y="4402" font-size="8" fill="#444">data_validation.cpp (21 L)</text>
+  <text x="48" y="4416" font-size="8" fill="#444">driver_id.h (21 L)</text>
+  <text x="326" y="4416" font-size="8" fill="#444">nav_buttons.h (21 L)</text>
+  <text x="604" y="4416" font-size="8" fill="#444">keyboard.h (20 L)</text>
+  <text x="48" y="4430" font-size="8" fill="#444">brightness.h (19 L)</text>
+  <text x="326" y="4430" font-size="8" fill="#444">menu_ntc.h (19 L)</text>
+  <text x="604" y="4430" font-size="8" fill="#444">volume.h (19 L)</text>
+  <text x="48" y="4444" font-size="8" fill="#444">keyboards.h (18 L)</text>
+  <text x="326" y="4444" font-size="8" fill="#444">menu_main.h (18 L)</text>
+  <text x="604" y="4444" font-size="8" fill="#444">menu_override.h (18 L)</text>
+  <text x="48" y="4458" font-size="8" fill="#444">menu_radio.h (18 L)</text>
+  <text x="326" y="4458" font-size="8" fill="#444">menu_settings.h (18 L)</text>
+  <text x="604" y="4458" font-size="8" fill="#444">menu_spec.h (18 L)</text>
+  <text x="48" y="4472" font-size="8" fill="#444">track_ahead_free.h (11 L)</text>
+  <rect x="32" y="4502" width="856" height="92" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="4520" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/DMI/  (10 archivos · 2,506 L)</text>
+  <text x="48" y="4532" font-size="8" fill="#444">windows.cpp (1657 L)</text>
+  <text x="326" y="4532" font-size="8" fill="#444">dmi.cpp (456 L)</text>
+  <text x="604" y="4532" font-size="8" fill="#444">text_messages.cpp (179 L)</text>
+  <text x="48" y="4546" font-size="8" fill="#444">text_message.h (49 L)</text>
+  <text x="326" y="4546" font-size="8" fill="#444">track_ahead_free.cpp (41 L)</text>
+  <text x="604" y="4546" font-size="8" fill="#444">acks.cpp (40 L)</text>
+  <text x="48" y="4560" font-size="8" fill="#444">windows.h (40 L)</text>
+  <text x="326" y="4560" font-size="8" fill="#444">track_ahead_free.h (17 L)</text>
+  <text x="604" y="4560" font-size="8" fill="#444">dmi.h (15 L)</text>
+  <text x="48" y="4574" font-size="8" fill="#444">acks.h (12 L)</text>
+  <rect x="32" y="4604" width="856" height="78" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="4622" font-size="11" font-weight="700" fill="#2d3748">docs/  (9 archivos · 2,462 L)</text>
+  <text x="48" y="4634" font-size="8" fill="#444">PENDIENTES_V4.md (722 L)</text>
+  <text x="326" y="4634" font-size="8" fill="#444">NEXUS_V4_ARQUITECTURA.md (444 L)</text>
+  <text x="604" y="4634" font-size="8" fill="#444">METRICAS_TELEMETRIA_V3.md (370 L)</text>
+  <text x="48" y="4648" font-size="8" fill="#444">GUIA_TECNICA_IPC.md (259 L)</text>
+  <text x="326" y="4648" font-size="8" fill="#444">COMPARATIVA_LUA_RAILDRIVER.md (207 L)</text>
+  <text x="604" y="4648" font-size="8" fill="#444">TIPOS_DE_FRENOS.md (132 L)</text>
+  <text x="48" y="4662" font-size="8" fill="#444">ESPECIFICACION_ULTRA_CORE_V4.md (120 ...</text>
+  <text x="326" y="4662" font-size="8" fill="#444">GUIA_PERFILES_V3.md (113 L)</text>
+  <text x="604" y="4662" font-size="8" fill="#444">DOCUMENTACION_PROYECTO.md (95 L)</text>
+  <rect x="32" y="4692" width="856" height="106" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="4710" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/  (13 archivos · 2,273 L)</text>
+  <text x="48" y="4722" font-size="8" fill="#444">stm_bombardier.json (511 L)</text>
+  <text x="326" y="4722" font-size="8" fill="#444">stm_ansaldo.json (392 L)</text>
+  <text x="604" y="4722" font-size="8" fill="#444">stm_hitachi.json (229 L)</text>
+  <text x="48" y="4736" font-size="8" fill="#444">stm_alstom.json (221 L)</text>
+  <text x="326" y="4736" font-size="8" fill="#444">stm_siemens.json (221 L)</text>
+  <text x="604" y="4736" font-size="8" fill="#444">stm_stadler.json (221 L)</text>
+  <text x="48" y="4750" font-size="8" fill="#444">stm_windows.json (177 L)</text>
+  <text x="326" y="4750" font-size="8" fill="#444">CMakeLists.txt (126 L)</text>
+  <text x="604" y="4750" font-size="8" fill="#444">monitor.cpp (78 L)</text>
+  <text x="48" y="4764" font-size="8" fill="#444">monitor.h (52 L)</text>
+  <text x="326" y="4764" font-size="8" fill="#444">init.cpp (33 L)</text>
+  <text x="604" y="4764" font-size="8" fill="#444">time_etcs.h (9 L)</text>
+  <text x="48" y="4778" font-size="8" fill="#444">settings.ini (3 L)</text>
+  <rect x="32" y="4808" width="856" height="540" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="4826" font-size="11" font-weight="700" fill="#2d3748">profiles/  (106 archivos · 2,078 L)</text>
+  <text x="48" y="4838" font-size="8" fill="#444">class350_expert_wcml.json (112 L)</text>
+  <text x="326" y="4838" font-size="8" fill="#444">class390_expert.json (102 L)</text>
+  <text x="604" y="4838" font-size="8" fill="#444">acelaexpressexpert.json (98 L)</text>
+  <text x="48" y="4852" font-size="8" fill="#444">class377.json (92 L)</text>
+  <text x="326" y="4852" font-size="8" fill="#444">xc_class323_expert.json (28 L)</text>
+  <text x="604" y="4852" font-size="8" fill="#444">br442_mapper_expert.json (27 L)</text>
+  <text x="48" y="4866" font-size="8" fill="#444">cc_class323_simple.json (27 L)</text>
+  <text x="326" y="4866" font-size="8" fill="#444">class450_expert_pdl.json (27 L)</text>
+  <text x="604" y="4866" font-size="8" fill="#444">br189expert.json (26 L)</text>
+  <text x="48" y="4880" font-size="8" fill="#444">f7_expert.json (19 L)</text>
+  <text x="326" y="4880" font-size="8" fill="#444">gp7_expert.json (19 L)</text>
+  <text x="604" y="4880" font-size="8" fill="#444">sw10_expert.json (19 L)</text>
+  <text x="48" y="4894" font-size="8" fill="#444">101_expert.json (17 L)</text>
+  <text x="326" y="4894" font-size="8" fill="#444">442_expert.json (17 L)</text>
+  <text x="604" y="4894" font-size="8" fill="#444">4f_expert.json (17 L)</text>
+  <text x="48" y="4908" font-size="8" fill="#444">[cml]class465 9_expert.json (17 L)</text>
+  <text x="326" y="4908" font-size="8" fill="#444">a2_expert.json (17 L)</text>
+  <text x="604" y="4908" font-size="8" fill="#444">a4_expert.json (17 L)</text>
+  <text x="48" y="4922" font-size="8" fill="#444">a4_intermediate.json (17 L)</text>
+  <text x="326" y="4922" font-size="8" fill="#444">ac4400cw_expert.json (17 L)</text>
+  <text x="604" y="4922" font-size="8" fill="#444">acs-64_mapper.json (17 L)</text>
+  <text x="48" y="4936" font-size="8" fill="#444">alp46_expert.json (17 L)</text>
+  <text x="326" y="4936" font-size="8" fill="#444">br101.json (17 L)</text>
+  <text x="604" y="4936" font-size="8" fill="#444">br266_expert.json (17 L)</text>
+  <text x="48" y="4950" font-size="8" fill="#444">br294.json (17 L)</text>
+  <text x="326" y="4950" font-size="8" fill="#444">br423_expertinput.json (17 L)</text>
+  <text x="604" y="4950" font-size="8" fill="#444">br442_mapper_expertt.json (17 L)</text>
+  <text x="48" y="4964" font-size="8" fill="#444">br648_expert.json (17 L)</text>
+  <text x="326" y="4964" font-size="8" fill="#444">cabcar_expert.json (17 L)</text>
+  <text x="604" y="4964" font-size="8" fill="#444">cl166.json (17 L)</text>
+  <text x="48" y="4978" font-size="8" fill="#444">class143loco_expert.json (17 L)</text>
+  <text x="326" y="4978" font-size="8" fill="#444">class158loco_expert.json (17 L)</text>
+  <text x="604" y="4978" font-size="8" fill="#444">class170expert.json (17 L)</text>
+  <text x="48" y="4992" font-size="8" fill="#444">class175_inputexpert.json (17 L)</text>
+  <text x="326" y="4992" font-size="8" fill="#444">class180_inputexpert.json (17 L)</text>
+  <text x="604" y="4992" font-size="8" fill="#444">class221_expert.json (17 L)</text>
+  <text x="48" y="5006" font-size="8" fill="#444">class375.json (17 L)</text>
+  <text x="326" y="5006" font-size="8" fill="#444">class378.json (17 L)</text>
+  <text x="604" y="5006" font-size="8" fill="#444">class395.json (17 L)</text>
+  <text x="48" y="5020" font-size="8" fill="#444">class456loco_expert.json (17 L)</text>
+  <text x="326" y="5020" font-size="8" fill="#444">class465_expert.json (17 L)</text>
+  <text x="604" y="5020" font-size="8" fill="#444">class66_expert.json (17 L)</text>
+  <text x="48" y="5034" font-size="8" fill="#444">class68_expert.json (17 L)</text>
+  <text x="326" y="5034" font-size="8" fill="#444">class801.json (17 L)</text>
+  <text x="604" y="5034" font-size="8" fill="#444">default_expert.json (17 L)</text>
+  <text x="48" y="5048" font-size="8" fill="#444">default_intermediate.json (17 L)</text>
+  <text x="326" y="5048" font-size="8" fill="#444">e8mapper.json (17 L)</text>
+  <text x="604" y="5048" font-size="8" fill="#444">f40ph_expert.json (17 L)</text>
+  <text x="48" y="5062" font-size="8" fill="#444">f59psloco_expert.json (17 L)</text>
+  <text x="326" y="5062" font-size="8" fill="#444">genset remapper expert.json (17 L)</text>
+  <text x="604" y="5062" font-size="8" fill="#444">german_expert.json (17 L)</text>
+  <text x="48" y="5076" font-size="8" fill="#444">gp38mapper.json (17 L)</text>
+  <text x="326" y="5076" font-size="8" fill="#444">hst.json (17 L)</text>
+  <text x="604" y="5076" font-size="8" fill="#444">hst_expert.json (17 L)</text>
+  <text x="48" y="5090" font-size="8" fill="#444">m7_mapper.json (17 L)</text>
+  <text x="326" y="5090" font-size="8" fill="#444">ma_br101.json (17 L)</text>
+  <text x="604" y="5090" font-size="8" fill="#444">mp36phdrivingcabmapper.json (17 L)</text>
+  <text x="48" y="5104" font-size="8" fill="#444">mp36phmapper.json (17 L)</text>
+  <text x="326" y="5104" font-size="8" fill="#444">p32mapper.json (17 L)</text>
+  <text x="604" y="5104" font-size="8" fill="#444">p42mapper.json (17 L)</text>
+  <text x="48" y="5118" font-size="8" fill="#444">sd70m_expert.json (17 L)</text>
+  <text x="326" y="5118" font-size="8" fill="#444">stadler_flirt3_inputmapper_suwex.json...</text>
+  <text x="604" y="5118" font-size="8" fill="#444">standard.json (17 L)</text>
+  <text x="48" y="5132" font-size="8" fill="#444">tgv_expertinput.json (17 L)</text>
+  <text x="326" y="5132" font-size="8" fill="#444">tgvr_expertinput.json (17 L)</text>
+  <text x="604" y="5132" font-size="8" fill="#444">u36bmapper.json (17 L)</text>
+  <text x="48" y="5146" font-size="8" fill="#444">u36cmapper.json (17 L)</text>
+  <text x="326" y="5146" font-size="8" fill="#444">voithgravita_expert.json (17 L)</text>
+  <text x="604" y="5146" font-size="8" fill="#444">442_stopgo.json (16 L)</text>
+  <text x="48" y="5160" font-size="8" fill="#444">a4_stopgo.json (16 L)</text>
+  <text x="326" y="5160" font-size="8" fill="#444">br442_mapper_stopgo.json (16 L)</text>
+  <text x="604" y="5160" font-size="8" fill="#444">br442_mapper_stopgoo.json (16 L)</text>
+  <text x="48" y="5174" font-size="8" fill="#444">class66_stopgo.json (16 L)</text>
+  <text x="326" y="5174" font-size="8" fill="#444">class68_stopgo.json (16 L)</text>
+  <text x="604" y="5174" font-size="8" fill="#444">default_stopgo.json (16 L)</text>
+  <text x="48" y="5188" font-size="8" fill="#444">455_expert_pdl.json (14 L)</text>
+  <text x="326" y="5188" font-size="8" fill="#444">br120_expertinput.json (14 L)</text>
+  <text x="604" y="5188" font-size="8" fill="#444">br143_inputexpert.json (14 L)</text>
+  <text x="48" y="5202" font-size="8" fill="#444">br152_inputexpert.json (14 L)</text>
+  <text x="326" y="5202" font-size="8" fill="#444">br155_expertinput.json (14 L)</text>
+  <text x="604" y="5202" font-size="8" fill="#444">br185expert.json (14 L)</text>
+  <text x="48" y="5216" font-size="8" fill="#444">br186expert.json (14 L)</text>
+  <text x="326" y="5216" font-size="8" fill="#444">br189 inputexpert.json (14 L)</text>
+  <text x="604" y="5216" font-size="8" fill="#444">br204_expert.json (14 L)</text>
+  <text x="48" y="5230" font-size="8" fill="#444">br407_expert.json (14 L)</text>
+  <text x="326" y="5230" font-size="8" fill="#444">db146expert.json (14 L)</text>
+  <text x="604" y="5230" font-size="8" fill="#444">er20_mapper.json (14 L)</text>
+  <text x="48" y="5244" font-size="8" fill="#444">es44ac_expert.json (14 L)</text>
+  <text x="326" y="5244" font-size="8" fill="#444">es44ac_expert_bnsf.json (14 L)</text>
+  <text x="604" y="5244" font-size="8" fill="#444">gp38mapperln.json (14 L)</text>
+  <text x="48" y="5258" font-size="8" fill="#444">gp40_expert.json (14 L)</text>
+  <text x="326" y="5258" font-size="8" fill="#444">ice 3m inputexpert.json (14 L)</text>
+  <text x="604" y="5258" font-size="8" fill="#444">ice2expert.json (14 L)</text>
+  <text x="48" y="5272" font-size="8" fill="#444">obb1016_expertinput.json (14 L)</text>
+  <text x="326" y="5272" font-size="8" fill="#444">obb2016_mapper.json (14 L)</text>
+  <text x="604" y="5272" font-size="8" fill="#444">sd402_expert.json (14 L)</text>
+  <text x="48" y="5286" font-size="8" fill="#444">sd40mapper.json (14 L)</text>
+  <text x="326" y="5286" font-size="8" fill="#444">sd70mapper.json (14 L)</text>
+  <text x="604" y="5286" font-size="8" fill="#444">alp46_simple.json (12 L)</text>
+  <text x="48" y="5300" font-size="8" fill="#444">br52_stopgo.json (12 L)</text>
+  <text x="326" y="5300" font-size="8" fill="#444">class350_simple_wcml.json (12 L)</text>
+  <text x="604" y="5300" font-size="8" fill="#444">class450_simple_pdl.json (12 L)</text>
+  <text x="48" y="5314" font-size="8" fill="#444">drive mode.json (12 L)</text>
+  <text x="326" y="5314" font-size="8" fill="#444">editor mode.json (12 L)</text>
+  <text x="604" y="5314" font-size="8" fill="#444">gp38mappersimple.json (12 L)</text>
+  <text x="48" y="5328" font-size="8" fill="#444">voithgravita_simple.json (12 L)</text>
+  <rect x="32" y="5358" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="5376" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/  (5 archivos · 1,990 L)</text>
+  <text x="48" y="5388" font-size="8" fill="#444">config.json (1670 L)</text>
+  <text x="326" y="5388" font-size="8" fill="#444">CMakeLists.txt (110 L)</text>
+  <text x="604" y="5388" font-size="8" fill="#444">optional.h (97 L)</text>
+  <text x="48" y="5402" font-size="8" fill="#444">evc.cpp (92 L)</text>
+  <text x="326" y="5402" font-size="8" fill="#444">evc.h (21 L)</text>
+  <rect x="32" y="5432" width="856" height="92" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="5450" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Euroradio/  (11 archivos · 1,989 L)</text>
+  <text x="48" y="5462" font-size="8" fill="#444">session.cpp (636 L)</text>
+  <text x="326" y="5462" font-size="8" fill="#444">tcp_cfm.cpp (469 L)</text>
+  <text x="604" y="5462" font-size="8" fill="#444">safe_radio_connection.cpp (221 L)</text>
+  <text x="48" y="5476" font-size="8" fill="#444">radio_connection.cpp (154 L)</text>
+  <text x="326" y="5476" font-size="8" fill="#444">radio_connection.h (98 L)</text>
+  <text x="604" y="5476" font-size="8" fill="#444">session.h (97 L)</text>
+  <text x="48" y="5490" font-size="8" fill="#444">tcp_cfm.h (75 L)</text>
+  <text x="326" y="5490" font-size="8" fill="#444">terminal.cpp (75 L)</text>
+  <text x="604" y="5490" font-size="8" fill="#444">cfm.cpp (62 L)</text>
+  <text x="48" y="5504" font-size="8" fill="#444">terminal.h (52 L)</text>
+  <text x="326" y="5504" font-size="8" fill="#444">cfm.h (50 L)</text>
+  <rect x="32" y="5534" width="856" height="118" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="5552" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/backend/tests/  (14 archivos · 1,967 L)</text>
+  <text x="56" y="5564" font-size="8" fill="#276749">→ hacia: Dastsc-V3/backend/core, Dastsc-V3/backend</text>
+  <text x="48" y="5576" font-size="8" fill="#444">test_station_distance.py (432 L)  [Te...</text>
+  <text x="326" y="5576" font-size="8" fill="#444">test_main.py (220 L)  [TestMainHelper...</text>
+  <text x="604" y="5576" font-size="8" fill="#444">test_profiles_nexus.py (191 L)  [Test...</text>
+  <text x="48" y="5590" font-size="8" fill="#444">test_brake_log.py (159 L)  [_valid_ev...</text>
+  <text x="326" y="5590" font-size="8" fill="#444">test_notch_capture.py (154 L)  [TestN...</text>
+  <text x="604" y="5590" font-size="8" fill="#444">test_ocr_hud.py (128 L)  [TestOCRHud…]</text>
+  <text x="48" y="5604" font-size="8" fill="#444">test_session_log.py (121 L)  [TestSes...</text>
+  <text x="326" y="5604" font-size="8" fill="#444">test_profile_auto.py (120 L)  [TestPr...</text>
+  <text x="604" y="5604" font-size="8" fill="#444">test_command_bus.py (112 L)  [TestCom...</text>
+  <text x="48" y="5618" font-size="8" fill="#444">test_profiles.py (101 L)  [TestProfil...</text>
+  <text x="326" y="5618" font-size="8" fill="#444">test_profile_checklist.py (94 L)  [Te...</text>
+  <text x="604" y="5618" font-size="8" fill="#444">test_profile_completeness.py (71 L)  ...</text>
+  <text x="48" y="5632" font-size="8" fill="#444">test_parser.py (64 L)  [TestParser…]</text>
+  <text x="326" y="5632" font-size="8" fill="#444">__init__.py (0 L)</text>
+  <rect x="32" y="5662" width="856" height="78" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="5680" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/src/v3/components/display/  (8 archivos · 1,895 L)</text>
+  <text x="48" y="5692" font-size="8" fill="#444">BrakingCurve.tsx (588 L)</text>
+  <text x="326" y="5692" font-size="8" fill="#444">brakingCurveUtils.ts (354 L)</text>
+  <text x="604" y="5692" font-size="8" fill="#444">trackProfileUtils.ts (268 L)</text>
+  <text x="48" y="5706" font-size="8" fill="#444">speedometerUtils.ts (215 L)</text>
+  <text x="326" y="5706" font-size="8" fill="#444">Speedometer.tsx (176 L)</text>
+  <text x="604" y="5706" font-size="8" fill="#444">ProfileSelector.tsx (156 L)</text>
+  <text x="48" y="5720" font-size="8" fill="#444">CanvasLayer.tsx (82 L)</text>
+  <text x="326" y="5720" font-size="8" fill="#444">TrackProfile.tsx (56 L)</text>
+  <rect x="32" y="5750" width="856" height="106" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="5768" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Procedures/  (15 archivos · 1,668 L)</text>
+  <text x="48" y="5780" font-size="8" fill="#444">mode_transition.cpp (571 L)</text>
+  <text x="326" y="5780" font-size="8" fill="#444">level_transition.cpp (293 L)</text>
+  <text x="604" y="5780" font-size="8" fill="#444">start.cpp (232 L)</text>
+  <text x="48" y="5794" font-size="8" fill="#444">train_trip.cpp (92 L)</text>
+  <text x="326" y="5794" font-size="8" fill="#444">override.cpp (84 L)</text>
+  <text x="604" y="5794" font-size="8" fill="#444">stored_information.cpp (79 L)</text>
+  <text x="48" y="5808" font-size="8" fill="#444">mode_transition.h (77 L)</text>
+  <text x="326" y="5808" font-size="8" fill="#444">level_transition.h (60 L)</text>
+  <text x="604" y="5808" font-size="8" fill="#444">start.h (56 L)</text>
+  <text x="48" y="5822" font-size="8" fill="#444">reversing.cpp (32 L)</text>
+  <text x="326" y="5822" font-size="8" fill="#444">reversing.h (27 L)</text>
+  <text x="604" y="5822" font-size="8" fill="#444">procedures.h (22 L)</text>
+  <text x="48" y="5836" font-size="8" fill="#444">override.h (17 L)</text>
+  <text x="326" y="5836" font-size="8" fill="#444">train_trip.h (14 L)</text>
+  <text x="604" y="5836" font-size="8" fill="#444">stored_information.h (12 L)</text>
+  <rect x="32" y="5866" width="856" height="104" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="5884" font-size="11" font-weight="700" fill="#2d3748">nexus-kernel/src/  (12 archivos · 1,546 L)</text>
+  <text x="56" y="5896" font-size="8" fill="#276749">→ hacia: nexus-kernel/src/normalizers</text>
+  <text x="48" y="5908" font-size="8" fill="#444">dataNormalizerUtils.ts (526 L)</text>
+  <text x="326" y="5908" font-size="8" fill="#444">DataNormalizer.ts (254 L)</text>
+  <text x="604" y="5908" font-size="8" fill="#444">telemetryTypes.ts (160 L)</text>
+  <text x="48" y="5922" font-size="8" fill="#444">types.ts (131 L)</text>
+  <text x="326" y="5922" font-size="8" fill="#444">telemetryHubUtils.ts (88 L)</text>
+  <text x="604" y="5922" font-size="8" fill="#444">toSnapshot.ts (79 L)</text>
+  <text x="48" y="5936" font-size="8" fill="#444">limitUtils.ts (77 L)</text>
+  <text x="326" y="5936" font-size="8" fill="#444">TelemetryHub.ts (64 L)</text>
+  <text x="604" y="5936" font-size="8" fill="#444">mock.ts (61 L)</text>
+  <text x="48" y="5950" font-size="8" fill="#444">index.ts (53 L)</text>
+  <text x="326" y="5950" font-size="8" fill="#444">safetyUtils.ts (31 L)</text>
+  <text x="604" y="5950" font-size="8" fill="#444">format.ts (22 L)</text>
+  <rect x="32" y="5980" width="856" height="104" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="5998" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V4/src/components/  (12 archivos · 1,345 L)</text>
+  <text x="56" y="6010" font-size="8" fill="#2b6cb0">← desde: Dastsc-V4/src</text>
+  <text x="48" y="6022" font-size="8" fill="#444">BrakePlanPanel.tsx (377 L)</text>
+  <text x="326" y="6022" font-size="8" fill="#444">DriveHudBar.tsx (174 L)</text>
+  <text x="604" y="6022" font-size="8" fill="#444">ProfileSelector.tsx (136 L)</text>
+  <text x="48" y="6036" font-size="8" fill="#444">ConfigView.tsx (114 L)</text>
+  <text x="326" y="6036" font-size="8" fill="#444">ProfileCompletenessPanel.tsx (96 L)</text>
+  <text x="604" y="6036" font-size="8" fill="#444">ArmActionBar.tsx (95 L)</text>
+  <text x="48" y="6050" font-size="8" fill="#444">SessionLogsPanel.tsx (85 L)</text>
+  <text x="326" y="6050" font-size="8" fill="#444">AppShell.tsx (83 L)</text>
+  <text x="604" y="6050" font-size="8" fill="#444">PolicyModeSelector.tsx (60 L)</text>
+  <text x="48" y="6064" font-size="8" fill="#444">HorizonStrip.tsx (50 L)</text>
+  <text x="326" y="6064" font-size="8" fill="#444">AgentHeadline.tsx (39 L)</text>
+  <text x="604" y="6064" font-size="8" fill="#444">MiniHud.tsx (36 L)</text>
+  <rect x="32" y="6094" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="6112" font-size="11" font-weight="700" fill="#2d3748">.project_explorer/  (3 archivos · 1,288 L)</text>
+  <text x="48" y="6124" font-size="8" fill="#444">indice_codigo.md (1197 L)</text>
+  <text x="326" y="6124" font-size="8" fill="#444">indice_codigo_Dastsc-V3_backend_Dasts...</text>
+  <text x="604" y="6124" font-size="8" fill="#444">indice_codigo_Dastsc-V3_backend_core....</text>
+  <rect x="32" y="6154" width="856" height="162" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="6172" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/graphics/  (25 archivos · 1,221 L)</text>
+  <text x="48" y="6184" font-size="8" fill="#444">component.cpp (279 L)</text>
+  <text x="326" y="6184" font-size="8" fill="#444">layout.cpp (115 L)</text>
+  <text x="604" y="6184" font-size="8" fill="#444">component.h (102 L)</text>
+  <text x="48" y="6198" font-size="8" fill="#444">display.cpp (73 L)</text>
+  <text x="326" y="6198" font-size="8" fill="#444">drawing.cpp (68 L)</text>
+  <text x="604" y="6198" font-size="8" fill="#444">color.h (66 L)</text>
+  <text x="48" y="6212" font-size="8" fill="#444">layout.h (64 L)</text>
+  <text x="326" y="6212" font-size="8" fill="#444">icon_button.cpp (43 L)</text>
+  <text x="604" y="6212" font-size="8" fill="#444">text_button.cpp (32 L)</text>
+  <text x="48" y="6226" font-size="8" fill="#444">text_button.h (30 L)</text>
+  <text x="326" y="6226" font-size="8" fill="#444">button.h (29 L)</text>
+  <text x="604" y="6226" font-size="8" fill="#444">button.cpp (28 L)</text>
+  <text x="48" y="6240" font-size="8" fill="#444">graphic.h (27 L)</text>
+  <text x="326" y="6240" font-size="8" fill="#444">radius.h (27 L)</text>
+  <text x="604" y="6240" font-size="8" fill="#444">texture.h (27 L)</text>
+  <text x="48" y="6254" font-size="8" fill="#444">icon_button.h (26 L)</text>
+  <text x="326" y="6254" font-size="8" fill="#444">line.h (25 L)</text>
+  <text x="604" y="6254" font-size="8" fill="#444">text_graphic.h (24 L)</text>
+  <text x="48" y="6268" font-size="8" fill="#444">rectangle.h (23 L)</text>
+  <text x="326" y="6268" font-size="8" fill="#444">image_graphic.h (22 L)</text>
+  <text x="604" y="6268" font-size="8" fill="#444">flash.cpp (21 L)</text>
+  <text x="48" y="6282" font-size="8" fill="#444">circle.h (20 L)</text>
+  <text x="326" y="6282" font-size="8" fill="#444">drawing.h (20 L)</text>
+  <text x="604" y="6282" font-size="8" fill="#444">display.h (17 L)</text>
+  <text x="48" y="6296" font-size="8" fill="#444">flash.h (13 L)</text>
+  <rect x="32" y="6326" width="856" height="190" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="6344" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Packets/STM/  (31 archivos · 1,199 L)</text>
+  <text x="48" y="6356" font-size="8" fill="#444">stm_variables.h (392 L)</text>
+  <text x="326" y="6356" font-size="8" fill="#444">message.cpp (81 L)</text>
+  <text x="604" y="6356" font-size="8" fill="#444">179.h (60 L)</text>
+  <text x="48" y="6370" font-size="8" fill="#444">46.h (46 L)</text>
+  <text x="326" y="6370" font-size="8" fill="#444">175.h (45 L)</text>
+  <text x="604" y="6370" font-size="8" fill="#444">183.h (44 L)</text>
+  <text x="48" y="6384" font-size="8" fill="#444">43.h (44 L)</text>
+  <text x="326" y="6384" font-size="8" fill="#444">32.h (41 L)</text>
+  <text x="604" y="6384" font-size="8" fill="#444">35.h (40 L)</text>
+  <text x="48" y="6398" font-size="8" fill="#444">180.h (39 L)</text>
+  <text x="326" y="6398" font-size="8" fill="#444">34.h (35 L)</text>
+  <text x="604" y="6398" font-size="8" fill="#444">message.h (31 L)</text>
+  <text x="48" y="6412" font-size="8" fill="#444">38.h (25 L)</text>
+  <text x="326" y="6412" font-size="8" fill="#444">5.h (22 L)</text>
+  <text x="604" y="6412" font-size="8" fill="#444">1.h (19 L)</text>
+  <text x="48" y="6426" font-size="8" fill="#444">129.h (19 L)</text>
+  <text x="326" y="6426" font-size="8" fill="#444">130.h (19 L)</text>
+  <text x="604" y="6426" font-size="8" fill="#444">14.h (17 L)</text>
+  <text x="48" y="6440" font-size="8" fill="#444">184.h (17 L)</text>
+  <text x="326" y="6440" font-size="8" fill="#444">30.h (17 L)</text>
+  <text x="604" y="6440" font-size="8" fill="#444">7.h (16 L)</text>
+  <text x="48" y="6454" font-size="8" fill="#444">128.h (15 L)</text>
+  <text x="326" y="6454" font-size="8" fill="#444">17.h (15 L)</text>
+  <text x="604" y="6454" font-size="8" fill="#444">182.h (15 L)</text>
+  <text x="48" y="6468" font-size="8" fill="#444">13.h (13 L)</text>
+  <text x="326" y="6468" font-size="8" fill="#444">15.h (13 L)</text>
+  <text x="604" y="6468" font-size="8" fill="#444">16.h (13 L)</text>
+  <text x="48" y="6482" font-size="8" fill="#444">181.h (13 L)</text>
+  <text x="326" y="6482" font-size="8" fill="#444">39.h (13 L)</text>
+  <text x="604" y="6482" font-size="8" fill="#444">18.h (10 L)</text>
+  <text x="48" y="6496" font-size="8" fill="#444">6.h (10 L)</text>
+  <rect x="32" y="6526" width="856" height="88" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="6544" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/src/v3/core/  (4 archivos · 1,087 L)</text>
+  <text x="56" y="6556" font-size="8" fill="#276749">→ hacia: Dastsc-V3/src/v3/core/normalizers</text>
+  <text x="56" y="6568" font-size="8" fill="#2b6cb0">← desde: Dastsc-V3/src</text>
+  <text x="48" y="6580" font-size="8" fill="#444">dataNormalizerUtils.ts (383 L)</text>
+  <text x="326" y="6580" font-size="8" fill="#444">TelemetryContext.tsx (382 L)</text>
+  <text x="604" y="6580" font-size="8" fill="#444">DataNormalizer.ts (243 L)</text>
+  <text x="48" y="6594" font-size="8" fill="#444">telemetryHubUtils.ts (79 L)</text>
+  <rect x="32" y="6624" width="856" height="62" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="6642" font-size="11" font-weight="700" fill="#2d3748">nexus-agent/src/command/  (2 archivos · 1,052 L)</text>
+  <text x="56" y="6654" font-size="8" fill="#2b6cb0">← desde: nexus-agent/src</text>
+  <text x="48" y="6666" font-size="8" fill="#444">commandBus.test.ts (649 L)</text>
+  <text x="326" y="6666" font-size="8" fill="#444">commandBus.ts (403 L)</text>
+  <rect x="32" y="6696" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="6714" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Position/  (6 archivos · 1,017 L)</text>
+  <text x="48" y="6726" font-size="8" fill="#444">linking.cpp (495 L)</text>
+  <text x="326" y="6726" font-size="8" fill="#444">distance.cpp (219 L)</text>
+  <text x="604" y="6726" font-size="8" fill="#444">distance.h (158 L)</text>
+  <text x="48" y="6740" font-size="8" fill="#444">geographical.cpp (56 L)</text>
+  <text x="326" y="6740" font-size="8" fill="#444">linking.h (54 L)</text>
+  <text x="604" y="6740" font-size="8" fill="#444">geographical.h (35 L)</text>
+  <rect x="32" y="6770" width="856" height="90" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="6788" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V4/src/hooks/  (8 archivos · 998 L)</text>
+  <text x="56" y="6800" font-size="8" fill="#2b6cb0">← desde: Dastsc-V4/src</text>
+  <text x="48" y="6812" font-size="8" fill="#444">useAgent.ts (382 L)</text>
+  <text x="326" y="6812" font-size="8" fill="#444">useSessionDiagnostic.ts (274 L)</text>
+  <text x="604" y="6812" font-size="8" fill="#444">useAutoCommand.ts (77 L)</text>
+  <text x="48" y="6826" font-size="8" fill="#444">useBrakeLearning.ts (73 L)</text>
+  <text x="326" y="6826" font-size="8" fill="#444">useStationDistanceDebug.ts (60 L)</text>
+  <text x="604" y="6826" font-size="8" fill="#444">useManualOcrCapture.ts (51 L)</text>
+  <text x="48" y="6840" font-size="8" fill="#444">useTrainProfile.ts (41 L)</text>
+  <text x="326" y="6840" font-size="8" fill="#444">useBrakeStats.ts (40 L)</text>
+  <rect x="32" y="6870" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="6888" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/STM/  (3 archivos · 948 L)</text>
+  <text x="48" y="6900" font-size="8" fill="#444">stm.cpp (802 L)</text>
+  <text x="326" y="6900" font-size="8" fill="#444">stm.h (125 L)</text>
+  <text x="604" y="6900" font-size="8" fill="#444">stm_state.h (21 L)</text>
+  <rect x="32" y="6930" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="6948" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V4/src/lib/  (6 archivos · 940 L)</text>
+  <text x="48" y="6960" font-size="8" fill="#444">sessionDiagnostic.ts (377 L)</text>
+  <text x="326" y="6960" font-size="8" fill="#444">brakeLearningUtils.ts (259 L)</text>
+  <text x="604" y="6960" font-size="8" fill="#444">profileCompleteness.ts (191 L)</text>
+  <text x="48" y="6974" font-size="8" fill="#444">profileBrake.ts (65 L)</text>
+  <text x="326" y="6974" font-size="8" fill="#444">agentSettings.ts (41 L)</text>
+  <text x="604" y="6974" font-size="8" fill="#444">commandTypes.ts (7 L)</text>
+  <rect x="32" y="7004" width="856" height="74" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7022" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/backend/  (2 archivos · 908 L)</text>
+  <text x="56" y="7034" font-size="8" fill="#276749">→ hacia: Dastsc-V3/backend/core</text>
+  <text x="56" y="7046" font-size="8" fill="#2b6cb0">← desde: Dastsc-V3/backend/tests</text>
+  <text x="48" y="7058" font-size="8" fill="#444">main.py (899 L)  [_telemetry_int…]</text>
+  <text x="326" y="7058" font-size="8" fill="#444">requirements.txt (9 L)</text>
+  <rect x="32" y="7088" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7106" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/platform/sdl_gfx/  (2 archivos · 883 L)</text>
+  <text x="48" y="7118" font-size="8" fill="#444">gfx_primitives.cpp (861 L)</text>
+  <text x="326" y="7118" font-size="8" fill="#444">gfx_primitives.h (22 L)</text>
+  <rect x="32" y="7148" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7166" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/include/  (1 archivos · 870 L)</text>
+  <text x="48" y="7178" font-size="8" fill="#444">moFileReader.hpp (870 L)</text>
+  <rect x="32" y="7208" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7226" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/TrackConditions/  (4 archivos · 780 L)</text>
+  <text x="48" y="7238" font-size="8" fill="#444">track_conditions.cpp (516 L)</text>
+  <text x="326" y="7238" font-size="8" fill="#444">track_condition.h (166 L)</text>
+  <text x="604" y="7238" font-size="8" fill="#444">route_suitability.cpp (84 L)</text>
+  <text x="48" y="7252" font-size="8" fill="#444">route_suitability.h (14 L)</text>
+  <rect x="32" y="7282" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7300" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/MA/  (4 archivos · 771 L)</text>
+  <text x="48" y="7312" font-size="8" fill="#444">movement_authority.cpp (442 L)</text>
+  <text x="326" y="7312" font-size="8" fill="#444">mode_profile.cpp (162 L)</text>
+  <text x="604" y="7312" font-size="8" fill="#444">movement_authority.h (131 L)</text>
+  <text x="48" y="7326" font-size="8" fill="#444">mode_profile.h (36 L)</text>
+  <rect x="32" y="7356" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7374" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/STM/  (2 archivos · 748 L)</text>
+  <text x="48" y="7386" font-size="8" fill="#444">stm_objects.cpp (548 L)</text>
+  <text x="326" y="7386" font-size="8" fill="#444">stm_objects.h (200 L)</text>
+  <rect x="32" y="7416" width="856" height="120" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7434" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/state/  (16 archivos · 683 L)</text>
+  <text x="48" y="7446" font-size="8" fill="#444">acks.cpp (229 L)</text>
+  <text x="326" y="7446" font-size="8" fill="#444">mode.cpp (81 L)</text>
+  <text x="604" y="7446" font-size="8" fill="#444">level.cpp (68 L)</text>
+  <text x="48" y="7460" font-size="8" fill="#444">conditions.cpp (55 L)</text>
+  <text x="326" y="7460" font-size="8" fill="#444">gps_pos.cpp (54 L)</text>
+  <text x="604" y="7460" font-size="8" fill="#444">radio.cpp (32 L)</text>
+  <text x="48" y="7474" font-size="8" fill="#444">brake.cpp (26 L)</text>
+  <text x="326" y="7474" font-size="8" fill="#444">time_hour.cpp (25 L)</text>
+  <text x="604" y="7474" font-size="8" fill="#444">acks.h (24 L)</text>
+  <text x="48" y="7488" font-size="8" fill="#444">override.cpp (20 L)</text>
+  <text x="326" y="7488" font-size="8" fill="#444">gps_pos.h (17 L)</text>
+  <text x="604" y="7488" font-size="8" fill="#444">time_hour.h (14 L)</text>
+  <text x="48" y="7502" font-size="8" fill="#444">level.h (13 L)</text>
+  <text x="326" y="7502" font-size="8" fill="#444">override.h (13 L)</text>
+  <text x="604" y="7502" font-size="8" fill="#444">mode.h (12 L)</text>
+  <text x="48" y="7516" font-size="8" fill="#444">info_window.h (0 L)</text>
+  <rect x="32" y="7546" width="856" height="78" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7564" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/src/v3/hooks/  (7 archivos · 673 L)</text>
+  <text x="48" y="7576" font-size="8" fill="#444">brakeLearningUtils.ts (243 L)</text>
+  <text x="326" y="7576" font-size="8" fill="#444">telemetrySmoothingUtils.ts (113 L)</text>
+  <text x="604" y="7576" font-size="8" fill="#444">useSmoothValue.ts (108 L)</text>
+  <text x="48" y="7590" font-size="8" fill="#444">useBrakeLearning.ts (85 L)</text>
+  <text x="326" y="7590" font-size="8" fill="#444">smoothValueUtils.ts (52 L)</text>
+  <text x="604" y="7590" font-size="8" fill="#444">useTelemetrySmoothing.ts (44 L)</text>
+  <text x="48" y="7604" font-size="8" fill="#444">useBrakeStats.ts (28 L)</text>
+  <rect x="32" y="7634" width="856" height="92" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7652" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/TrainSubsystems/  (11 archivos · 664 L)</text>
+  <text x="48" y="7664" font-size="8" fill="#444">train_interface.cpp (209 L)</text>
+  <text x="326" y="7664" font-size="8" fill="#444">brake.cpp (189 L)</text>
+  <text x="604" y="7664" font-size="8" fill="#444">cold_movement.cpp (63 L)</text>
+  <text x="48" y="7678" font-size="8" fill="#444">asc.cpp (40 L)</text>
+  <text x="326" y="7678" font-size="8" fill="#444">train_interface.h (39 L)</text>
+  <text x="604" y="7678" font-size="8" fill="#444">power.h (32 L)</text>
+  <text x="48" y="7692" font-size="8" fill="#444">power.cpp (29 L)</text>
+  <text x="326" y="7692" font-size="8" fill="#444">brake.h (21 L)</text>
+  <text x="604" y="7692" font-size="8" fill="#444">cold_movement.h (21 L)</text>
+  <text x="48" y="7706" font-size="8" fill="#444">subsystems.h (18 L)</text>
+  <text x="326" y="7706" font-size="8" fill="#444">asc.h (3 L)</text>
+  <rect x="32" y="7736" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7754" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/OR_interface/  (4 archivos · 554 L)</text>
+  <text x="48" y="7766" font-size="8" fill="#444">interface.cpp (470 L)</text>
+  <text x="326" y="7766" font-size="8" fill="#444">orts_server.cpp (49 L)</text>
+  <text x="604" y="7766" font-size="8" fill="#444">orts_wrapper.h (22 L)</text>
+  <text x="48" y="7780" font-size="8" fill="#444">interface.h (13 L)</text>
+  <rect x="32" y="7810" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7828" font-size="11" font-weight="700" fill="#2d3748">lua/  (1 archivos · 518 L)</text>
+  <text x="48" y="7840" font-size="8" fill="#444">Railworks_GetData_Script.lua (518 L)</text>
+  <rect x="32" y="7870" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7888" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Version/  (4 archivos · 508 L)</text>
+  <text x="48" y="7900" font-size="8" fill="#444">translate.cpp (437 L)</text>
+  <text x="326" y="7900" font-size="8" fill="#444">version.cpp (40 L)</text>
+  <text x="604" y="7900" font-size="8" fill="#444">version.h (17 L)</text>
+  <text x="48" y="7914" font-size="8" fill="#444">translate.h (14 L)</text>
+  <rect x="32" y="7944" width="856" height="76" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="7962" font-size="11" font-weight="700" fill="#2d3748">nexus-agent/src/  (4 archivos · 501 L)</text>
+  <text x="56" y="7974" font-size="8" fill="#276749">→ hacia: nexus-agent/src/brake, nexus-agent/src/command</text>
+  <text x="48" y="7986" font-size="8" fill="#444">tick.ts (331 L)</text>
+  <text x="326" y="7986" font-size="8" fill="#444">horizon.ts (88 L)</text>
+  <text x="604" y="7986" font-size="8" fill="#444">index.ts (56 L)</text>
+  <text x="48" y="8000" font-size="8" fill="#444">horizon.test.ts (26 L)</text>
+  <rect x="32" y="8030" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8048" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/speed/  (2 archivos · 494 L)</text>
+  <text x="48" y="8060" font-size="8" fill="#444">gauge.cpp (479 L)</text>
+  <text x="326" y="8060" font-size="8" fill="#444">gauge.h (15 L)</text>
+  <rect x="32" y="8090" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8108" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/TrainData/SimRail/  (6 archivos · 477 L)</text>
+  <text x="48" y="8120" font-size="8" fill="#444">E186.json (84 L)</text>
+  <text x="326" y="8120" font-size="8" fill="#444">E6ACTad.json (84 L)</text>
+  <text x="604" y="8120" font-size="8" fill="#444">ED250.json (84 L)</text>
+  <text x="48" y="8134" font-size="8" fill="#444">F160.json (84 L)</text>
+  <text x="326" y="8134" font-size="8" fill="#444">36wed.json (76 L)</text>
+  <text x="604" y="8134" font-size="8" fill="#444">pendolino.json (65 L)</text>
+  <rect x="32" y="8164" width="856" height="92" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8182" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Packets/V1/  (10 archivos · 473 L)</text>
+  <text x="48" y="8194" font-size="8" fill="#444">variables.h (67 L)</text>
+  <text x="326" y="8194" font-size="8" fill="#444">51.h (65 L)</text>
+  <text x="604" y="8194" font-size="8" fill="#444">3.h (62 L)</text>
+  <text x="48" y="8208" font-size="8" fill="#444">27.h (57 L)</text>
+  <text x="326" y="8208" font-size="8" fill="#444">203.h (55 L)</text>
+  <text x="604" y="8208" font-size="8" fill="#444">79.h (49 L)</text>
+  <text x="48" y="8222" font-size="8" fill="#444">80.h (46 L)</text>
+  <text x="326" y="8222" font-size="8" fill="#444">72.h (35 L)</text>
+  <text x="604" y="8222" font-size="8" fill="#444">39.h (21 L)</text>
+  <text x="48" y="8236" font-size="8" fill="#444">200.h (16 L)</text>
+  <rect x="32" y="8266" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8284" font-size="11" font-weight="700" fill="#2d3748">nexus-kernel/src/tests/  (4 archivos · 469 L)</text>
+  <text x="48" y="8296" font-size="8" fill="#444">normalize.test.ts (297 L)</text>
+  <text x="326" y="8296" font-size="8" fill="#444">inferActiveCab.test.ts (74 L)</text>
+  <text x="604" y="8296" font-size="8" fill="#444">limitUtils.test.ts (59 L)</text>
+  <text x="48" y="8310" font-size="8" fill="#444">safety.test.ts (39 L)</text>
+  <rect x="32" y="8340" width="856" height="76" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8358" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/src/v3/core/normalizers/  (4 archivos · 457 L)</text>
+  <text x="56" y="8370" font-size="8" fill="#2b6cb0">← desde: Dastsc-V3/src/v3/core</text>
+  <text x="48" y="8382" font-size="8" fill="#444">PhysicsNormalizer.ts (169 L)</text>
+  <text x="326" y="8382" font-size="8" fill="#444">BrakeNormalizer.ts (141 L)</text>
+  <text x="604" y="8382" font-size="8" fill="#444">SignalingNormalizer.ts (130 L)</text>
+  <text x="48" y="8396" font-size="8" fill="#444">Constants.ts (17 L)</text>
+  <rect x="32" y="8426" width="856" height="76" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8444" font-size="11" font-weight="700" fill="#2d3748">nexus-kernel/src/normalizers/  (4 archivos · 455 L)</text>
+  <text x="56" y="8456" font-size="8" fill="#2b6cb0">← desde: nexus-kernel/src</text>
+  <text x="48" y="8468" font-size="8" fill="#444">PhysicsNormalizer.ts (169 L)</text>
+  <text x="326" y="8468" font-size="8" fill="#444">BrakeNormalizer.ts (141 L)</text>
+  <text x="604" y="8468" font-size="8" fill="#444">SignalingNormalizer.ts (128 L)</text>
+  <text x="48" y="8482" font-size="8" fill="#444">Constants.ts (17 L)</text>
+  <rect x="32" y="8512" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8530" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/TrainData/Italy/  (3 archivos · 448 L)</text>
+  <text x="48" y="8542" font-size="8" fill="#444">traindata_ETR1000.json (172 L)</text>
+  <text x="326" y="8542" font-size="8" fill="#444">traindata_agv.json (138 L)</text>
+  <text x="604" y="8542" font-size="8" fill="#444">traindata_agvI.json (138 L)</text>
+  <rect x="32" y="8572" width="856" height="104" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8590" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/src/v3/components/shell/  (10 archivos · 417 L)</text>
+  <text x="56" y="8602" font-size="8" fill="#2b6cb0">← desde: Dastsc-V3/src</text>
+  <text x="48" y="8614" font-size="8" fill="#444">appUtils.ts (56 L)</text>
+  <text x="326" y="8614" font-size="8" fill="#444">SafetyIndicators.tsx (55 L)</text>
+  <text x="604" y="8614" font-size="8" fill="#444">AdaptiveTelemetryPanel.tsx (43 L)</text>
+  <text x="48" y="8628" font-size="8" fill="#444">PilotHudTab.tsx (41 L)</text>
+  <text x="326" y="8628" font-size="8" fill="#444">PilotInfoBar.tsx (40 L)</text>
+  <text x="604" y="8628" font-size="8" fill="#444">PhysicsHubPanel.tsx (39 L)</text>
+  <text x="48" y="8642" font-size="8" fill="#444">ConfigTab.tsx (37 L)</text>
+  <text x="326" y="8642" font-size="8" fill="#444">UiPrimitives.tsx (37 L)</text>
+  <text x="604" y="8642" font-size="8" fill="#444">AppHeader.tsx (36 L)</text>
+  <text x="48" y="8656" font-size="8" fill="#444">AppTabBar.tsx (33 L)</text>
+  <rect x="32" y="8686" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8704" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/tcp/  (2 archivos · 362 L)</text>
+  <text x="48" y="8716" font-size="8" fill="#444">server.cpp (348 L)</text>
+  <text x="326" y="8716" font-size="8" fill="#444">server.h (14 L)</text>
+  <rect x="32" y="8746" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8764" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/planning/  (2 archivos · 350 L)</text>
+  <text x="48" y="8776" font-size="8" fill="#444">planning.cpp (298 L)</text>
+  <text x="326" y="8776" font-size="8" fill="#444">planning.h (52 L)</text>
+  <rect x="32" y="8806" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8824" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/TrainData/DB/  (2 archivos · 348 L)</text>
+  <text x="48" y="8836" font-size="8" fill="#444">traindata_406.json (184 L)</text>
+  <text x="326" y="8836" font-size="8" fill="#444">traindata_403.json (164 L)</text>
+  <rect x="32" y="8866" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8884" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Packets/io/  (3 archivos · 341 L)</text>
+  <text x="48" y="8896" font-size="8" fill="#444">base64.cpp (286 L)</text>
+  <text x="326" y="8896" font-size="8" fill="#444">base64.h (35 L)</text>
+  <text x="604" y="8896" font-size="8" fill="#444">io.cpp (20 L)</text>
+  <rect x="32" y="8926" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="8944" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/messages/  (3 archivos · 284 L)</text>
+  <text x="48" y="8956" font-size="8" fill="#444">messages.cpp (178 L)</text>
+  <text x="326" y="8956" font-size="8" fill="#444">messages.h (67 L)</text>
+  <text x="604" y="8956" font-size="8" fill="#444">text_strings.h (39 L)</text>
+  <rect x="32" y="8986" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9004" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/control/  (2 archivos · 281 L)</text>
+  <text x="48" y="9016" font-size="8" fill="#444">control.cpp (214 L)</text>
+  <text x="326" y="9016" font-size="8" fill="#444">control.h (67 L)</text>
+  <rect x="32" y="9046" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9064" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-04-agente-frenado/  (4 archivos · 260 L)</text>
+  <text x="48" y="9076" font-size="8" fill="#444">brake-module.md (179 L)</text>
+  <text x="326" y="9076" font-size="8" fill="#444">checklist.md (38 L)</text>
+  <text x="604" y="9076" font-size="8" fill="#444">README.md (29 L)</text>
+  <text x="48" y="9090" font-size="8" fill="#444">issues.md (14 L)</text>
+  <rect x="32" y="9120" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9138" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/NationalFN/  (4 archivos · 255 L)</text>
+  <text x="48" y="9150" font-size="8" fill="#444">asfa.cpp (215 L)</text>
+  <text x="326" y="9150" font-size="8" fill="#444">nationalfn.cpp (18 L)</text>
+  <text x="604" y="9150" font-size="8" fill="#444">asfa.h (11 L)</text>
+  <text x="48" y="9164" font-size="8" fill="#444">nationalfn.h (11 L)</text>
+  <rect x="32" y="9194" width="856" height="78" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9212" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Packets/TrainToTrack/  (7 archivos · 236 L)</text>
+  <text x="48" y="9224" font-size="8" fill="#444">11.h (53 L)</text>
+  <text x="326" y="9224" font-size="8" fill="#444">1.h (52 L)</text>
+  <text x="604" y="9224" font-size="8" fill="#444">0.h (50 L)</text>
+  <text x="48" y="9238" font-size="8" fill="#444">2.h (27 L)</text>
+  <text x="326" y="9238" font-size="8" fill="#444">4.h (18 L)</text>
+  <text x="604" y="9238" font-size="8" fill="#444">5.h (18 L)</text>
+  <text x="48" y="9252" font-size="8" fill="#444">9.h (18 L)</text>
+  <rect x="32" y="9282" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9300" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/fonts/  (2 archivos · 195 L)</text>
+  <text x="48" y="9312" font-size="8" fill="#444">LiberationSans.txt (102 L)</text>
+  <text x="326" y="9312" font-size="8" fill="#444">NotoSans.txt (93 L)</text>
+  <rect x="32" y="9342" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9360" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/TrainData/France/  (1 archivos · 180 L)</text>
+  <text x="48" y="9372" font-size="8" fill="#444">traindata_tgv.json (180 L)</text>
+  <rect x="32" y="9402" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9420" font-size="11" font-weight="700" fill="#2d3748">profiles/nexus/trains/  (2 archivos · 176 L)</text>
+  <text x="48" y="9432" font-size="8" fill="#444">icet.json (94 L)</text>
+  <text x="326" y="9432" font-size="8" fill="#444">class323.json (82 L)</text>
+  <rect x="32" y="9462" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9480" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/src/v3/services/  (2 archivos · 175 L)</text>
+  <text x="48" y="9492" font-size="8" fill="#444">tailProtectionUtils.ts (136 L)</text>
+  <text x="326" y="9492" font-size="8" fill="#444">TailProtectionService.ts (39 L)</text>
+  <rect x="32" y="9522" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9540" font-size="11" font-weight="700" fill="#2d3748">nexus-kernel/src/tail/  (2 archivos · 175 L)</text>
+  <text x="48" y="9552" font-size="8" fill="#444">tailProtectionUtils.ts (136 L)</text>
+  <text x="326" y="9552" font-size="8" fill="#444">TailProtectionService.ts (39 L)</text>
+  <rect x="32" y="9582" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9600" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Config/  (2 archivos · 170 L)</text>
+  <text x="48" y="9612" font-size="8" fill="#444">config.cpp (159 L)</text>
+  <text x="326" y="9612" font-size="8" fill="#444">config.h (11 L)</text>
+  <rect x="32" y="9642" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9660" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/  (4 archivos · 151 L)</text>
+  <text x="48" y="9672" font-size="8" fill="#444">gradlew.bat (90 L)</text>
+  <text x="326" y="9672" font-size="8" fill="#444">CMakeLists.txt (56 L)</text>
+  <text x="604" y="9672" font-size="8" fill="#444">README.md (3 L)</text>
+  <text x="48" y="9686" font-size="8" fill="#444">privacy-policy.md (2 L)</text>
+  <rect x="32" y="9716" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9734" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/.github/workflows/  (1 archivos · 148 L)</text>
+  <text x="48" y="9746" font-size="8" fill="#444">ci.yml (148 L)</text>
+  <rect x="32" y="9776" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9794" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/app/src/main/java/com/etcs/dmi/  (2 archivos · 143 L)</text>
+  <text x="48" y="9806" font-size="8" fill="#444">DMI.java (125 L)</text>
+  <text x="326" y="9806" font-size="8" fill="#444">EVC.java (18 L)</text>
+  <rect x="32" y="9836" width="856" height="62" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9854" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V4/src/  (3 archivos · 128 L)</text>
+  <text x="56" y="9866" font-size="8" fill="#276749">→ hacia: Dastsc-V4/src/components, Dastsc-V4/src/hooks</text>
+  <text x="48" y="9878" font-size="8" fill="#444">App.tsx (117 L)</text>
+  <text x="326" y="9878" font-size="8" fill="#444">main.tsx (10 L)</text>
+  <text x="604" y="9878" font-size="8" fill="#444">vite-env.d.ts (1 L)</text>
+  <rect x="32" y="9908" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9926" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/sound/  (2 archivos · 125 L)</text>
+  <text x="48" y="9938" font-size="8" fill="#444">sound.cpp (93 L)</text>
+  <text x="326" y="9938" font-size="8" fill="#444">sound.h (32 L)</text>
+  <rect x="32" y="9968" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="9986" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/distance/  (2 archivos · 119 L)</text>
+  <text x="48" y="9998" font-size="8" fill="#444">distance.cpp (106 L)</text>
+  <text x="326" y="9998" font-size="8" fill="#444">distance.h (13 L)</text>
+  <rect x="32" y="10028" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10046" font-size="11" font-weight="700" fill="#2d3748">profiles/nexus/genres/  (3 archivos · 117 L)</text>
+  <text x="48" y="10058" font-size="8" fill="#444">passenger.json (59 L)</text>
+  <text x="326" y="10058" font-size="8" fill="#444">high_speed_express.json (33 L)</text>
+  <text x="604" y="10058" font-size="8" fill="#444">regional_commuter.json (25 L)</text>
+  <rect x="32" y="10088" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10106" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/LX/  (2 archivos · 110 L)</text>
+  <text x="48" y="10118" font-size="8" fill="#444">level_crossing.cpp (68 L)</text>
+  <text x="326" y="10118" font-size="8" fill="#444">level_crossing.h (42 L)</text>
+  <rect x="32" y="10148" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10166" font-size="11" font-weight="700" fill="#2d3748">docs/debug/  (1 archivos · 107 L)</text>
+  <text x="48" y="10178" font-size="8" fill="#444">README.md (107 L)</text>
+  <rect x="32" y="10208" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10226" font-size="11" font-weight="700" fill="#2d3748">docs/ETCS/  (1 archivos · 107 L)</text>
+  <text x="48" y="10238" font-size="8" fill="#444">INVESTIGACION_ETCS.md (107 L)</text>
+  <rect x="32" y="10268" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10286" font-size="11" font-weight="700" fill="#2d3748">docs/debug/_plantillas/  (3 archivos · 96 L)</text>
+  <text x="48" y="10298" font-size="8" fill="#444">sesion.md (40 L)</text>
+  <text x="326" y="10298" font-size="8" fill="#444">issue.md (35 L)</text>
+  <text x="604" y="10298" font-size="8" fill="#444">checklist-semana.md (21 L)</text>
+  <rect x="32" y="10328" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10346" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/softkeys/  (2 archivos · 93 L)</text>
+  <text x="48" y="10358" font-size="8" fill="#444">softkey.h (48 L)</text>
+  <text x="326" y="10358" font-size="8" fill="#444">softkey.cpp (45 L)</text>
+  <rect x="32" y="10388" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10406" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/SSP/  (2 archivos · 88 L)</text>
+  <text x="48" y="10418" font-size="8" fill="#444">ssp.h (48 L)</text>
+  <text x="326" y="10418" font-size="8" fill="#444">ssp.cpp (40 L)</text>
+  <rect x="32" y="10448" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10466" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-05-agente-estacion/  (3 archivos · 80 L)</text>
+  <text x="48" y="10478" font-size="8" fill="#444">checklist.md (42 L)</text>
+  <text x="326" y="10478" font-size="8" fill="#444">README.md (33 L)</text>
+  <text x="604" y="10478" font-size="8" fill="#444">issues.md (5 L)</text>
+  <rect x="32" y="10508" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10526" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V4/  (4 archivos · 76 L)</text>
+  <text x="48" y="10538" font-size="8" fill="#444">package.json (27 L)</text>
+  <text x="326" y="10538" font-size="8" fill="#444">tsconfig.json (18 L)</text>
+  <text x="604" y="10538" font-size="8" fill="#444">vite.config.ts (18 L)</text>
+  <text x="48" y="10552" font-size="8" fill="#444">tsconfig.node.json (13 L)</text>
+  <rect x="32" y="10582" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10600" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/utils/  (2 archivos · 74 L)</text>
+  <text x="48" y="10612" font-size="8" fill="#444">build_etcs.sh (71 L)</text>
+  <text x="326" y="10612" font-size="8" fill="#444">ETCS.bat (3 L)</text>
+  <rect x="32" y="10642" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10660" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/language/  (2 archivos · 70 L)</text>
+  <text x="48" y="10672" font-size="8" fill="#444">language.cpp (55 L)</text>
+  <text x="326" y="10672" font-size="8" fill="#444">language.h (15 L)</text>
+  <rect x="32" y="10702" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10720" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/app/src/main/  (1 archivos · 69 L)</text>
+  <text x="48" y="10732" font-size="8" fill="#444">AndroidManifest.xml (69 L)</text>
+  <rect x="32" y="10762" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10780" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/language/  (2 archivos · 66 L)</text>
+  <text x="48" y="10792" font-size="8" fill="#444">language.cpp (52 L)</text>
+  <text x="326" y="10792" font-size="8" fill="#444">language.h (14 L)</text>
+  <rect x="32" y="10822" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10840" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Packets/TrainToTrack/V1/  (2 archivos · 66 L)</text>
+  <text x="48" y="10852" font-size="8" fill="#444">11.h (39 L)</text>
+  <text x="326" y="10852" font-size="8" fill="#444">3.h (27 L)</text>
+  <rect x="32" y="10882" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10900" font-size="11" font-weight="700" fill="#2d3748">.vs/Dastsc.slnx/v18/  (2 archivos · 63 L)</text>
+  <text x="48" y="10912" font-size="8" fill="#444">DocumentLayout.backup.json (40 L)</text>
+  <text x="326" y="10912" font-size="8" fill="#444">DocumentLayout.json (23 L)</text>
+  <rect x="32" y="10942" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="10960" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/DMI/Config/  (2 archivos · 59 L)</text>
+  <text x="48" y="10972" font-size="8" fill="#444">config.cpp (48 L)</text>
+  <text x="326" y="10972" font-size="8" fill="#444">config.h (11 L)</text>
+  <rect x="32" y="11002" width="856" height="62" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11020" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/src/  (3 archivos · 56 L)</text>
+  <text x="56" y="11032" font-size="8" fill="#276749">→ hacia: Dastsc-V3/src/v3/components/shell, Dastsc-V3/src/v3/bootstrap, Dastsc-V3/src/v3/core</text>
+  <text x="48" y="11044" font-size="8" fill="#444">App.tsx (51 L)</text>
+  <text x="326" y="11044" font-size="8" fill="#444">main.tsx (4 L)</text>
+  <text x="604" y="11044" font-size="8" fill="#444">vite-env.d.ts (1 L)</text>
+  <rect x="32" y="11074" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11092" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-02-telemetria-kernel/sesiones/  (1 archivos · 55 L)</text>
+  <text x="48" y="11104" font-size="8" fill="#444">2026-08-09.md (55 L)</text>
+  <rect x="32" y="11134" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11152" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-01-lua-ipc/  (3 archivos · 51 L)</text>
+  <text x="48" y="11164" font-size="8" fill="#444">checklist.md (24 L)</text>
+  <text x="326" y="11164" font-size="8" fill="#444">README.md (17 L)</text>
+  <text x="604" y="11164" font-size="8" fill="#444">issues.md (10 L)</text>
+  <rect x="32" y="11194" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11212" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-01-lua-ipc/sesiones/  (1 archivos · 51 L)</text>
+  <text x="48" y="11224" font-size="8" fill="#444">2026-08-08.md (51 L)</text>
+  <rect x="32" y="11254" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11272" font-size="11" font-weight="700" fill="#2d3748">profiles/nexus/  (1 archivos · 46 L)</text>
+  <text x="48" y="11284" font-size="8" fill="#444">generic.json (46 L)</text>
+  <rect x="32" y="11314" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11332" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-02-telemetria-kernel/  (3 archivos · 44 L)</text>
+  <text x="48" y="11344" font-size="8" fill="#444">README.md (22 L)</text>
+  <text x="326" y="11344" font-size="8" fill="#444">checklist.md (21 L)</text>
+  <text x="604" y="11344" font-size="8" fill="#444">issues.md (1 L)</text>
+  <rect x="32" y="11374" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11392" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/EVC/Time/  (2 archivos · 43 L)</text>
+  <text x="48" y="11404" font-size="8" fill="#444">clock.cpp (25 L)</text>
+  <text x="326" y="11404" font-size="8" fill="#444">clock.h (18 L)</text>
+  <rect x="32" y="11434" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11452" font-size="11" font-weight="700" fill="#2d3748">nexus-agent/  (3 archivos · 43 L)</text>
+  <text x="48" y="11464" font-size="8" fill="#444">package.json (22 L)</text>
+  <text x="326" y="11464" font-size="8" fill="#444">tsconfig.json (14 L)</text>
+  <text x="604" y="11464" font-size="8" fill="#444">vitest.config.ts (7 L)</text>
+  <rect x="32" y="11494" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11512" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-08-class323/  (3 archivos · 42 L)</text>
+  <text x="48" y="11524" font-size="8" fill="#444">checklist.md (32 L)</text>
+  <text x="326" y="11524" font-size="8" fill="#444">README.md (9 L)</text>
+  <text x="604" y="11524" font-size="8" fill="#444">issues.md (1 L)</text>
+  <rect x="32" y="11554" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11572" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-09-generico-nuevos/  (3 archivos · 40 L)</text>
+  <text x="48" y="11584" font-size="8" fill="#444">README.md (21 L)</text>
+  <text x="326" y="11584" font-size="8" fill="#444">checklist.md (18 L)</text>
+  <text x="604" y="11584" font-size="8" fill="#444">issues.md (1 L)</text>
+  <rect x="32" y="11614" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11632" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-03-backend-comandos/  (3 archivos · 38 L)</text>
+  <text x="48" y="11644" font-size="8" fill="#444">checklist.md (23 L)</text>
+  <text x="326" y="11644" font-size="8" fill="#444">README.md (14 L)</text>
+  <text x="604" y="11644" font-size="8" fill="#444">issues.md (1 L)</text>
+  <rect x="32" y="11674" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11692" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-06-auto-v4/  (3 archivos · 38 L)</text>
+  <text x="48" y="11704" font-size="8" fill="#444">checklist.md (19 L)</text>
+  <text x="326" y="11704" font-size="8" fill="#444">README.md (18 L)</text>
+  <text x="604" y="11704" font-size="8" fill="#444">issues.md (1 L)</text>
+  <rect x="32" y="11734" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11752" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-07-icet/  (3 archivos · 38 L)</text>
+  <text x="48" y="11764" font-size="8" fill="#444">checklist.md (23 L)</text>
+  <text x="326" y="11764" font-size="8" fill="#444">README.md (14 L)</text>
+  <text x="604" y="11764" font-size="8" fill="#444">issues.md (1 L)</text>
+  <rect x="32" y="11794" width="856" height="62" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11812" font-size="11" font-weight="700" fill="#2d3748">Dastsc-V3/src/v3/bootstrap/  (3 archivos · 35 L)</text>
+  <text x="56" y="11824" font-size="8" fill="#2b6cb0">← desde: Dastsc-V3/src</text>
+  <text x="48" y="11836" font-size="8" fill="#444">mountApp.tsx (15 L)</text>
+  <text x="326" y="11836" font-size="8" fill="#444">AppProviders.tsx (11 L)</text>
+  <text x="604" y="11836" font-size="8" fill="#444">appMountUtils.ts (9 L)</text>
+  <rect x="32" y="11866" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11884" font-size="11" font-weight="700" fill="#2d3748">nexus-kernel/  (2 archivos · 31 L)</text>
+  <text x="48" y="11896" font-size="8" fill="#444">package.json (18 L)</text>
+  <text x="326" y="11896" font-size="8" fill="#444">tsconfig.json (13 L)</text>
+  <rect x="32" y="11926" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="11944" font-size="11" font-weight="700" fill="#2d3748">docs/debug/semana-10-aceleracion-futuro/  (3 archivos · 23 L)</text>
+  <text x="48" y="11956" font-size="8" fill="#444">README.md (17 L)</text>
+  <text x="326" y="11956" font-size="8" fill="#444">checklist.md (5 L)</text>
+  <text x="604" y="11956" font-size="8" fill="#444">issues.md (1 L)</text>
+  <rect x="32" y="11986" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="12004" font-size="11" font-weight="700" fill="#2d3748">.vs/  (2 archivos · 18 L)</text>
+  <text x="48" y="12016" font-size="8" fill="#444">VSWorkspaceState.json (15 L)</text>
+  <text x="326" y="12016" font-size="8" fill="#444">ProjectSettings.json (3 L)</text>
+  <rect x="32" y="12046" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="12064" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/app/src/main/res/values/  (3 archivos · 17 L)</text>
+  <text x="48" y="12076" font-size="8" fill="#444">styles.xml (8 L)</text>
+  <text x="326" y="12076" font-size="8" fill="#444">colors.xml (6 L)</text>
+  <text x="604" y="12076" font-size="8" fill="#444">strings.xml (3 L)</text>
+  <rect x="32" y="12106" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="12124" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/locales/  (2 archivos · 14 L)</text>
+  <text x="48" y="12136" font-size="8" fill="#444">compile_locales.bat (7 L)</text>
+  <text x="326" y="12136" font-size="8" fill="#444">compile_locales.sh (7 L)</text>
+  <rect x="32" y="12166" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="12184" font-size="11" font-weight="700" fill="#2d3748">scripts/debug/  (1 archivos · 13 L)</text>
+  <text x="48" y="12196" font-size="8" fill="#444">pre-vuelo-tests.bat (13 L)</text>
+  <rect x="32" y="12226" width="856" height="64" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="12244" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/app/src/main/assets/  (5 archivos · 7 L)</text>
+  <text x="48" y="12256" font-size="8" fill="#444">settings.ini (7 L)</text>
+  <text x="326" y="12256" font-size="8" fill="#444">config.json (0 L)</text>
+  <text x="604" y="12256" font-size="8" fill="#444">stm_bombardier.json (0 L)</text>
+  <text x="48" y="12270" font-size="8" fill="#444">stm_siemens.json (0 L)</text>
+  <text x="326" y="12270" font-size="8" fill="#444">stm_windows.json (0 L)</text>
+  <rect x="32" y="12300" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="12318" font-size="11" font-weight="700" fill="#2d3748">ETCS-master/config/  (1 archivos · 6 L)</text>
+  <text x="48" y="12330" font-size="8" fill="#444">settings.ini (6 L)</text>
+  <rect x="32" y="12360" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="12378" font-size="11" font-weight="700" fill="#2d3748">logs/nexus-v4/  (2 archivos · 2 L)</text>
+  <text x="48" y="12390" font-size="8" fill="#444">session_2026-08-17_02-52-08.json (1 L)</text>
+  <text x="326" y="12390" font-size="8" fill="#444">session_2026-08-17_02-54-49.json (1 L)</text>
+  <text x="40" y="12444" font-size="9" fill="#999">.project_explorer/mapa_completo.svg</text>
+</svg>

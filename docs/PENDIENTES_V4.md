@@ -14,6 +14,10 @@ cadena de límites UK, captura perfiles Expert, auditoría duplicación Python/T
 
 Actualizar este archivo al cerrar ítems (marcar `[x]` y fecha).
 
+**Decisión 2026-09-08:** retirar **V3 PILOT** (`Dastsc-V3/src`, puerto 5173). Mantener backend
+`Dastsc-V3/backend/`, V4, agente y perfiles. Ver [DOCUMENTACION_PROYECTO.md](./DOCUMENTACION_PROYECTO.md)
+§ V3 PILOT retirado.
+
 ---
 
 ## P0 — Diagnóstico y observabilidad
@@ -29,7 +33,9 @@ Actualizar este archivo al cerrar ítems (marcar `[x]` y fecha).
 **Causa raíz (depuración 2026-08-16):**
 
 1. Backend abre sesión `backend_telemetry` antes que V4; `POST /session/start` creaba otra sesión o
+
    pisaba eventos si compartían el mismo segundo.
+
 2. `updateMeta` no promocionaba `source` → `v4_session` (meta quedaba en `backend_telemetry`).
 3. El hook reiniciaba sesión (`end`) al cambiar perfil/modo (deps del efecto de arranque).
 
@@ -40,7 +46,9 @@ Actualizar este archivo al cerrar ítems (marcar `[x]` y fecha).
 - [x] `start()` mismo segundo — no vacía eventos existentes.
 - [x] `useSessionDiagnostic` — una sesión por conexión WS; reintento `bindWebSocket` cada 1 s.
 - [x] `updateMeta` / flush — incluye `source: v4_session` + `console.warn` en fallos.
-- [x] **`SESSION_EVENTS` por WebSocket** — flush de ticks por el mismo WS que telemetría (2026-08-16).
+- [x] **`SESSION_EVENTS` por WebSocket** — flush de ticks por el mismo WS que telemetría
+
+  (2026-08-16).
 
 **Validación OK (`session_2026-08-16_23-12-34.json`, ~13 min Acela AUTO):**
 
@@ -48,7 +56,9 @@ Actualizar este archivo al cerrar ítems (marcar `[x]` y fecha).
 - [x] **2976** eventos V4: `tick_change` 2209, `tick` 767, `connection` 4
 - [x] Solo **3** `backend_tick` (silenciado tras V4 activo)
 - [x] `agent.headline`, `agent.horizon`, `limits.upcoming` presentes en ticks
-- [ ] **Tamaño:** 8.3 MB / **334k líneas** — JSON `indent=2` + ~3 eventos/s; ver compactación **P2.7**
+- [ ] **Tamaño:** 8.3 MB / **334k líneas** — JSON `indent=2` + ~3 eventos/s; ver compactación
+
+##### P2.7
 
 **Histórico (sesiones anteriores):**
 
@@ -90,7 +100,28 @@ no se pueden revisar post-mortem.
 
 ---
 
-## P1 — Frenado AUTO y mapas UK
+### P0.3 AUTO en backend — flujo directo (sin V4 en el loop)
+
+**Problema:** en AUTO el bucle crítico pasa por el navegador (WS ×2 + React). Si V4 no está
+abierto o la pestaña está inactiva, no hay mando. Ver [FLUJO_DIRECTO_V4.md](./FLUJO_DIRECTO_V4.md).
+
+**Estado (2026-08-25):**
+
+- [x] **Fase 1** — `useAutoCommand`: muescas B1–B3 inmediatas; solo NEU reintenta cada 2 s.
+- [x] **Dedup apply** — reassert 500 ms hasta `isBrakeApplied`; misma regla en `auto_loop` +
+  `autoCommandDispatch.ts` (2026-08-25).
+- [x] **Fase 2** — sidecar Node + `auto_loop.py` + WS `SET_POLICY` / `AGENT_TICK` (2026-08-25).
+- [x] V4 envía `SET_POLICY` / `SET_GRADIENT_SIGN`; backend manda AUTO si sidecar OK.
+- [x] Broadcast `AGENT_TICK`; V4 no usa `useAutoCommand` si `backendAutoActive`.
+- [ ] Validar AUTO con V4 cerrado; log `agent.headline` desde backend.
+
+**Archivos:** `Dastsc-V3/backend/core/auto_loop.py`, `core/agent_sidecar.py`,
+`nexus-agent/scripts/backend-sidecar.ts`, `nexus-agent/src/command/autoCommandDispatch.ts`, `main.py`,
+`Dastsc-V4/src/hooks/useAgent.ts`.
+
+**Criterio de éxito:** primera muesca &lt; 200 ms tras umbral del plan; AUTO estable sin pestaña V4.
+
+---
 
 ### P1.1 Validar cadena de límites en ruta real (Class 350 WCML)
 
@@ -193,10 +224,13 @@ estación; tracción plena.
    - `initial_anchor` rechazado (`rejected_platform_residual`, 48 m en andén).
    - Segundo intento sin distancia parseada.
    - En ruta hay **dos pasos por** (~1 mi y ~5 mi) antes de BWI — el HUD no tiene un solo destino
+
      claro al arrancar.
+
    - Ancla válida solo tras **`manual_anchor`** (36 242 m → BWI).
 
 2. **Primera parada (BWI):** frenado razonable (1.er freno ~20 494 m @ 125 mph; residual **~25 m**),
+
    pero `near_correction` aceptó **dist=0** con OCR corrupto (`y 4 4sé`) → odómetro salta a 0 m
    en parada (ruido HUD). **En juego no provocó frenada extra** (ver análisis abajo).
 
@@ -209,7 +243,9 @@ estación; tracción plena.
 - Acela WB: paso 1 ~**1 milla**, paso 2 ~**5 millas**, destino real BWI ~22 mi.
 - Auto-anclar en el primer OCR ≥ 400 m fijaría el objetivo equivocado (peor que sin ancla).
 - El botón **«Anclar OCR»** (`manual_anchor`) es el flujo previsto para cabeceras, waypoints y
+
   **mercancías** (más frecuente que en pasajeros).
+
 - Mejora futura opcional (P3): perfil de ruta con estaciones a ignorar — no heurística OCR.
 
 #### Análisis: `near_correction` dist=0 — no es detector de parada
@@ -233,11 +269,15 @@ Spikes al alza en andén sí se rechazan (`test_rejects_platform_near_correction
 **Acción:**
 
 - [ ] Tras salida de andén: reintentar `initial_anchor` cuando OCR ≥ 400 m (reduce manual en casos
+
   fáciles; **no** sustituye manual en pasos por).
+
 - [x] Documentar pasos por → `manual_anchor` (2026-08-17).
 - [x] Documentar `near_correction` dist=0: agente protege, backend acepta por diseño (2026-08-17).
 - [ ] ~~Guard `near_correction` dist=0~~ — **diferido**: mejora cosmética de log/HUD; no afecta AUTO
+
   hoy. Reabrir solo si dist=0 en marcha confunde salida de andén.
+
 - [ ] Validar con log V4 (P0.1) que el agente ve la misma distancia que `backend_tick` (P2.6).
 
 **Archivos:** `station_distance.py`, `ocr_hud.py`, `main.py`, `planBrake.ts`, `commandBus.ts`.
@@ -255,13 +295,13 @@ frenar; ~13 s por encima del límite hasta ~100,8 MPH.
 
 **Cronología (UTC log):**
 
-| Hora     | Vel   | Límite eff | Agente / mando                                      |
-| -------- | ----- | ---------- | --------------------------------------------------- |
-| 22:31:27 | 122,9 | 125        | Plan hacia cadena **110→100** (dist objetivo ~2,6 km) |
-| 22:31:55 | 117,4 | 125        | UI «20% — aplicar ahora» — **sin mando AUTO aún**   |
-| 22:32:04 | 116,3 | 125        | **`VirtualBrake 0.8`** (80%) — objetivo 100 @ 649 m |
-| 22:32:17 | 104,6 | **100**    | **`VirtualBrake 0` OFF** — «objetivo alcanzado»      |
-| 22:32:17–30 | 104→100 | 100    | Headline «Reducir a **125** MPH» — **sin plan**      |
+| Hora     | Vel     | Límite eff | Agente / mando                                        |
+| -------- | ------- | ---------- | ----------------------------------------------------- |
+| 22:31:27 | 122,9   | 125        | Plan hacia cadena **110→100** (dist objetivo ~2,6 km) |
+| 22:31:55 | 117,4   | 125        | UI «20% — aplicar ahora» — **sin mando AUTO aún**     |
+| 22:32:04 | 116,3   | 125        | **`VirtualBrake 0.8`** (80%) — objetivo 100 @ 649 m   |
+| 22:32:17 | 104,6   | **100**    | **`VirtualBrake 0` OFF** — «objetivo alcanzado»       |
+| 22:32:17 | 104→100 | 100        | Headline «Reducir a **125** MPH» — **sin plan**       |
 
 **Causa raíz (código):**
 
@@ -279,12 +319,12 @@ frenar; ~13 s por encima del límite hasta ~100,8 MPH.
 
 **Validación post-fix** (`session_2026-08-17_00-39-13.json`, ~35 min, Washington → Baltimore):
 
-| Métrica                         | Log pre-fix `00-23-21` | Log post-fix `00-39-13` |
-| ------------------------------- | ---------------------- | ----------------------- |
-| Velocidad al entrar en zona 100 | **104,6 mph**          | **99,7 mph**            |
-| Máx. en zona 100 (15 ticks)     | 104,6 mph              | 99,7 mph (0 ticks >101) |
-| OFF con eff≈100 y spd>100       | Sí (22:32:17)          | **No** (0 casos)        |
-| Frenada previa                  | 80% @ 649 m            | 20% @ 1019 m → 80% @ 337 m |
+| Métrica                         | Log pre-fix `00-23-21` | Log post-fix `00-39-13`             |
+| ------------------------------- | ---------------------- | ----------------------------------- |
+| Velocidad al entrar en zona 100 | **104,6 mph**          | **99,7 mph**                        |
+| Máx. en zona 100 (15 ticks)     | 104,6 mph              | 99,7 mph (0 ticks >101)             |
+| OFF con eff≈100 y spd>100       | Sí (22:32:17)          | **No** (0 casos)                    |
+| Frenada previa                  | 80% @ 649 m            | 20% @ 1019 m → 80% @ 337 m          |
 | OFF antes del cartel 100        | —                      | 22:48:12 @ 101,9 mph (zona 110, OK) |
 
 Sesión larga adicional: cadena 110→100 OK, parada BWI (`near_correction` 370 m), Baltimore Penn;
@@ -401,32 +441,25 @@ payload con `brakePlan` completo repetido.
 
 ---
 
-### P2.4 Deprecar fork V3 `DataNormalizer`
+### P2.4 Deprecar fork V3 `DataNormalizer` — **cerrado (PILOT retirado 2026-09-08)**
 
 **Problema:** `Dastsc-V3/src/v3/core/DataNormalizer*` ~85–94% duplicado vs `nexus-kernel`.
 
-**Acción:**
+**Resolución:** V3 PILOT abandonado; V4 consume `@nexus/kernel` exclusivamente. No migrar el fork.
 
-- [ ] Inventario: qué importa V3 PILOT aún del normalizer local.
-- [ ] V3 PILOT → consumir `@nexus/kernel` (o re-export temporal).
-- [ ] Eliminar copia cuando tests V3 sigan verdes.
-- [ ] Actualizar mapa §10 en `NEXUS_V4_ARQUITECTURA.md`.
-
-**Riesgo:** medio — hacer en rama dedicada, no mezclar con fixes AUTO.
+- [x] N/A — frontend V3 no se mantiene.
+- [ ] Opcional futuro: borrar `Dastsc-V3/src/` del repo tras periodo de gracia.
 
 ---
 
-### P2.5 Alinear `buildServicePhases` (V3 UI vs agente)
+### P2.5 Alinear `buildServicePhases` (V3 UI vs agente) — **cerrado (PILOT retirado 2026-09-08)**
 
-**Problema:** lógica similar en `brakingCurveUtils.ts` (V3) y `planBrake.ts` (agente); cambios
-en uno no propagan al otro.
+**Problema:** `brakingCurveUtils.ts` (V3) vs `planBrake.ts` (agente) divergían (sin bandas H/M/B).
 
-**Acción:**
+**Resolución:** única fuente de verdad = `nexus-agent/planBrake.ts` + `BrakePlanPanel` V4.
 
-- [ ] Extraer fases compartidas a `nexus-agent` y exportar para V3 PILOT, **o**
-- [ ] Documentar V3 PILOT como solo comparación visual (no fuente de verdad).
-
-**Prioridad dentro de P2:** después de P2.4.
+- [x] Documentado en [DOCUMENTACION_PROYECTO.md](./DOCUMENTACION_PROYECTO.md) § V3 PILOT retirado.
+- [ ] Opcional futuro: eliminar `brakingCurveUtils.ts` con el resto de `Dastsc-V3/src/`.
 
 ---
 
@@ -448,8 +481,13 @@ en uno no propagan al otro.
 
 - [x] `resolveStationDistance()` — passthrough si `StationDistanceSource` es `ocr_tracker` o `lua`.
 - [x] Tests en `nexus-kernel/src/tests/normalize.test.ts`.
-- [ ] Validar en log V4: `station.source` coherente con backend y sin deriva extra vs `backend_tick`.
-- [x] Documentar passthrough estación en `NEXUS_V4_ARQUITECTURA.md` §4.1 (`station.source`) (2026-08-17).
+- [ ] Validar en log V4: `station.source` coherente con backend y sin deriva extra vs
+
+  `backend_tick`.
+
+- [x] Documentar passthrough estación en `NEXUS_V4_ARQUITECTURA.md` §4.1 (`station.source`)
+
+  (2026-08-17).
 
 **Archivos:** `nexus-kernel/src/dataNormalizerUtils.ts`, `DataNormalizer.ts`.
 
@@ -512,8 +550,11 @@ no el dinámico.
 
 - AUTO solo manda `VirtualBrake` — **correcto**; no hace falta controlar `DynamicBrake`.
 - **GetData ya exporta** `TractiveEffort`, `BC`, `BP`, `MR`, `ER` en cada línea — el pipeline
+
   Nexus los parsea (`BrakingEffort`, cilindro, etc.).
+
 - En Acela los valores llegan **en 0** porque Lua busca **nombres de control distintos** a los
+
   que usa el PowerCar:
 
 | Campo GetData | Control que lee Lua hoy | Control real Acela (dump) |
@@ -537,23 +578,33 @@ Con tren **parado**, el valor puede ser bajo (p. ej. −28 kN con ~40 % freno) �
 
 **Para qué serviría `Effort` (feedback, no planificar mezcla dinámico/aire):**
 
-| Uso | Prioridad |
-| --- | --------- |
-| Confirmar respuesta tras mando AUTO (`\|Effort\|` sube tras `VirtualBrake`) | Alta |
-| No soltar OFF si `\|Effort\|` sigue alto aunque la velocidad baje | Media |
-| Decel real ≈ `\|Effort\| / masa` (complemento a `brakeStats`) | Media (futuro) |
-| Planificar % dinámico vs aire por velocidad | **No** — lo hace el sim |
+| Uso | Prioridad | | |
+| --- | --- | --- | --- |
+| Confirmar respuesta tras mando AUTO (`\ | Effort\ | ` sube tras `VirtualBrake`) | Alta |
+| No soltar OFF si `\ | Effort\ | ` sigue alto aunque la velocidad baje | Media |
+| Decel real ≈ `\ | Effort\ | / masa` (complemento a `brakeStats`) | Media (futuro) |
+| Planificar % dinámico vs aire por velocidad | **No** — lo hace el sim | | |
 
 **Acción:**
 
 - [x] Lua (`Railworks_GetData_Script.lua`): alias `Effort`, `TrainBrakeCylinderPressurePSI`,
+
   `AirBrakePipePressurePSI`, `MainReservoirPressurePSI`, `EqReservoirPressurePSI`; campo debug
   `EffortSource` (`TractiveEffort` / `Effort` / `none`). **`NexusLuaVersion:12`**.
+
 - [ ] Validar GetData: con 40 % freno parado, `TractiveEffort ≈ −28`, `EffortSource:Effort`,
+
   `BC ≈ 63`, `BP ≈ 45` (PSI).
-- [x] Log V4 `tick_change`: `brake.effortKn`, `brake.tractiveKn`, `brake.cylinder` (muesca vs respuesta).
+
+- [x] Log V4 `tick_change`: `brake.effortKn`, `brake.tractiveKn`, `brake.cylinder` (muesca vs
+
+  respuesta).
+
 - [ ] Perfil Acela: `"effort": "TractiveEffort"` (campo parseado) + `specs.max_effort` (~160 kN).
-- [ ] Agente (opcional): guard «freno efectivo» — no OFF si `\|effortKn\| > umbral` con freno aplicado.
+- [ ] Agente (opcional): guard «freno efectivo» — no OFF si `\|effortKn\| > umbral` con freno
+
+  aplicado.
+
 - [x] ~~Log V4: incluir `effortKn`, `cylinder` en `tick_change`~~ — ver arriba.
 
 **`EffortSource`:** mantener solo en **GetData** (debug Lua: confirma qué control se leyó). No hace
@@ -610,7 +661,8 @@ acumulándose en paralelo. Conducción normal en live — capturar cada muesca e
 
 ### P3.6 Frenos neumáticos — guards BC/BP (apply / release)
 
-**Contexto (2026-08-17):** el agente planifica con **`brake_fill_time_s` fijo** + **`brakeStats`**
+##### Contexto (2026-08-17):** el agente planifica con **`brake_fill_time_s` fijo** + **`brakeStats`
+
 (learning por muesca). **No** cierra el bucle con presión de cilindro ni tubo principal.
 
 **Prioridad por tipo de tren:**
@@ -624,9 +676,13 @@ acumulándose en paralelo. Conducción normal en live — capturar cada muesca e
 **Guards propuestos (incrementales, sin simular tubo completo):**
 
 1. **Apply:** considerar freno aplicado cuando **BC > umbral** (o sube tras mando), no solo
+
    `VirtualBrake` / `position`.
+
 2. **Release:** no OFF hasta **BC ≤ release_pressure + margen** (perfil `brakes.release_pressure`,
+
    p. ej. 323 → 5 bar).
+
 3. **Coast latch:** no inhibir re-frenada si BC sigue alta aunque la velocidad baje al cartel.
 4. **Freight (futuro):** escalar `brake_fill_time_s` / margen con `ConsistType` + longitud.
 
@@ -648,9 +704,6 @@ dinámico/aire del Acela (P3.5). Esto es **cerrar el bucle palanca → presión 
 ## Orden de ejecución recomendado
 
 ```text
-P0.1 (log V4) → P1.5 (OCR Acela) → P1.6 (validado) → P1.7 (paso vía — cerrado)
-→ P0.2 → P2.6 (validar con V4) → P1.4 (masa consist) → P1.1 (cadena UK)
-→ P1.2/P1.3 → P3.5 (aliases Lua Effort/BC/BP Acela) → P3.7 (stats banda velocidad) → P3.6 (guards aire) → P2.1–P2.5
 ```
 
 **Regla:** no cerrar fase «AUTO UK fiable» hasta P0 + P1 completos con log verificable.
@@ -680,6 +733,7 @@ P0.1 (log V4) → P1.5 (OCR Acela) → P1.6 (validado) → P1.7 (paso vía — c
   P1.7 paso vía / near_correction 80 m — **no actuar**, manual OK)
 
 - Arquitectura: `docs/NEXUS_V4_ARQUITECTURA.md`
+- Flujo frenado (árbol cronológico): `docs/FLUJO_FRENOS_V4.md`
 - Cadena límites: `nexus-kernel/src/limitUtils.ts`
 - Sesiones debug: `docs/debug/README.md`
 - Dump controles cabina: `nexus-debug.py` (RailDriver — `Effort`, presiones PSI)

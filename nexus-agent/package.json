@@ -9,7 +9,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "sidecar": "tsx scripts/backend-sidecar.ts"
   },
   "dependencies": {
     "@nexus/kernel": "*"
@@ -17,6 +18,7 @@
   "devDependencies": {
     "typescript": "^5.9.3",
     "vitest": "^3.2.4",
-    "@types/node": "^25.3.3"
+    "@types/node": "^25.3.3",
+    "tsx": "^4.20.5"
   }
 }

@@ -66,6 +66,7 @@ utilizando el delimitador de tubería (`|`).
     de Python los sobreescribe con OCR+odómetro antes de enviarlo al frontend).
 
 17. `ActiveCab`: Cabina activa (1 = delantera, 2 = trasera). Referencia en UI V4; el signo de
+
     gradiente para el plan se calibra con **+ directo / − invertir** (no selector cabina).
 
 18. `TripDistance`: Distancia total recorrida en el viaje (metros). Usado por el panel de Brake
@@ -74,12 +75,12 @@ utilizando el delimitador de tubería (`|`).
 
 ## Convenciones de Signo Importantes
 
-| Campo          | Convención en Lua/GetData           | Después de DataNormalizer                                                    |
-| -------------- | ----------------------------------- | ---------------------------------------------------------------------------- |
-| `Gradient`     | Positivo = subida (estándar TS)     | `gradient` (‰ plan) + `rawGradient` (crudo); V4: override manual +/− |
-| `Acceleration` | **Positivo = frenando** (invertido) | No se usa. Se calcula `emaAccelMS2` desde delta de velocidad                 |
-| `ActiveCab`    | 1 o 2                               | Referencia UI; signo gradiente V4 = botón manual, no selector cabina       |
-| `TractiveEffort` | kN neto (− = frenar)              | Alias Lua **`Effort`** si no existe `TractiveEffort` (Acela, v12)            |
+| Campo           | Convención en Lua/GetData           | Después de DataNormalizer                                                    |
+| --------------- | ----------------------------------- | ---------------------------------------------------------------------------- |
+| `Gradient`      | Positivo = subida (estándar TS)     | `gradient` (‰ plan) + `rawGradient` (crudo); V4: override manual +/−         |
+| `Acceleration`  | **Positivo = frenando** (invertido) | No se usa. Se calcula `emaAccelMS2` desde delta de velocidad                 |
+| `ActiveCab`     | 1 o 2                               | Referencia UI; signo gradiente V4 = botón manual, no selector cabina         |
+| `TractiveEffort`| kN neto (− = frenar)                | Alias Lua **`Effort`** si no existe `TractiveEffort` (Acela, v12)            |
 
 ## Integración de Perfiles Dinámicos (Master Template V4/V3)
 

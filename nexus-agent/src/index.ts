@@ -9,6 +9,11 @@ export {
   usesSplitBrakeLayout,
 } from './command/commandBus';
 export {
+  AUTO_APPLY_RETRY_MS,
+  AUTO_RELEASE_RETRY_MS,
+  shouldDispatchAutoCommand,
+} from './command/autoCommandDispatch';
+export {
   estimateBrakeNotchForLearning,
   estimateBrakeNotchFromCombined,
   estimateBrakeNotchFromPosition,

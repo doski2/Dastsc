@@ -1,7 +1,6 @@
 # Métricas de telemetría — Nexus V3
 
-> **Nota:** V4 y el agente consumen **`nexus-kernel`** (`DataNormalizer.ts` en el paquete kernel).
-> Este documento describe el pipeline **V3 PILOT** (`Dastsc-V3/src/v3/core/DataNormalizer.ts`) y
+> **Nota:** V4 y el agente consumen **`nexus-kernel`**. V3 PILOT retirado (2026-09-08). Este documento
 > sigue siendo referencia válida para campos GetData y OCR. Contratos V4 →
 > [NEXUS_V4_ARQUITECTURA.md](./NEXUS_V4_ARQUITECTURA.md).
 
@@ -330,13 +329,13 @@ Salida de `DataNormalizer.ts` — lo que consumen los componentes React.
 
 ## 6. Convenciones importantes
 
-| Tema                | Detalle                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------- |
+| Tema                | Detalle                                                                                                                                                                                                                                                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Gradiente**       | Lua: + = subida. Kernel: `gradient` (‰) para plan; `rawGradient` = crudo GetData. **V4:** botón **+ directo / − invertir** sustituye tabla cabina UK; log solo `gradient` + `gradientPct` (% = ‰/10). Subida (+) → decel mayor → frenar más tarde; bajada (−) → al revés. Ver [NEXUS_V4_ARQUITECTURA §4.5](./NEXUS_V4_ARQUITECTURA.md). |
-| **Velocidad**       | Internamente todo en m/s; display según perfil o `SpeedoType`                                |
-| **Límite efectivo** | Al subir límite tras una señal, se mantiene el viejo hasta que la cola recorre `TrainLength` |
-| **TripDistance**    | El odómetro del HUD **no** lee el campo Lua homónimo; se acumula en `PhysicsNormalizer`      |
-| **Perfiles JSON**   | `profiles/*.json` ajustan unidades, `max_ammeter`, muescas, `brake_fill_time_s`, etc.        |
+| **Velocidad**       | Internamente todo en m/s; display según perfil o `SpeedoType`                                                                                                                                                                                                                                                                           |
+| **Límite efectivo** | Al subir límite tras una señal, se mantiene el viejo hasta que la cola recorre `TrainLength`                                                                                                                                                                                                                                            |
+| **TripDistance**    | El odómetro del HUD **no** lee el campo Lua homónimo; se acumula en `PhysicsNormalizer`                                                                                                                                                                                                                                                 |
+| **Perfiles JSON**   | `profiles/*.json` ajustan unidades, `max_ammeter`, muescas, `brake_fill_time_s`, etc.                                                                                                                                                                                                                                                   |
 
 ---
 

@@ -1,0 +1,537 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="4802" viewBox="0 0 760 4802" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="760" height="4802" fill="#fafafa"/>
+  <text x="380" y="30" text-anchor="middle" font-size="17" font-weight="700">Mapa automático del código</text>
+  <text x="380" y="48" text-anchor="middle" font-size="10" fill="#666">76 archivos de código indexados (10,806 líneas en Dastsc-V4 | docs | logs (+5 m...</text>
+  <circle cx="56" cy="86" r="15" fill="#4a5568"/>
+  <text x="56" y="91" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">01</text>
+  <rect x="88" y="64" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="80" font-size="11" font-weight="600">App.tsx</text>
+  <text x="100" y="94" font-size="9" fill="#555">Dastsc-V4/src/App.tsx</text>
+  <text x="100" y="108" font-size="8" fill="#777">117 L</text>
+  <line x1="56" y1="114" x2="56" y2="126" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="148" r="15" fill="#4a5568"/>
+  <text x="56" y="153" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">02</text>
+  <rect x="88" y="126" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="142" font-size="11" font-weight="600">AgentHeadline.tsx</text>
+  <text x="100" y="156" font-size="9" fill="#555">Dastsc-V4/src/components/AgentHeadline.tsx</text>
+  <text x="100" y="170" font-size="8" fill="#777">39 L</text>
+  <line x1="56" y1="176" x2="56" y2="188" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="210" r="15" fill="#4a5568"/>
+  <text x="56" y="215" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">03</text>
+  <rect x="88" y="188" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="204" font-size="11" font-weight="600">AppShell.tsx</text>
+  <text x="100" y="218" font-size="9" fill="#555">Dastsc-V4/src/components/AppShell.tsx</text>
+  <text x="100" y="232" font-size="8" fill="#777">83 L</text>
+  <line x1="56" y1="238" x2="56" y2="250" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="272" r="15" fill="#4a5568"/>
+  <text x="56" y="277" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">04</text>
+  <rect x="88" y="250" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="266" font-size="11" font-weight="600">ArmActionBar.tsx</text>
+  <text x="100" y="280" font-size="9" fill="#555">Dastsc-V4/src/components/ArmActionBar.tsx</text>
+  <text x="100" y="294" font-size="8" fill="#777">95 L</text>
+  <line x1="56" y1="300" x2="56" y2="312" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="334" r="15" fill="#4a5568"/>
+  <text x="56" y="339" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">05</text>
+  <rect x="88" y="312" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="328" font-size="11" font-weight="600">BrakePlanPanel.tsx</text>
+  <text x="100" y="342" font-size="9" fill="#555">Dastsc-V4/src/components/BrakePlanPanel.tsx</text>
+  <text x="100" y="356" font-size="8" fill="#777">377 L</text>
+  <line x1="56" y1="362" x2="56" y2="374" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="396" r="15" fill="#4a5568"/>
+  <text x="56" y="401" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">06</text>
+  <rect x="88" y="374" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="390" font-size="11" font-weight="600">ConfigView.tsx</text>
+  <text x="100" y="404" font-size="9" fill="#555">Dastsc-V4/src/components/ConfigView.tsx</text>
+  <text x="100" y="418" font-size="8" fill="#777">114 L</text>
+  <line x1="56" y1="424" x2="56" y2="436" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="458" r="15" fill="#4a5568"/>
+  <text x="56" y="463" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">07</text>
+  <rect x="88" y="436" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="452" font-size="11" font-weight="600">DriveHudBar.tsx</text>
+  <text x="100" y="466" font-size="9" fill="#555">Dastsc-V4/src/components/DriveHudBar.tsx</text>
+  <text x="100" y="480" font-size="8" fill="#777">174 L</text>
+  <line x1="56" y1="486" x2="56" y2="498" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="520" r="15" fill="#4a5568"/>
+  <text x="56" y="525" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">08</text>
+  <rect x="88" y="498" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="514" font-size="11" font-weight="600">HorizonStrip.tsx</text>
+  <text x="100" y="528" font-size="9" fill="#555">Dastsc-V4/src/components/HorizonStrip.tsx</text>
+  <text x="100" y="542" font-size="8" fill="#777">50 L</text>
+  <line x1="56" y1="548" x2="56" y2="560" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="582" r="15" fill="#4a5568"/>
+  <text x="56" y="587" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">09</text>
+  <rect x="88" y="560" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="576" font-size="11" font-weight="600">MiniHud.tsx</text>
+  <text x="100" y="590" font-size="9" fill="#555">Dastsc-V4/src/components/MiniHud.tsx</text>
+  <text x="100" y="604" font-size="8" fill="#777">36 L</text>
+  <line x1="56" y1="610" x2="56" y2="622" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="644" r="15" fill="#4a5568"/>
+  <text x="56" y="649" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">10</text>
+  <rect x="88" y="622" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="638" font-size="11" font-weight="600">PolicyModeSelector.tsx</text>
+  <text x="100" y="652" font-size="9" fill="#555">Dastsc-V4/src/components/PolicyModeSelector.tsx</text>
+  <text x="100" y="666" font-size="8" fill="#777">60 L</text>
+  <line x1="56" y1="672" x2="56" y2="684" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="706" r="15" fill="#4a5568"/>
+  <text x="56" y="711" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">11</text>
+  <rect x="88" y="684" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="700" font-size="11" font-weight="600">ProfileCompletenessPanel.tsx</text>
+  <text x="100" y="714" font-size="9" fill="#555">Dastsc-V4/src/components/ProfileCompletenessPanel.tsx</text>
+  <text x="100" y="728" font-size="8" fill="#777">96 L</text>
+  <line x1="56" y1="734" x2="56" y2="746" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="768" r="15" fill="#4a5568"/>
+  <text x="56" y="773" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">12</text>
+  <rect x="88" y="746" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="762" font-size="11" font-weight="600">ProfileSelector.tsx</text>
+  <text x="100" y="776" font-size="9" fill="#555">Dastsc-V4/src/components/ProfileSelector.tsx</text>
+  <text x="100" y="790" font-size="8" fill="#777">136 L</text>
+  <line x1="56" y1="796" x2="56" y2="808" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="830" r="15" fill="#4a5568"/>
+  <text x="56" y="835" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">13</text>
+  <rect x="88" y="808" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="824" font-size="11" font-weight="600">SessionLogsPanel.tsx</text>
+  <text x="100" y="838" font-size="9" fill="#555">Dastsc-V4/src/components/SessionLogsPanel.tsx</text>
+  <text x="100" y="852" font-size="8" fill="#777">85 L</text>
+  <line x1="56" y1="858" x2="56" y2="870" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="892" r="15" fill="#4a5568"/>
+  <text x="56" y="897" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">14</text>
+  <rect x="88" y="870" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="886" font-size="11" font-weight="600">useAgent.ts</text>
+  <text x="100" y="900" font-size="9" fill="#555">Dastsc-V4/src/hooks/useAgent.ts</text>
+  <text x="100" y="914" font-size="8" fill="#777">382 L</text>
+  <line x1="56" y1="920" x2="56" y2="932" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="954" r="15" fill="#4a5568"/>
+  <text x="56" y="959" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">15</text>
+  <rect x="88" y="932" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="948" font-size="11" font-weight="600">useAutoCommand.ts</text>
+  <text x="100" y="962" font-size="9" fill="#555">Dastsc-V4/src/hooks/useAutoCommand.ts</text>
+  <text x="100" y="976" font-size="8" fill="#777">77 L</text>
+  <line x1="56" y1="982" x2="56" y2="994" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1016" r="15" fill="#4a5568"/>
+  <text x="56" y="1021" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">16</text>
+  <rect x="88" y="994" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1010" font-size="11" font-weight="600">useBrakeLearning.ts</text>
+  <text x="100" y="1024" font-size="9" fill="#555">Dastsc-V4/src/hooks/useBrakeLearning.ts</text>
+  <text x="100" y="1038" font-size="8" fill="#777">73 L</text>
+  <line x1="56" y1="1044" x2="56" y2="1056" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1078" r="15" fill="#4a5568"/>
+  <text x="56" y="1083" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">17</text>
+  <rect x="88" y="1056" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1072" font-size="11" font-weight="600">useBrakeStats.ts</text>
+  <text x="100" y="1086" font-size="9" fill="#555">Dastsc-V4/src/hooks/useBrakeStats.ts</text>
+  <text x="100" y="1100" font-size="8" fill="#777">40 L</text>
+  <line x1="56" y1="1106" x2="56" y2="1118" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1140" r="15" fill="#4a5568"/>
+  <text x="56" y="1145" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">18</text>
+  <rect x="88" y="1118" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1134" font-size="11" font-weight="600">useManualOcrCapture.ts</text>
+  <text x="100" y="1148" font-size="9" fill="#555">Dastsc-V4/src/hooks/useManualOcrCapture.ts</text>
+  <text x="100" y="1162" font-size="8" fill="#777">51 L</text>
+  <line x1="56" y1="1168" x2="56" y2="1180" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1202" r="15" fill="#4a5568"/>
+  <text x="56" y="1207" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">19</text>
+  <rect x="88" y="1180" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1196" font-size="11" font-weight="600">useSessionDiagnostic.ts</text>
+  <text x="100" y="1210" font-size="9" fill="#555">Dastsc-V4/src/hooks/useSessionDiagnostic.ts</text>
+  <text x="100" y="1224" font-size="8" fill="#777">274 L</text>
+  <line x1="56" y1="1230" x2="56" y2="1242" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1264" r="15" fill="#4a5568"/>
+  <text x="56" y="1269" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">20</text>
+  <rect x="88" y="1242" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1258" font-size="11" font-weight="600">useStationDistanceDebug.ts</text>
+  <text x="100" y="1272" font-size="9" fill="#555">Dastsc-V4/src/hooks/useStationDistanceDebug.ts</text>
+  <text x="100" y="1286" font-size="8" fill="#777">60 L</text>
+  <line x1="56" y1="1292" x2="56" y2="1304" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1326" r="15" fill="#4a5568"/>
+  <text x="56" y="1331" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">21</text>
+  <rect x="88" y="1304" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1320" font-size="11" font-weight="600">useTrainProfile.ts</text>
+  <text x="100" y="1334" font-size="9" fill="#555">Dastsc-V4/src/hooks/useTrainProfile.ts</text>
+  <text x="100" y="1348" font-size="8" fill="#777">41 L</text>
+  <line x1="56" y1="1354" x2="56" y2="1366" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1388" r="15" fill="#4a5568"/>
+  <text x="56" y="1393" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">22</text>
+  <rect x="88" y="1366" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1382" font-size="11" font-weight="600">agentSettings.ts</text>
+  <text x="100" y="1396" font-size="9" fill="#555">Dastsc-V4/src/lib/agentSettings.ts</text>
+  <text x="100" y="1410" font-size="8" fill="#777">41 L</text>
+  <line x1="56" y1="1416" x2="56" y2="1428" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1450" r="15" fill="#4a5568"/>
+  <text x="56" y="1455" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">23</text>
+  <rect x="88" y="1428" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1444" font-size="11" font-weight="600">brakeLearningUtils.ts</text>
+  <text x="100" y="1458" font-size="9" fill="#555">Dastsc-V4/src/lib/brakeLearningUtils.ts</text>
+  <text x="100" y="1472" font-size="8" fill="#777">259 L</text>
+  <line x1="56" y1="1478" x2="56" y2="1490" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1512" r="15" fill="#4a5568"/>
+  <text x="56" y="1517" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">24</text>
+  <rect x="88" y="1490" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1506" font-size="11" font-weight="600">commandTypes.ts</text>
+  <text x="100" y="1520" font-size="9" fill="#555">Dastsc-V4/src/lib/commandTypes.ts</text>
+  <text x="100" y="1534" font-size="8" fill="#777">7 L</text>
+  <line x1="56" y1="1540" x2="56" y2="1552" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1574" r="15" fill="#4a5568"/>
+  <text x="56" y="1579" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">25</text>
+  <rect x="88" y="1552" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1568" font-size="11" font-weight="600">profileBrake.ts</text>
+  <text x="100" y="1582" font-size="9" fill="#555">Dastsc-V4/src/lib/profileBrake.ts</text>
+  <text x="100" y="1596" font-size="8" fill="#777">65 L</text>
+  <line x1="56" y1="1602" x2="56" y2="1614" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1636" r="15" fill="#4a5568"/>
+  <text x="56" y="1641" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">26</text>
+  <rect x="88" y="1614" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1630" font-size="11" font-weight="600">profileCompleteness.ts</text>
+  <text x="100" y="1644" font-size="9" fill="#555">Dastsc-V4/src/lib/profileCompleteness.ts</text>
+  <text x="100" y="1658" font-size="8" fill="#777">191 L</text>
+  <line x1="56" y1="1664" x2="56" y2="1676" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1698" r="15" fill="#4a5568"/>
+  <text x="56" y="1703" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">27</text>
+  <rect x="88" y="1676" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1692" font-size="11" font-weight="600">sessionDiagnostic.ts</text>
+  <text x="100" y="1706" font-size="9" fill="#555">Dastsc-V4/src/lib/sessionDiagnostic.ts</text>
+  <text x="100" y="1720" font-size="8" fill="#777">377 L</text>
+  <line x1="56" y1="1726" x2="56" y2="1738" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1760" r="15" fill="#4a5568"/>
+  <text x="56" y="1765" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">28</text>
+  <rect x="88" y="1738" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1754" font-size="11" font-weight="600">main.tsx</text>
+  <text x="100" y="1768" font-size="9" fill="#555">Dastsc-V4/src/main.tsx</text>
+  <text x="100" y="1782" font-size="8" fill="#777">10 L</text>
+  <line x1="56" y1="1788" x2="56" y2="1800" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1822" r="15" fill="#4a5568"/>
+  <text x="56" y="1827" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">29</text>
+  <rect x="88" y="1800" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1816" font-size="11" font-weight="600">vite-env.d.ts</text>
+  <text x="100" y="1830" font-size="9" fill="#555">Dastsc-V4/src/vite-env.d.ts</text>
+  <text x="100" y="1844" font-size="8" fill="#777">1 L</text>
+  <line x1="56" y1="1850" x2="56" y2="1862" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1884" r="15" fill="#4a5568"/>
+  <text x="56" y="1889" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">30</text>
+  <rect x="88" y="1862" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1878" font-size="11" font-weight="600">vite.config.ts</text>
+  <text x="100" y="1892" font-size="9" fill="#555">Dastsc-V4/vite.config.ts</text>
+  <text x="100" y="1906" font-size="8" fill="#777">18 L</text>
+  <line x1="56" y1="1912" x2="56" y2="1924" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="1946" r="15" fill="#4a5568"/>
+  <text x="56" y="1951" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">31</text>
+  <rect x="88" y="1924" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="1940" font-size="11" font-weight="600">Railworks_GetData_Script.lua</text>
+  <text x="100" y="1954" font-size="9" fill="#555">lua/Railworks_GetData_Script.lua</text>
+  <text x="100" y="1968" font-size="8" fill="#777">518 L</text>
+  <line x1="56" y1="1974" x2="56" y2="1986" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2008" r="15" fill="#c53030"/>
+  <text x="56" y="2013" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">32</text>
+  <rect x="88" y="1986" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2002" font-size="11" font-weight="600">agentConfig.test.ts</text>
+  <text x="100" y="2016" font-size="9" fill="#555">nexus-agent/src/brake/agentConfig.test.ts</text>
+  <text x="100" y="2030" font-size="8" fill="#777">25 L</text>
+  <line x1="56" y1="2036" x2="56" y2="2048" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2070" r="15" fill="#c53030"/>
+  <text x="56" y="2075" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">33</text>
+  <rect x="88" y="2048" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2064" font-size="11" font-weight="600">agentConfig.ts</text>
+  <text x="100" y="2078" font-size="9" fill="#555">nexus-agent/src/brake/agentConfig.ts</text>
+  <text x="100" y="2092" font-size="8" fill="#777">107 L</text>
+  <line x1="56" y1="2098" x2="56" y2="2110" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2132" r="15" fill="#c53030"/>
+  <text x="56" y="2137" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">34</text>
+  <rect x="88" y="2110" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2126" font-size="11" font-weight="600">brakeLearning.test.ts</text>
+  <text x="100" y="2140" font-size="9" fill="#555">nexus-agent/src/brake/brakeLearning.test.ts</text>
+  <text x="100" y="2154" font-size="8" fill="#777">60 L</text>
+  <line x1="56" y1="2160" x2="56" y2="2172" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2194" r="15" fill="#c53030"/>
+  <text x="56" y="2199" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">35</text>
+  <rect x="88" y="2172" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2188" font-size="11" font-weight="600">brakeLearning.ts</text>
+  <text x="100" y="2202" font-size="9" fill="#555">nexus-agent/src/brake/brakeLearning.ts</text>
+  <text x="100" y="2216" font-size="8" fill="#777">82 L</text>
+  <line x1="56" y1="2222" x2="56" y2="2234" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2256" r="15" fill="#c53030"/>
+  <text x="56" y="2261" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">36</text>
+  <rect x="88" y="2234" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2250" font-size="11" font-weight="600">brakeStats.test.ts</text>
+  <text x="100" y="2264" font-size="9" fill="#555">nexus-agent/src/brake/brakeStats.test.ts</text>
+  <text x="100" y="2278" font-size="8" fill="#777">33 L</text>
+  <line x1="56" y1="2284" x2="56" y2="2296" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2318" r="15" fill="#c53030"/>
+  <text x="56" y="2323" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">37</text>
+  <rect x="88" y="2296" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2312" font-size="11" font-weight="600">brakeStats.ts</text>
+  <text x="100" y="2326" font-size="9" fill="#555">nexus-agent/src/brake/brakeStats.ts</text>
+  <text x="100" y="2340" font-size="8" fill="#777">37 L</text>
+  <line x1="56" y1="2346" x2="56" y2="2358" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2380" r="15" fill="#c53030"/>
+  <text x="56" y="2385" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">38</text>
+  <rect x="88" y="2358" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2374" font-size="11" font-weight="600">physics.ts</text>
+  <text x="100" y="2388" font-size="9" fill="#555">nexus-agent/src/brake/physics.ts</text>
+  <text x="100" y="2402" font-size="8" fill="#777">77 L</text>
+  <line x1="56" y1="2408" x2="56" y2="2420" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2442" r="15" fill="#c53030"/>
+  <text x="56" y="2447" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">39</text>
+  <rect x="88" y="2420" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2436" font-size="11" font-weight="600">planBrake.golden.test.ts</text>
+  <text x="100" y="2450" font-size="9" fill="#555">nexus-agent/src/brake/planBrake.golden.test.ts</text>
+  <text x="100" y="2464" font-size="8" fill="#777">242 L</text>
+  <line x1="56" y1="2470" x2="56" y2="2482" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2504" r="15" fill="#c53030"/>
+  <text x="56" y="2509" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">40</text>
+  <rect x="88" y="2482" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2498" font-size="11" font-weight="600">planBrake.test.ts</text>
+  <text x="100" y="2512" font-size="9" fill="#555">nexus-agent/src/brake/planBrake.test.ts</text>
+  <text x="100" y="2526" font-size="8" fill="#777">479 L</text>
+  <line x1="56" y1="2532" x2="56" y2="2544" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2566" r="15" fill="#c53030"/>
+  <text x="56" y="2571" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">41</text>
+  <rect x="88" y="2544" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2560" font-size="11" font-weight="600">planBrake.ts</text>
+  <text x="100" y="2574" font-size="9" fill="#555">nexus-agent/src/brake/planBrake.ts</text>
+  <text x="100" y="2588" font-size="8" fill="#777">918 L</text>
+  <line x1="56" y1="2594" x2="56" y2="2606" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2628" r="15" fill="#c53030"/>
+  <text x="56" y="2633" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">42</text>
+  <rect x="88" y="2606" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2622" font-size="11" font-weight="600">schedule.ts</text>
+  <text x="100" y="2636" font-size="9" fill="#555">nexus-agent/src/brake/schedule.ts</text>
+  <text x="100" y="2650" font-size="8" fill="#777">82 L</text>
+  <line x1="56" y1="2656" x2="56" y2="2668" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2690" r="15" fill="#c53030"/>
+  <text x="56" y="2695" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">43</text>
+  <rect x="88" y="2668" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2684" font-size="11" font-weight="600">signalBrake.test.ts</text>
+  <text x="100" y="2698" font-size="9" fill="#555">nexus-agent/src/brake/signalBrake.test.ts</text>
+  <text x="100" y="2712" font-size="8" fill="#777">83 L</text>
+  <line x1="56" y1="2718" x2="56" y2="2730" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2752" r="15" fill="#c53030"/>
+  <text x="56" y="2757" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">44</text>
+  <rect x="88" y="2730" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2746" font-size="11" font-weight="600">signalUtils.ts</text>
+  <text x="100" y="2760" font-size="9" fill="#555">nexus-agent/src/brake/signalUtils.ts</text>
+  <text x="100" y="2774" font-size="8" fill="#777">4 L</text>
+  <line x1="56" y1="2780" x2="56" y2="2792" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2814" r="15" fill="#c53030"/>
+  <text x="56" y="2819" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">45</text>
+  <rect x="88" y="2792" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2808" font-size="11" font-weight="600">stationBrake.test.ts</text>
+  <text x="100" y="2822" font-size="9" fill="#555">nexus-agent/src/brake/stationBrake.test.ts</text>
+  <text x="100" y="2836" font-size="8" fill="#777">289 L</text>
+  <line x1="56" y1="2842" x2="56" y2="2854" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2876" r="15" fill="#c53030"/>
+  <text x="56" y="2881" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">46</text>
+  <rect x="88" y="2854" width="640" height="50" rx="6" fill="#fff" stroke="#c53030"/>
+  <text x="100" y="2870" font-size="11" font-weight="600">types.ts</text>
+  <text x="100" y="2884" font-size="9" fill="#555">nexus-agent/src/brake/types.ts</text>
+  <text x="100" y="2898" font-size="8" fill="#777">123 L</text>
+  <line x1="56" y1="2904" x2="56" y2="2916" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="2938" r="15" fill="#2b6cb0"/>
+  <text x="56" y="2943" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">47</text>
+  <rect x="88" y="2916" width="640" height="50" rx="6" fill="#fff" stroke="#2b6cb0"/>
+  <text x="100" y="2932" font-size="11" font-weight="600">commandBus.test.ts</text>
+  <text x="100" y="2946" font-size="9" fill="#555">nexus-agent/src/command/commandBus.test.ts</text>
+  <text x="100" y="2960" font-size="8" fill="#777">649 L</text>
+  <line x1="56" y1="2966" x2="56" y2="2978" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3000" r="15" fill="#2b6cb0"/>
+  <text x="56" y="3005" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">48</text>
+  <rect x="88" y="2978" width="640" height="50" rx="6" fill="#fff" stroke="#2b6cb0"/>
+  <text x="100" y="2994" font-size="11" font-weight="600">commandBus.ts</text>
+  <text x="100" y="3008" font-size="9" fill="#555">nexus-agent/src/command/commandBus.ts</text>
+  <text x="100" y="3022" font-size="8" fill="#777">403 L</text>
+  <line x1="56" y1="3028" x2="56" y2="3040" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3062" r="15" fill="#4a5568"/>
+  <text x="56" y="3067" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">49</text>
+  <rect x="88" y="3040" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3056" font-size="11" font-weight="600">horizon.test.ts</text>
+  <text x="100" y="3070" font-size="9" fill="#555">nexus-agent/src/horizon.test.ts</text>
+  <text x="100" y="3084" font-size="8" fill="#777">26 L</text>
+  <line x1="56" y1="3090" x2="56" y2="3102" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3124" r="15" fill="#4a5568"/>
+  <text x="56" y="3129" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">50</text>
+  <rect x="88" y="3102" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3118" font-size="11" font-weight="600">horizon.ts</text>
+  <text x="100" y="3132" font-size="9" fill="#555">nexus-agent/src/horizon.ts</text>
+  <text x="100" y="3146" font-size="8" fill="#777">88 L</text>
+  <line x1="56" y1="3152" x2="56" y2="3164" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3186" r="15" fill="#4a5568"/>
+  <text x="56" y="3191" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">51</text>
+  <rect x="88" y="3164" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3180" font-size="11" font-weight="600">index.ts</text>
+  <text x="100" y="3194" font-size="9" fill="#555">nexus-agent/src/index.ts</text>
+  <text x="100" y="3208" font-size="8" fill="#777">56 L</text>
+  <line x1="56" y1="3214" x2="56" y2="3226" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3248" r="15" fill="#4a5568"/>
+  <text x="56" y="3253" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">52</text>
+  <rect x="88" y="3226" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3242" font-size="11" font-weight="600">tick.ts</text>
+  <text x="100" y="3256" font-size="9" fill="#555">nexus-agent/src/tick.ts</text>
+  <text x="100" y="3270" font-size="8" fill="#777">331 L</text>
+  <line x1="56" y1="3276" x2="56" y2="3288" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3310" r="15" fill="#4a5568"/>
+  <text x="56" y="3315" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">53</text>
+  <rect x="88" y="3288" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3304" font-size="11" font-weight="600">vitest.config.ts</text>
+  <text x="100" y="3318" font-size="9" fill="#555">nexus-agent/vitest.config.ts</text>
+  <text x="100" y="3332" font-size="8" fill="#777">7 L</text>
+  <line x1="56" y1="3338" x2="56" y2="3350" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3372" r="15" fill="#4a5568"/>
+  <text x="56" y="3377" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">54</text>
+  <rect x="88" y="3350" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3366" font-size="11" font-weight="600">DataNormalizer.ts</text>
+  <text x="100" y="3380" font-size="9" fill="#555">nexus-kernel/src/DataNormalizer.ts</text>
+  <text x="100" y="3394" font-size="8" fill="#777">254 L</text>
+  <line x1="56" y1="3400" x2="56" y2="3412" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3434" r="15" fill="#4a5568"/>
+  <text x="56" y="3439" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">55</text>
+  <rect x="88" y="3412" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3428" font-size="11" font-weight="600">dataNormalizerUtils.ts</text>
+  <text x="100" y="3442" font-size="9" fill="#555">nexus-kernel/src/dataNormalizerUtils.ts</text>
+  <text x="100" y="3456" font-size="8" fill="#777">526 L</text>
+  <line x1="56" y1="3462" x2="56" y2="3474" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3496" r="15" fill="#4a5568"/>
+  <text x="56" y="3501" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">56</text>
+  <rect x="88" y="3474" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3490" font-size="11" font-weight="600">format.ts</text>
+  <text x="100" y="3504" font-size="9" fill="#555">nexus-kernel/src/format.ts</text>
+  <text x="100" y="3518" font-size="8" fill="#777">22 L</text>
+  <line x1="56" y1="3524" x2="56" y2="3536" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3558" r="15" fill="#4a5568"/>
+  <text x="56" y="3563" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">57</text>
+  <rect x="88" y="3536" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3552" font-size="11" font-weight="600">index.ts</text>
+  <text x="100" y="3566" font-size="9" fill="#555">nexus-kernel/src/index.ts</text>
+  <text x="100" y="3580" font-size="8" fill="#777">53 L</text>
+  <line x1="56" y1="3586" x2="56" y2="3598" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3620" r="15" fill="#4a5568"/>
+  <text x="56" y="3625" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">58</text>
+  <rect x="88" y="3598" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3614" font-size="11" font-weight="600">limitUtils.ts</text>
+  <text x="100" y="3628" font-size="9" fill="#555">nexus-kernel/src/limitUtils.ts</text>
+  <text x="100" y="3642" font-size="8" fill="#777">77 L</text>
+  <line x1="56" y1="3648" x2="56" y2="3660" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3682" r="15" fill="#4a5568"/>
+  <text x="56" y="3687" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">59</text>
+  <rect x="88" y="3660" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3676" font-size="11" font-weight="600">mock.ts</text>
+  <text x="100" y="3690" font-size="9" fill="#555">nexus-kernel/src/mock.ts</text>
+  <text x="100" y="3704" font-size="8" fill="#777">61 L</text>
+  <line x1="56" y1="3710" x2="56" y2="3722" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3744" r="15" fill="#4a5568"/>
+  <text x="56" y="3749" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">60</text>
+  <rect x="88" y="3722" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3738" font-size="11" font-weight="600">BrakeNormalizer.ts</text>
+  <text x="100" y="3752" font-size="9" fill="#555">nexus-kernel/src/normalizers/BrakeNormalizer.ts</text>
+  <text x="100" y="3766" font-size="8" fill="#777">141 L</text>
+  <line x1="56" y1="3772" x2="56" y2="3784" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3806" r="15" fill="#4a5568"/>
+  <text x="56" y="3811" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">61</text>
+  <rect x="88" y="3784" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3800" font-size="11" font-weight="600">Constants.ts</text>
+  <text x="100" y="3814" font-size="9" fill="#555">nexus-kernel/src/normalizers/Constants.ts</text>
+  <text x="100" y="3828" font-size="8" fill="#777">17 L</text>
+  <line x1="56" y1="3834" x2="56" y2="3846" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3868" r="15" fill="#4a5568"/>
+  <text x="56" y="3873" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">62</text>
+  <rect x="88" y="3846" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3862" font-size="11" font-weight="600">PhysicsNormalizer.ts</text>
+  <text x="100" y="3876" font-size="9" fill="#555">nexus-kernel/src/normalizers/PhysicsNormalizer.ts</text>
+  <text x="100" y="3890" font-size="8" fill="#777">169 L</text>
+  <line x1="56" y1="3896" x2="56" y2="3908" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3930" r="15" fill="#4a5568"/>
+  <text x="56" y="3935" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">63</text>
+  <rect x="88" y="3908" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3924" font-size="11" font-weight="600">SignalingNormalizer.ts</text>
+  <text x="100" y="3938" font-size="9" fill="#555">nexus-kernel/src/normalizers/SignalingNormalizer.ts</text>
+  <text x="100" y="3952" font-size="8" fill="#777">128 L</text>
+  <line x1="56" y1="3958" x2="56" y2="3970" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="3992" r="15" fill="#4a5568"/>
+  <text x="56" y="3997" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">64</text>
+  <rect x="88" y="3970" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="3986" font-size="11" font-weight="600">safetyUtils.ts</text>
+  <text x="100" y="4000" font-size="9" fill="#555">nexus-kernel/src/safetyUtils.ts</text>
+  <text x="100" y="4014" font-size="8" fill="#777">31 L</text>
+  <line x1="56" y1="4020" x2="56" y2="4032" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4054" r="15" fill="#4a5568"/>
+  <text x="56" y="4059" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">65</text>
+  <rect x="88" y="4032" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4048" font-size="11" font-weight="600">TailProtectionService.ts</text>
+  <text x="100" y="4062" font-size="9" fill="#555">nexus-kernel/src/tail/TailProtectionService.ts</text>
+  <text x="100" y="4076" font-size="8" fill="#777">39 L</text>
+  <line x1="56" y1="4082" x2="56" y2="4094" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4116" r="15" fill="#4a5568"/>
+  <text x="56" y="4121" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">66</text>
+  <rect x="88" y="4094" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4110" font-size="11" font-weight="600">tailProtectionUtils.ts</text>
+  <text x="100" y="4124" font-size="9" fill="#555">nexus-kernel/src/tail/tailProtectionUtils.ts</text>
+  <text x="100" y="4138" font-size="8" fill="#777">136 L</text>
+  <line x1="56" y1="4144" x2="56" y2="4156" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4178" r="15" fill="#4a5568"/>
+  <text x="56" y="4183" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">67</text>
+  <rect x="88" y="4156" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4172" font-size="11" font-weight="600">TelemetryHub.ts</text>
+  <text x="100" y="4186" font-size="9" fill="#555">nexus-kernel/src/TelemetryHub.ts</text>
+  <text x="100" y="4200" font-size="8" fill="#777">64 L</text>
+  <line x1="56" y1="4206" x2="56" y2="4218" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4240" r="15" fill="#4a5568"/>
+  <text x="56" y="4245" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">68</text>
+  <rect x="88" y="4218" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4234" font-size="11" font-weight="600">telemetryHubUtils.ts</text>
+  <text x="100" y="4248" font-size="9" fill="#555">nexus-kernel/src/telemetryHubUtils.ts</text>
+  <text x="100" y="4262" font-size="8" fill="#777">88 L</text>
+  <line x1="56" y1="4268" x2="56" y2="4280" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4302" r="15" fill="#4a5568"/>
+  <text x="56" y="4307" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">69</text>
+  <rect x="88" y="4280" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4296" font-size="11" font-weight="600">telemetryTypes.ts</text>
+  <text x="100" y="4310" font-size="9" fill="#555">nexus-kernel/src/telemetryTypes.ts</text>
+  <text x="100" y="4324" font-size="8" fill="#777">160 L</text>
+  <line x1="56" y1="4330" x2="56" y2="4342" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4364" r="15" fill="#4a5568"/>
+  <text x="56" y="4369" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">70</text>
+  <rect x="88" y="4342" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4358" font-size="11" font-weight="600">inferActiveCab.test.ts</text>
+  <text x="100" y="4372" font-size="9" fill="#555">nexus-kernel/src/tests/inferActiveCab.test.ts</text>
+  <text x="100" y="4386" font-size="8" fill="#777">74 L</text>
+  <line x1="56" y1="4392" x2="56" y2="4404" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4426" r="15" fill="#4a5568"/>
+  <text x="56" y="4431" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">71</text>
+  <rect x="88" y="4404" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4420" font-size="11" font-weight="600">limitUtils.test.ts</text>
+  <text x="100" y="4434" font-size="9" fill="#555">nexus-kernel/src/tests/limitUtils.test.ts</text>
+  <text x="100" y="4448" font-size="8" fill="#777">59 L</text>
+  <line x1="56" y1="4454" x2="56" y2="4466" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4488" r="15" fill="#4a5568"/>
+  <text x="56" y="4493" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">72</text>
+  <rect x="88" y="4466" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4482" font-size="11" font-weight="600">normalize.test.ts</text>
+  <text x="100" y="4496" font-size="9" fill="#555">nexus-kernel/src/tests/normalize.test.ts</text>
+  <text x="100" y="4510" font-size="8" fill="#777">297 L</text>
+  <line x1="56" y1="4516" x2="56" y2="4528" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4550" r="15" fill="#4a5568"/>
+  <text x="56" y="4555" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">73</text>
+  <rect x="88" y="4528" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4544" font-size="11" font-weight="600">safety.test.ts</text>
+  <text x="100" y="4558" font-size="9" fill="#555">nexus-kernel/src/tests/safety.test.ts</text>
+  <text x="100" y="4572" font-size="8" fill="#777">39 L</text>
+  <line x1="56" y1="4578" x2="56" y2="4590" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4612" r="15" fill="#4a5568"/>
+  <text x="56" y="4617" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">74</text>
+  <rect x="88" y="4590" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4606" font-size="11" font-weight="600">toSnapshot.ts</text>
+  <text x="100" y="4620" font-size="9" fill="#555">nexus-kernel/src/toSnapshot.ts</text>
+  <text x="100" y="4634" font-size="8" fill="#777">79 L</text>
+  <line x1="56" y1="4640" x2="56" y2="4652" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4674" r="15" fill="#4a5568"/>
+  <text x="56" y="4679" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">75</text>
+  <rect x="88" y="4652" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4668" font-size="11" font-weight="600">types.ts</text>
+  <text x="100" y="4682" font-size="9" fill="#555">nexus-kernel/src/types.ts</text>
+  <text x="100" y="4696" font-size="8" fill="#777">131 L</text>
+  <line x1="56" y1="4702" x2="56" y2="4714" stroke="#4a5568" stroke-width="2"/>
+  <circle cx="56" cy="4736" r="15" fill="#4a5568"/>
+  <text x="56" y="4741" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">76</text>
+  <rect x="88" y="4714" width="640" height="50" rx="6" fill="#fff" stroke="#4a5568"/>
+  <text x="100" y="4730" font-size="11" font-weight="600">pre-vuelo-tests.bat</text>
+  <text x="100" y="4744" font-size="9" fill="#555">scripts/debug/pre-vuelo-tests.bat</text>
+  <text x="100" y="4758" font-size="8" fill="#777">13 L</text>
+</svg>

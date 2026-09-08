@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="1292" viewBox="0 0 920 1292" font-family="Segoe UI, Arial, sans-serif">
+  <rect width="920" height="1292" fill="#fafafa"/>
+  <text x="460" y="36" text-anchor="middle" font-size="22" font-weight="700">Dastsc - mapa completo [Dastsc-V3/backend/core | Dastsc-V3/backend]</text>
+  <text x="460" y="58" text-anchor="middle" font-size="11" fill="#666">Exploración automática de archivos y líneas — alcance: Dastsc-V3/backend/core | Dastsc-V3/backend</text>
+  <text x="40" y="78" font-size="10" font-weight="700">Entradas: Dastsc-V3/backend/main.py</text>
+  <text x="460" y="120" text-anchor="middle" font-size="14" font-weight="700" fill="#c53030">Carpetas principales</text>
+  <text x="460" y="136" text-anchor="middle" font-size="10" fill="#666">Resumen por carpeta de primer nivel del repositorio.</text>
+  <rect x="32" y="150" width="856" height="152" rx="10" fill="#f0fff4" stroke="#276749" stroke-width="1.5"/>
+  <text x="48" y="170" font-size="11" font-weight="700" fill="#276749">Bucle principal (2 pasos)</text>
+  <rect x="48" y="182" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="198" font-size="10" font-weight="700" fill="#276749">(01) Dastsc-V3/backend/</text>
+  <text x="56" y="212" font-size="9" fill="#444">main.py</text>
+  <text x="56" y="226" font-size="8" fill="#666">17 archivos · 8,742 L</text>
+  <rect x="468" y="182" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="198" font-size="10" font-weight="700" fill="#276749">(02) Dastsc-V3/backend/core/</text>
+  <text x="476" y="212" font-size="9" fill="#444">station_distance.py</text>
+  <text x="476" y="226" font-size="8" fill="#666">14 archivos · 3,510 L</text>
+  <text x="460" y="348" text-anchor="middle" font-size="14" font-weight="700" fill="#2d3748">Flujo de datos entre módulos</text>
+  <text x="460" y="364" text-anchor="middle" font-size="10" fill="#666">3 conexiones detectadas por imports (Dastsc-V3/backend/core | Dastsc-V3/backend).</text>
+  <rect x="32" y="378" width="856" height="210" rx="10" fill="#f0fff4" stroke="#276749" stroke-width="1.5"/>
+  <text x="48" y="398" font-size="11" font-weight="700" fill="#276749">Bucle principal (3 pasos)</text>
+  <rect x="48" y="410" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="426" font-size="10" font-weight="700" fill="#276749">(01) backend → core</text>
+  <text x="56" y="440" font-size="9" fill="#444">main.py</text>
+  <text x="56" y="454" font-size="8" fill="#666">9 dependencia(s) · main.py→parser.py, main.py→profi...</text>
+  <rect x="468" y="410" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="476" y="426" font-size="10" font-weight="700" fill="#276749">(02) tests → core</text>
+  <text x="476" y="440" font-size="9" fill="#444">__init__.py</text>
+  <text x="476" y="454" font-size="8" fill="#666">5 dependencia(s) · test_brake_log.py→brake_log.py, ...</text>
+  <rect x="48" y="468" width="412" height="54" rx="6" fill="#fff" stroke="#276749"/>
+  <text x="56" y="484" font-size="10" font-weight="700" fill="#276749">(03) tests → backend</text>
+  <text x="56" y="498" font-size="9" fill="#444">__init__.py</text>
+  <text x="56" y="512" font-size="8" fill="#666">1 dependencia(s) · test_main.py→main.py</text>
+  <text x="40" y="632" font-size="13" font-weight="700" fill="#2b6cb0">Índice automático del código</text>
+  <text x="40" y="648" font-size="10" fill="#666">31 archivos · 6,376 líneas en Dastsc-V3/backend/core | Dastsc-V3/backend</text>
+  <text x="40" y="676" font-size="13" font-weight="700" fill="#276749">Flujo de datos entre módulos</text>
+  <text x="40" y="692" font-size="10" fill="#666">3 conexiones detectadas por imports (flechas: origen → destino)</text>
+  <rect x="40" y="704" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="140" y="722" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">backend/</text>
+  <text x="140" y="736" text-anchor="middle" font-size="8" fill="#444">→ 1  ← 1</text>
+  <rect x="252" y="704" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="352" y="722" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">core/</text>
+  <text x="352" y="736" text-anchor="middle" font-size="8" fill="#444">→ 0  ← 2</text>
+  <rect x="464" y="704" width="200" height="42" rx="8" fill="#f0fff4" stroke="#276749"/>
+  <text x="564" y="722" text-anchor="middle" font-size="10" font-weight="700" fill="#276749">tests/</text>
+  <text x="564" y="736" text-anchor="middle" font-size="8" fill="#444">→ 2  ← 0</text>
+  <defs><marker id="arrow-data" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#4a5568"/></marker></defs>
+  <path d="M140,725 Q246,707 352,725" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="246" y="703" text-anchor="middle" font-size="7" fill="#666">9</text>
+  <path d="M564,725 Q458,707 352,725" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="458" y="703" text-anchor="middle" font-size="7" fill="#666">5</text>
+  <path d="M564,725 Q352,707 140,725" fill="none" stroke="#718096" stroke-width="1.2" marker-end="url(#arrow-data)"/>
+  <text x="352" y="703" text-anchor="middle" font-size="7" fill="#666">1</text>
+  <text x="48" y="790" font-size="9" font-weight="600" fill="#444">Detalle (origen → destino):</text>
+  <text x="56" y="804" font-size="8" fill="#555">backend/ → core/  [9] (main.py→parser.py, main.py→profiles.py)</text>
+  <text x="56" y="816" font-size="8" fill="#555">tests/ → core/  [5] (test_brake_log.py→brake_log.py, test_command_bus.py→command_bus.py)</text>
+  <text x="56" y="828" font-size="8" fill="#555">tests/ → backend/  [1] (test_main.py→main.py)</text>
+  <rect x="32" y="852" width="856" height="50" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="870" font-size="11" font-weight="700" fill="#2d3748">data/  (1 archivos · 5,867 L)</text>
+  <text x="48" y="882" font-size="8" fill="#444">brake_events.json (5867 L)</text>
+  <rect x="32" y="912" width="856" height="118" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="930" font-size="11" font-weight="700" fill="#2d3748">core/  (14 archivos · 3,510 L)</text>
+  <text x="56" y="942" font-size="8" fill="#2b6cb0">← desde: backend, tests</text>
+  <text x="48" y="954" font-size="8" fill="#444">station_distance.py (576 L)  [mid_leg...</text>
+  <text x="326" y="954" font-size="8" fill="#444">notch_capture.py (411 L)  [_percent_n...</text>
+  <text x="604" y="954" font-size="8" fill="#444">ocr_hud.py (358 L)  [_setup_tesseract...</text>
+  <text x="48" y="968" font-size="8" fill="#444">profile_checklist.py (344 L)  [_item…]</text>
+  <text x="326" y="968" font-size="8" fill="#444">profile_draft.py (310 L)  [pick_mappi...</text>
+  <text x="604" y="968" font-size="8" fill="#444">profile_auto.py (282 L)  [_deep_merge...</text>
+  <text x="48" y="982" font-size="8" fill="#444">session_log.py (276 L)  [_merge_sessi...</text>
+  <text x="326" y="982" font-size="8" fill="#444">command_bus.py (184 L)  [_clamp…]</text>
+  <text x="604" y="982" font-size="8" fill="#444">profiles.py (168 L)  [_profile_id_fro...</text>
+  <text x="48" y="996" font-size="8" fill="#444">raildriver.py (154 L)  [ControllerInf...</text>
+  <text x="326" y="996" font-size="8" fill="#444">brake_log.py (152 L)  [speed_band_fro...</text>
+  <text x="604" y="996" font-size="8" fill="#444">profile_completeness.py (130 L)  [_to...</text>
+  <text x="48" y="1010" font-size="8" fill="#444">cab_inference.py (123 L)  [CabInferen...</text>
+  <text x="326" y="1010" font-size="8" fill="#444">parser.py (42 L)  [_coerce_value…]</text>
+  <rect x="32" y="1040" width="856" height="118" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1058" font-size="11" font-weight="700" fill="#2d3748">tests/  (14 archivos · 1,967 L)</text>
+  <text x="56" y="1070" font-size="8" fill="#276749">→ hacia: core, backend</text>
+  <text x="48" y="1082" font-size="8" fill="#444">test_station_distance.py (432 L)  [Te...</text>
+  <text x="326" y="1082" font-size="8" fill="#444">test_main.py (220 L)  [TestMainHelper...</text>
+  <text x="604" y="1082" font-size="8" fill="#444">test_profiles_nexus.py (191 L)  [Test...</text>
+  <text x="48" y="1096" font-size="8" fill="#444">test_brake_log.py (159 L)  [_valid_ev...</text>
+  <text x="326" y="1096" font-size="8" fill="#444">test_notch_capture.py (154 L)  [TestN...</text>
+  <text x="604" y="1096" font-size="8" fill="#444">test_ocr_hud.py (128 L)  [TestOCRHud…]</text>
+  <text x="48" y="1110" font-size="8" fill="#444">test_session_log.py (121 L)  [TestSes...</text>
+  <text x="326" y="1110" font-size="8" fill="#444">test_profile_auto.py (120 L)  [TestPr...</text>
+  <text x="604" y="1110" font-size="8" fill="#444">test_command_bus.py (112 L)  [TestCom...</text>
+  <text x="48" y="1124" font-size="8" fill="#444">test_profiles.py (101 L)  [TestProfil...</text>
+  <text x="326" y="1124" font-size="8" fill="#444">test_profile_checklist.py (94 L)  [Te...</text>
+  <text x="604" y="1124" font-size="8" fill="#444">test_profile_completeness.py (71 L)  ...</text>
+  <text x="48" y="1138" font-size="8" fill="#444">test_parser.py (64 L)  [TestParser…]</text>
+  <text x="326" y="1138" font-size="8" fill="#444">__init__.py (0 L)</text>
+  <rect x="32" y="1168" width="856" height="74" rx="8" fill="#fff" stroke="#cbd5e0"/>
+  <text x="48" y="1186" font-size="11" font-weight="700" fill="#2d3748">backend/  (2 archivos · 908 L)</text>
+  <text x="56" y="1198" font-size="8" fill="#276749">→ hacia: core</text>
+  <text x="56" y="1210" font-size="8" fill="#2b6cb0">← desde: tests</text>
+  <text x="48" y="1222" font-size="8" fill="#444">main.py (899 L)  [_telemetry_int…]</text>
+  <text x="326" y="1222" font-size="8" fill="#444">requirements.txt (9 L)</text>
+  <text x="40" y="1276" font-size="9" fill="#999">.project_explorer/mapa_completo_Dastsc-V3_backend_Dastsc-V3_backend_.svg</text>
+</svg>

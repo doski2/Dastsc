@@ -24,18 +24,18 @@ misma sesión.
 
 ## Calendario sugerido
 
-| Semana   | Carpeta                                                         | Objetivo                                 |
-| -------- | --------------------------------------------------------------- | ---------------------------------------- |
+| Semana   | Carpeta                                                         | Objetivo                                      |
+| -------- | --------------------------------------------------------------- | --------------------------------------------- |
 | 1        | [semana-01-lua-ipc](./semana-01-lua-ipc/)                       | Enlace TSC estable, Lua v12 (Effort/BC Acela) |
-| 2        | [semana-02-telemetria-kernel](./semana-02-telemetria-kernel/)   | Snapshot correcto (cab, freno, estación) |
-| 3        | [semana-03-backend-comandos](./semana-03-backend-comandos/)     | SendCommand, perfiles, WebSocket         |
-| 4        | [semana-04-agente-frenado](./semana-04-agente-frenado/)         | Plan límite, muescas, calibración        |
-| 5        | [semana-05-agente-estacion](./semana-05-agente-estacion/)       | Parada, dwell, salida, NEU               |
-| 6        | [semana-06-auto-v4](./semana-06-auto-v4/)                       | AUTO end-to-end en UI                    |
-| 7        | [semana-07-icet](./semana-07-icet/)                             | ICE T (split brake) completo             |
-| 8        | [semana-08-class323](./semana-08-class323/)                     | Class 323 (combinado) completo           |
-| 9        | [semana-09-generico-nuevos](./semana-09-generico-nuevos/)       | Genérico + alta de tren nuevo            |
-| 10       | [semana-10-aceleracion-futuro](./semana-10-aceleracion-futuro/) | Reservado: AUTO acelerador               |
+| 2        | [semana-02-telemetria-kernel](./semana-02-telemetria-kernel/)   | Snapshot correcto (cab, freno, estación)      |
+| 3        | [semana-03-backend-comandos](./semana-03-backend-comandos/)     | SendCommand, perfiles, WebSocket              |
+| 4        | [semana-04-agente-frenado](./semana-04-agente-frenado/)         | Plan límite, muescas, calibración             |
+| 5        | [semana-05-agente-estacion](./semana-05-agente-estacion/)       | Parada, dwell, salida, NEU                    |
+| 6        | [semana-06-auto-v4](./semana-06-auto-v4/)                       | AUTO end-to-end en UI                         |
+| 7        | [semana-07-icet](./semana-07-icet/)                             | ICE T (split brake) completo                  |
+| 8        | [semana-08-class323](./semana-08-class323/)                     | Class 323 (combinado) completo                |
+| 9        | [semana-09-generico-nuevos](./semana-09-generico-nuevos/)       | Genérico + alta de tren nuevo                 |
+| 10       | [semana-10-aceleracion-futuro](./semana-10-aceleracion-futuro/) | Reservado: AUTO acelerador                    |
 
 ## Tests antes de cada sesión TSC
 
@@ -58,7 +58,9 @@ Cada vez que abres Nexus V4 con el backend activo se guarda un log en `logs/nexu
   - `initial_anchor` — inicio de tramo (OCR ≥ 400 m)
   - `mid_leg_correction` — tramos > 5 km (hasta 3 checkpoints)
   - `near_correction` — ≤ 400 m (una vez por tramo)
-  - **`manual_anchor`** — botón «Anclar OCR» en V4: waypoints, pasos por (~1 mi / ~5 mi en Acela WB),
+  - **`manual_anchor`** — botón «Anclar OCR» en V4: waypoints, pasos por (~1 mi / ~5 mi en Acela
+
+      WB),
     cambio de destino HUD; flujo previsto en mercancías (más común que en pasajeros)
 
   Tras cada intento (éxito o rechazo) hay **cooldown 60 s**. En tramos largos se acepta OCR **por
@@ -67,6 +69,7 @@ Cada vez que abres Nexus V4 con el backend activo se guarda un log en `logs/nexu
 - **Backlog y prioridades:** [PENDIENTES_V4.md](../PENDIENTES_V4.md)
 
 - **UI Agent (V4):** barra fija `DriveHudBar` bajo el header (velocidad, límite, cadena de
+
   cartéles, cola, **Anclar OCR**). Layout `xl`: agente + horizonte a la izquierda;
   `BrakePlanPanel` a la derecha (gradiente +/−, raw vs plan, telemetría freno, muescas H/M/B).
 
