@@ -116,6 +116,31 @@ class TestSessionLog(unittest.TestCase):
         self.store.append(sid, [{"type": "tick", "headline": "test"}])
         self.assertTrue(self.store.v4_recently_active())
 
+    def test_log_command_creates_backend_session(self):
+        self.store.log_command("VirtualBrake", 0.75, reason="plan:apply:B3")
+        listed = self.store.list_sessions()
+        self.assertEqual(len(listed), 1)
+        data = self.store.get(listed[0]["id"])
+        self.assertIsNotNone(data)
+        assert data is not None
+        events = data["events"]
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["type"], "command")
+        self.assertEqual(events[0]["command"], "VirtualBrake")
+        self.assertEqual(events[0]["value"], 0.75)
+        self.assertEqual(events[0]["reason"], "plan:apply:B3")
+        self.assertEqual(data["meta"].get("source"), "backend_auto")
+
+    def test_log_command_appends_to_open_v4_session(self):
+        sid = self.store.start({"source": "v4_session", "policyMode": "AUTO"})
+        self.store.log_command("ThrottleAndBrake", -0.5)
+        data = self.store.get(sid)
+        self.assertIsNotNone(data)
+        assert data is not None
+        types = [e["type"] for e in data["events"]]
+        self.assertIn("command", types)
+        self.assertEqual(data["meta"].get("source"), "v4_session")
+
 
 if __name__ == "__main__":
     unittest.main()

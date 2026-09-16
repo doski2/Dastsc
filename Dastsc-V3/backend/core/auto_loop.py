@@ -9,12 +9,14 @@ from typing import Any, Dict, Optional, Tuple
 
 import core.brake_log as brake_log
 import core.command_bus as command_bus
+import core.session_log as session_log
 from core.agent_sidecar import get_agent_sidecar
 
 logger = logging.getLogger(__name__)
 
 AUTO_RELEASE_RETRY_S = 2.0
 AUTO_APPLY_RETRY_S = 0.5
+BRAKE_STATS_TTL_S = 60.0
 _VALID_POLICY = frozenset({"SUGGEST", "ARM", "AUTO"})
 _VALID_GRADIENT_SIGN = frozenset({"auto", "+", "-"})
 
@@ -28,6 +30,7 @@ class BackendAutoLoop:
         self._sidecar_config_key: Optional[str] = None
         self._brake_stats_profile: Optional[str] = None
         self._brake_stats_cache: Dict[str, Any] = {}
+        self._brake_stats_loaded_at: float = 0.0
 
     @property
     def backend_auto_active(self) -> bool:
@@ -50,13 +53,26 @@ class BackendAutoLoop:
         self._sidecar_config_key = None
         return True
 
+    def invalidate_brake_stats(self, profile_id: Optional[str] = None) -> None:
+        """Fuerza recarga en el próximo tick (p. ej. tras POST /api/brake/event)."""
+        if profile_id and profile_id != self._brake_stats_profile:
+            return
+        self._brake_stats_loaded_at = 0.0
+
     def _brake_stats_for(self, profile_id: Optional[str]) -> Dict[str, Any]:
         if not profile_id:
             return {}
-        if profile_id == self._brake_stats_profile:
+        now = time.time()
+        cache_valid = (
+            profile_id == self._brake_stats_profile
+            and self._brake_stats_loaded_at > 0
+            and now - self._brake_stats_loaded_at < BRAKE_STATS_TTL_S
+        )
+        if cache_valid:
             return self._brake_stats_cache
         self._brake_stats_profile = profile_id
         self._brake_stats_cache = brake_log.get_stats(profile=profile_id)
+        self._brake_stats_loaded_at = now
         return self._brake_stats_cache
 
     def _sync_sidecar_config(self, profile: Optional[Dict[str, Any]]) -> None:
@@ -157,6 +173,16 @@ class BackendAutoLoop:
                 command,
                 result.get("value"),
                 action.get("reason"),
+            )
+            try:
+                dispatched = float(result.get("value", value))
+            except (TypeError, ValueError):
+                dispatched = value
+            reason = action.get("reason")
+            session_log.log_auto_command(
+                command,
+                dispatched,
+                reason=str(reason) if reason else None,
             )
         return payload
 

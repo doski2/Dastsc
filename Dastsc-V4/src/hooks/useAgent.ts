@@ -352,21 +352,24 @@ export function useAgent(): UseAgentResult {
     [trainProfile],
   );
 
-  const localAgent = useMemo(
-    () => tickAgent(snapshot, policyMode, {
-      profile: toBrakePlanProfile(trainProfile),
-      commandProfile,
-      brakeStats,
-    }),
-    [snapshot, policyMode, trainProfile, commandProfile, brakeStats],
-  );
-
   const agent = useMemo(() => {
     if (policyMode === 'AUTO' && backendAutoActive && backendAgent) {
       return backendAgent;
     }
-    return localAgent;
-  }, [policyMode, backendAutoActive, backendAgent, localAgent]);
+    return tickAgent(snapshot, policyMode, {
+      profile: toBrakePlanProfile(trainProfile),
+      commandProfile,
+      brakeStats,
+    });
+  }, [
+    policyMode,
+    backendAutoActive,
+    backendAgent,
+    snapshot,
+    trainProfile,
+    commandProfile,
+    brakeStats,
+  ]);
 
   const stillBraking = useMemo(
     () => isBrakeApplied(snapshot, commandProfile),

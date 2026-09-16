@@ -840,6 +840,10 @@ async def post_brake_event(request: Request):
         body = json.loads(raw_body.decode("utf-8"))
         body["timestamp"] = body.get("timestamp") or time.time()
         saved = brake_log.append_event(body)
+        if saved:
+            profile = body.get("profile")
+            if isinstance(profile, str) and profile:
+                get_auto_loop().invalidate_brake_stats(profile)
         return {"ok": saved, "rejected": not saved}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}

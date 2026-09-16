@@ -243,6 +243,29 @@ class SessionLogStore:
             self._prune_old_sessions()
         return True
 
+    def log_command(
+        self,
+        command: str,
+        value: float,
+        *,
+        reason: Optional[str] = None,
+        meta: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Registra un mando AUTO del backend (paridad con V4 `type=command`)."""
+        now = time.time()
+        event: Dict[str, Any] = {
+            "type": "command",
+            "t": int(now * 1000),
+            "wall": datetime.now(timezone.utc).isoformat(),
+            "command": command,
+            "value": value,
+        }
+        if reason:
+            event["reason"] = reason
+        if not self.append_active([event]):
+            session_id = self.ensure_active_session(meta or {"source": "backend_auto"})
+            self.append(session_id, [event])
+
     def get(self, session_id: str) -> Optional[Dict[str, Any]]:
         if not session_id or not _SESSION_ID_RE.match(session_id):
             return None
@@ -274,3 +297,13 @@ class SessionLogStore:
 
 
 _store = SessionLogStore()
+
+
+def log_auto_command(
+    command: str,
+    value: float,
+    *,
+    reason: Optional[str] = None,
+) -> None:
+    """Atajo para registrar mandos AUTO ejecutados por auto_loop."""
+    _store.log_command(command, value, reason=reason)
